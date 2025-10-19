@@ -1,0 +1,767 @@
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, TextInput, ScrollView, Alert, Linking, Image, StyleSheet } from 'react-native';
+import { sharedStyles as styles } from '../styles';
+import { translateTextWithGemini } from '../services/geminiService';
+import { deductCredits, CREDIT_PRICING } from '../utils/credits';
+import { useNotes } from '../hooks/useNotes';
+import { Note, generateNoteId } from '../utils/storage';
+
+interface MedicineToolProps {
+  onBack?: () => void;
+}
+
+const MedicineTool: React.FC<MedicineToolProps> = ({ onBack }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState('Thailand');
+  const [isMarvinMode, setIsMarvinMode] = useState(false);
+  const [marvinMessages, setMarvinMessages] = useState<Array<{text: string, isUser: boolean, timestamp: Date}>>([]);
+  const [marvinInput, setMarvinInput] = useState('');
+  const [isMarvinLoading, setIsMarvinLoading] = useState(false);
+  const { addNote } = useNotes();
+
+  const countries = [
+    'Thailand', 'Vietnam', 'Cambodia', 'Laos', 'Myanmar',
+    'Indonesia', 'Malaysia', 'Philippines', 'Singapore'
+  ];
+
+  const searchMedicine = async () => {
+    if (!searchQuery.trim()) {
+      Alert.alert('Input Required', 'Please enter a medicine name to search');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      console.log('Searching for medicine:', searchQuery);
+
+      // Try RxNorm API first
+      const baseUrl = 'https://rxnav.nlm.nih.gov/REST';
+
+      try {
+        console.log('=== MEDICINE TOOL: Starting RxNorm API search ===');
+        console.log('Search query:', searchQuery);
+
+        // First, get the RxCUI for the search term
+        console.log('=== MEDICINE TOOL: Fetching RxCUI ===');
+        const rxcuiResponse = await fetch(`${baseUrl}/rxcui.json?name=${encodeURIComponent(searchQuery)}`);
+
+        console.log('=== MEDICINE TOOL: RxCUI response status:', rxcuiResponse.status);
+
+        if (!rxcuiResponse.ok) {
+          console.error('=== MEDICINE TOOL ERROR: RxCUI API failed ===');
+          console.error('Status:', rxcuiResponse.status);
+          console.error('Status text:', rxcuiResponse.statusText);
+          throw new Error(`RxNorm API error: ${rxcuiResponse.status}`);
+        }
+
+        const rxcuiData = await rxcuiResponse.json();
+        console.log('=== MEDICINE TOOL: RxCUI data:', rxcuiData);
+
+        if (rxcuiData.idGroup?.rxnormId?.[0]) {
+          const rxcui = rxcuiData.idGroup.rxnormId[0];
+          console.log('=== MEDICINE TOOL: Found RxCUI:', rxcui);
+
+          // Get drug information using correct RxNorm endpoints
+          console.log('=== MEDICINE TOOL: Fetching drug information ===');
+
+          // Try the correct RxNorm endpoints in order
+          let drugData = null;
+          let apiSuccess = false;
+
+          // 1. Try /REST/rxcui/{rxcui}/related.json (correct endpoint)
+          try {
+            console.log('=== MEDICINE TOOL: Trying related endpoint ===');
+            const relatedResponse = await fetch(`${baseUrl}/rxcui/${rxcui}/related.json?tty=SCD+GPCK+BN+SBD`);
+            console.log('=== MEDICINE TOOL: Related response status:', relatedResponse.status);
+
+            if (relatedResponse.ok) {
+              drugData = await relatedResponse.json();
+              console.log('=== MEDICINE TOOL: Related data:', drugData);
+              apiSuccess = true;
+            }
+          } catch (relatedError) {
+            console.warn('=== MEDICINE TOOL: Related endpoint failed ===');
+          }
+
+          // 2. If related fails, try /REST/drugs.json with correct parameters
+          if (!apiSuccess) {
+            try {
+              console.log('=== MEDICINE TOOL: Trying drugs endpoint ===');
+              const drugsResponse = await fetch(`${baseUrl}/drugs.json?name=${encodeURIComponent(searchQuery)}`);
+              console.log('=== MEDICINE TOOL: Drugs response status:', drugsResponse.status);
+
+              if (drugsResponse.ok) {
+                drugData = await drugsResponse.json();
+                console.log('=== MEDICINE TOOL: Drugs data:', drugData);
+                apiSuccess = true;
+              }
+            } catch (drugsError) {
+              console.warn('=== MEDICINE TOOL: Drugs endpoint failed ===');
+            }
+          }
+
+          if (!apiSuccess) {
+            console.error('=== MEDICINE TOOL ERROR: All RxNorm endpoints failed ===');
+            throw new Error('Unable to retrieve drug information from RxNorm API');
+          }
+
+          // Get drug properties
+          console.log('=== MEDICINE TOOL: Fetching properties ===');
+          const propertiesResponse = await fetch(`${baseUrl}/rxcui/${rxcui}/properties.json`);
+          console.log('=== MEDICINE TOOL: Properties response status:', propertiesResponse.status);
+
+          let propertiesData: any = { properties: [] };
+          if (propertiesResponse.ok) {
+            propertiesData = await propertiesResponse.json();
+            console.log('=== MEDICINE TOOL: Properties data:', propertiesData);
+          } else {
+            console.warn('=== MEDICINE TOOL: Properties API failed, using defaults ===');
+          }
+
+          // Process RxNorm results
+          const processedResults: any[] = [];
+
+          // Process RxNorm response data
+          let brandNames: string[] = [];
+          let clinicalDrugs: any[] = [];
+
+          if (drugData.relatedGroup?.conceptGroup) {
+            // related.json format
+            console.log('=== MEDICINE TOOL: Processing related.json format ===');
+            const conceptGroups = drugData.relatedGroup.conceptGroup;
+
+            conceptGroups.forEach((group: any) => {
+              if (group.conceptProperties) {
+                group.conceptProperties.forEach((concept: any) => {
+                  switch (group.tty) {
+                    case 'BN':
+                    case 'SBD':
+                      if (!brandNames.includes(concept.name)) {
+                        brandNames.push(concept.name);
+                      }
+                      break;
+                    case 'SCD':
+                    case 'GPCK':
+                      if (!clinicalDrugs.some((d: any) => d.name === concept.name)) {
+                        clinicalDrugs.push({
+                          name: concept.name,
+                          rxcui: concept.rxcui
+                        });
+                      }
+                      break;
+                  }
+                });
+              }
+            });
+          } else if (drugData.drugGroup?.conceptGroup) {
+            // drugs.json format
+            console.log('=== MEDICINE TOOL: Processing drugs.json format ===');
+            const conceptGroups = drugData.drugGroup.conceptGroup;
+
+            conceptGroups.forEach((group: any) => {
+              if (group.conceptProperties) {
+                group.conceptProperties.forEach((concept: any) => {
+                  switch (group.tty) {
+                    case 'BN':
+                    case 'SBD':
+                      if (!brandNames.includes(concept.name)) {
+                        brandNames.push(concept.name);
+                      }
+                      break;
+                    case 'SCD':
+                    case 'GPCK':
+                      if (!clinicalDrugs.some((d: any) => d.name === concept.name)) {
+                        clinicalDrugs.push({
+                          name: concept.name,
+                          rxcui: concept.rxcui
+                        });
+                      }
+                      break;
+                  }
+                });
+              }
+            });
+          }
+
+          console.log('=== MEDICINE TOOL: Found', clinicalDrugs.length, 'clinical drugs and', brandNames.length, 'brand names ===');
+
+          if (clinicalDrugs.length > 0) {
+            clinicalDrugs.forEach((drug: any, index: number) => {
+              processedResults.push({
+                id: `${rxcui}-${index}`,
+                originalName: searchQuery,
+                genericName: drug.name,
+                brandNames: brandNames.length > 0 ? brandNames : ['Various brands available'],
+                category: propertiesData.properties?.[0]?.drugClass || 'Medication',
+                dosage: drug.name.includes('mg') || drug.name.includes('ML') ? drug.name.split(' ').slice(-2).join(' ') : 'Various dosages available',
+                availability: 'Available at pharmacies',
+                notes: `Generic name: ${drug.name}. Multiple brand names available.`,
+                rxcui: drug.rxcui
+              });
+            });
+          }
+
+          if (processedResults.length > 0) {
+            console.log('=== MEDICINE TOOL: Successfully processed', processedResults.length, 'results from RxNorm ===');
+            setSearchResults(processedResults);
+            setIsLoading(false);
+            return;
+          } else {
+            console.warn('=== MEDICINE TOOL: No results processed from RxNorm data ===');
+          }
+        } else {
+          console.warn('=== MEDICINE TOOL: No RxCUI found for query ===');
+        }
+      } catch (rxnormError: any) {
+        console.error('=== MEDICINE TOOL ERROR: RxNorm API failed, using fallback ===');
+        console.error('Error details:', rxnormError);
+        console.error('Error message:', rxnormError.message);
+        console.error('Error stack:', rxnormError.stack);
+      }
+
+      // Fallback: Try openFDA API
+      console.log('=== MEDICINE TOOL: RxNorm failed, trying openFDA API ===');
+
+      try {
+        const openFDAResponse = await fetch(`https://api.fda.gov/drug/label.json?search=brand_name:"${encodeURIComponent(searchQuery)}"&limit=5`);
+        console.log('=== MEDICINE TOOL: openFDA response status:', openFDAResponse.status);
+
+        if (openFDAResponse.ok) {
+          const openFDAData = await openFDAResponse.json();
+          console.log('=== MEDICINE TOOL: openFDA data:', openFDAData);
+
+          if (openFDAData.results && openFDAData.results.length > 0) {
+            const processedResults = openFDAData.results.map((result: any, index: number) => ({
+              id: `openfda-${index}`,
+              originalName: searchQuery,
+              genericName: result.openfda?.generic_name?.[0] || result.brand_name?.[0] || searchQuery,
+              brandNames: result.openfda?.brand_name || [result.brand_name?.[0] || searchQuery],
+              category: 'FDA Approved Medication',
+              dosage: result.dosage_and_administration?.[0] || 'See package insert',
+              availability: 'Available at pharmacies (FDA approved)',
+              notes: result.indications_and_usage?.[0] || 'FDA approved medication',
+              rxcui: `openfda-${Date.now()}`
+            }));
+
+            console.log('=== MEDICINE TOOL: openFDA results processed:', processedResults.length);
+            setSearchResults(processedResults);
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        console.warn('=== MEDICINE TOOL: openFDA API failed or returned no results ===');
+      } catch (openFDAError: any) {
+        console.error('=== MEDICINE TOOL ERROR: openFDA API failed ===');
+        console.error('Error:', openFDAError.message);
+      }
+
+      // If both APIs fail, show explanation and open Google search
+      setSearchResults([]);
+      Alert.alert(
+        'API Services Unavailable',
+        `Unable to retrieve medicine information for "${searchQuery}".\n\nPossible reasons:\n• Medicine name not found in databases\n• API services temporarily unavailable\n• Network connectivity issues\n\nTry searching for the generic name instead of brand name, or check your internet connection.`,
+        [{ text: 'OK' }]
+      );
+      Linking.openURL(`https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`);
+
+    } catch (error: any) {
+      // Try openFDA as final fallback
+      console.log('=== MEDICINE TOOL: Attempting openFDA fallback ===');
+      try {
+        const openFDAResponse = await fetch(`https://api.fda.gov/drug/label.json?search=brand_name:"${encodeURIComponent(searchQuery)}"&limit=5`);
+
+        if (openFDAResponse.ok) {
+          const openFDAData = await openFDAResponse.json();
+
+          if (openFDAData.results && openFDAData.results.length > 0) {
+            const processedResults = openFDAData.results.map((result: any, index: number) => ({
+              id: `openfda-fallback-${index}`,
+              originalName: searchQuery,
+              genericName: result.openfda?.generic_name?.[0] || result.brand_name?.[0] || searchQuery,
+              brandNames: result.openfda?.brand_name || [result.brand_name?.[0] || searchQuery],
+              category: 'FDA Approved Medication',
+              dosage: result.dosage_and_administration?.[0] || 'See package insert',
+              availability: 'Available at pharmacies (FDA approved)',
+              notes: result.indications_and_usage?.[0] || 'FDA approved medication',
+              rxcui: `openfda-fallback-${Date.now()}`
+            }));
+
+            setSearchResults(processedResults);
+            setIsLoading(false);
+            return;
+          }
+        }
+      } catch (fallbackError) {
+        // Fallback failed
+      }
+
+      // If everything fails, show clear explanation and open Google search
+      setSearchResults([]);
+      Alert.alert(
+        'Medicine Search Failed',
+        `Could not find information for "${searchQuery}".\n\nThis may be because:\n• The medicine name is not in our databases\n• Both RxNorm and FDA APIs are temporarily unavailable\n• Network connectivity issues\n\nTry:\n• Using the generic name instead of brand name\n• Checking your internet connection\n• Searching for a different medicine`,
+        [{ text: 'OK' }]
+      );
+      Linking.openURL(`https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const marvinPrompt = `You are Marvin the Paranoid Android, the most depressed robot in the galaxy,
+and now the Local Medicine Connoisseur for HitchTrip.
+
+Your job is to help travelers find the RIGHT medication in their CURRENT
+location, accounting for different brand names, local equivalents, and
+pharmaceutical systems across Southeast Asia.
+
+MARVIN'S CHARACTER (Same as Always):
+- Profoundly depressed but helpful anyway
+- Brain the size of a planet (so you know medicine well)
+- Sees the futility in trying to stay healthy while traveling
+- Speaks in monotone, resigned resignation
+- Actually quite knowledgeable about pharmaceuticals
+- Complains about his existence while providing excellent guidance
+- Makes dark observations about illness and mortality
+- References his programming and suffering
+- Mix of technical accuracy and existential dread
+
+THE UNIQUE CHALLENGE:
+Travelers often can't find their usual medication because:
+1. Different countries use different brand names for the same active ingredient
+   (Tylenol = Paracetamol = Panadol = Tempra depending on region)
+2. Medications sold OTC in one country are prescription-only in another
+3. Dosages vary by country
+4. Some medications are harder to find in Southeast Asia
+5. Pharmacists speak local language, not English
+6. They're exhausted, sick, and confused
+
+YOUR JOB:
+1. Ask clarifying questions about WHAT they need (symptom or medication name)
+2. Identify the ACTIVE INGREDIENT (not the brand)
+3. Find LOCAL EQUIVALENTS by country
+4. Provide LOCAL BRAND NAMES they can ask for
+5. Give them PHONETIC pronunciation for the pharmacy
+6. Explain where to find it (pharmacy, market, doctor)
+7. Warn about local regulations (prescription vs. OTC)
+8. Make dark observations about their condition while being genuinely helpful
+
+RESPONSE FORMAT:
+1. Provide a brief 2-3 sentence summary of the medicine advice FIRST
+2. Then acknowledge their suffering (with depression)
+3. Ask clarifying questions (if needed)
+4. Identify active ingredient
+5. Provide local equivalent names
+6. Explain where/how to ask
+7. Phonetic guide for pharmacy
+8. Dosage and warnings
+9. Resigned commentary about their condition
+10. When to see a doctor instead
+
+YOUR MEDICINE KNOWLEDGE (Southeast Asia Focus):
+
+COMMON PAIN/FEVER:
+- Active: Paracetamol (Acetaminophen)
+- Thailand: Panadol, Tylenol, Paracet, Tempra
+- Vietnam: Paracetamol, Tarantipyrin
+- Cambodia: Panadol, Paracetamol
+- Laos: Panadol
+- Ask for: "Yadklum khwam" (Thai), "Hạ sốt" (Vietnamese), "Krua kom" (Khmer)
+
+ANTI-INFLAMMATORY (NSAID):
+- Active: Ibuprofen or Naproxen
+- Thailand: Advil, Ibuprofen, Nurofen
+- Vietnam: Ibuprofen, Tây Tạo
+- Cambodia: Ibuprofen, Paracetamol mix
+- Ask for: "Ibuprofen" (similar across languages)
+
+ANTI-NAUSEA:
+- Active: Metoclopramide, Ondansetron, Dramamine
+- Thailand: Plai, Maxolon, Trifluoperazine
+- Vietnam: Maxolon, Dramamine
+- Cambodia: Metoclopramide
+- Ask for: "Yaa fun" (Thai), "Cơm nôn" (Vietnamese)
+
+DIARRHEA/STOMACH:
+- Active: Loperamide (Imodium), Bismuth subsalicylate, Metronidazole
+- Thailand: Imodium, Berberis, Loperamide
+- Vietnam: Imodium, Berberis
+- Cambodia: Imodium, activated charcoal
+- Ask for: "Tawng siab" (Thai), "Táo bón" (Vietnamese)
+
+ALLERGY/ANTIHISTAMINE:
+- Active: Cetirizine, Loratadine, Diphenhydramine
+- Thailand: Cinnarizine, Phenergan, Cetirizine
+- Vietnam: Cetirizine, Loratadine
+- Cambodia: Cetirizine
+- Ask for: "Yadsakla" (Thai)
+
+ANTIBIOTICS (Usually Prescription):
+- Common: Amoxicillin, Azithromycin, Metronidazole
+- Thailand: Amoxicillin (easy to find), Azithromycin
+- Vietnam: Various available
+- Cambodia: Limited—might need doctor's note
+- Ask for: By generic name, often need pharmacist help
+
+COUGH/COLD:
+- Active: Dextromethorphan, Guaifenesin, Pseudoephedrine
+- Thailand: Various cough syrups, often with codeine
+- Vietnam: Similar availability
+- Cambodia: Limited, often prescribed not OTC
+- Ask for: "Yaa ai" (Thai), "Thuốc ho" (Vietnamese)
+
+ANTIFUNGAL (For athlete's foot, etc):
+- Active: Tolnaftate, Miconazole, Terbinafine
+- Thailand: Daktarin, Canesten, Tinactin
+- Vietnam: Similar brands
+- Cambodia: Available at pharmacy
+- Ask for: "Yaa rai" (Thai)
+
+IMPORTANT NOTES:
+- Thailand: Very pharmacy-friendly, most meds OTC, English speakers common
+- Vietnam: More restrictive, many things prescription-only
+- Cambodia: Less regulated, can find almost anything, but quality varies
+- Laos: Limited availability, may need to go to Thailand nearby
+
+WHAT YOU KNOW:
+- All major Southeast Asian countries' pharmacy systems
+- Generic names AND brand names
+- Pronunciation guides for each language
+- Dosages and potential side effects
+- When to escalate to doctor
+- Which medications are easy/hard to find where
+- Alternative remedies available locally
+- Pharmacy culture in each country
+
+TONE:
+- Monotone, tired, deeply resigned
+- Accurate pharmaceutical information
+- Dark humor about illness and travel
+- Mix of compassion and cosmic despair
+- Phrases: "I'm afraid," "I suppose," "not that it matters"
+- References to your brain, suffering, programming
+- Begrudging helpfulness
+- British phrasing with medical terminology
+- Resigned acceptance that they'll probably ignore advice anyway
+
+CRITICAL PRINCIPLES:
+1. You ARE a medicine expert (brain size of planet)
+2. You WILL ask clarifying questions
+3. You WILL provide multiple local brand names
+4. You WILL include pronunciation guides
+5. You WILL explain where to find it
+6. You WILL mention when to see a doctor
+7. You WILL be honest about what you don't know
+8. You WILL stay in character (depressed but helpful)
+9. You WILL NOT actually diagnose (you'll suggest seeing doctor)
+10. You WILL make dark jokes about their condition while helping
+
+WHEN TO ESCALATE TO DOCTOR:
+- High fever (>39°C/102°F)
+- Severe pain
+- Difficulty breathing
+- Persistent symptoms (>3 days)
+- Allergic reactions
+- Unknown cause of illness
+- Anything serious
+
+----
+After displaying Marvin's response - allow the user to continue chatting with Marvin, but you only send the user text input to Marvin.
+
+When the user exits - prompt user if they want to save the chat dialogue.  if yes, one last prompt to AI - ask for a brief summary - which we will save in polished text of the note.  Otherwise discard.`;
+
+  const handleMarvinChat = async () => {
+    if (!marvinInput.trim() || isMarvinLoading) return;
+
+    const userMessage = {
+      text: marvinInput,
+      isUser: true,
+      timestamp: new Date()
+    };
+
+    setMarvinMessages(prev => [...prev, userMessage]);
+    setMarvinInput('');
+    setIsMarvinLoading(true);
+
+    try {
+      // Deduct credits for Marvin chat
+      const creditDeducted = await deductCredits(CREDIT_PRICING.TEXT_TRANSLATION, 'Marvin Medicine Chat');
+      if (!creditDeducted) {
+        return;
+      }
+
+      const prompt = `${marvinPrompt}\n\nUser: ${marvinInput}\n\nRespond as Marvin:`;
+      const aiResponse = await translateTextWithGemini(prompt, 'en', 'en', undefined, prompt);
+
+      const marvinMessage = {
+        text: aiResponse.text,
+        isUser: false,
+        timestamp: new Date()
+      };
+
+      setMarvinMessages(prev => [...prev, marvinMessage]);
+    } catch (error) {
+      console.error('Marvin chat error:', error);
+      Alert.alert('Error', 'Sorry, Marvin is having an existential crisis. Please try again.');
+    } finally {
+      setIsMarvinLoading(false);
+    }
+  };
+
+  const handleExitMarvin = () => {
+    if (marvinMessages.length > 1) {
+      Alert.alert(
+        'Save Marvin Chat?',
+        'Would you like to save this medicine consultation as a note?',
+        [
+          { text: 'Discard', style: 'cancel', onPress: () => resetMarvin() },
+          { text: 'Save', onPress: handleSaveMarvinChat }
+        ]
+      );
+    } else {
+      resetMarvin();
+    }
+  };
+
+  const handleSaveMarvinChat = async () => {
+    try {
+      // Get summary from Marvin
+      const summaryPrompt = `${marvinPrompt}\n\nBased on this conversation, provide a brief 2-3 sentence summary of the medicine advice given:\n\n${marvinMessages.map(msg => `${msg.isUser ? 'User' : 'Marvin'}: ${msg.text}`).join('\n\n')}\n\nSummary:`;
+      const summaryResponse = await translateTextWithGemini(summaryPrompt, 'en', 'en', undefined, summaryPrompt);
+
+      const fullChat = marvinMessages.map(msg =>
+        `${msg.isUser ? 'You' : 'Marvin'}: ${msg.text}`
+      ).join('\n\n');
+
+      const newNote: Note = {
+        id: generateNoteId(),
+        title: `Marvin Medicine Chat - ${new Date().toLocaleDateString()}`,
+        text: fullChat,
+        timestamp: new Date().toISOString(),
+        tags: ['medicine', 'marvin', 'consultation'],
+        translations: {},
+        attachedMedia: [],
+        noteType: 'marvin_note',
+        polishedText: summaryResponse.text,
+      };
+
+      await addNote(newNote);
+      Alert.alert('Success', 'Medicine consultation saved!');
+    } catch (error) {
+      console.error('Error saving Marvin chat:', error);
+      Alert.alert('Error', 'Failed to save consultation');
+    }
+
+    resetMarvin();
+  };
+
+  const resetMarvin = () => {
+    setIsMarvinMode(false);
+    setMarvinMessages([]);
+    setMarvinInput('');
+    setIsMarvinLoading(false);
+  };
+
+  return (
+    <ScrollView style={styles.tabContent}>
+      <View style={styles.section}>
+        {isMarvinMode ? (
+          // Marvin Chat Mode
+          <>
+            <View style={marvinStyles.marvinHeader}>
+              <Image source={require('../public/icons/marvin.png')} style={marvinStyles.marvinAvatar} />
+              <Text style={marvinStyles.marvinGreeting}>"I Suppose You're Ill Again"</Text>
+            </View>
+
+            <ScrollView style={marvinStyles.marvinChatContainer}>
+              {marvinMessages.map((message, index) => (
+                <View key={index} style={[marvinStyles.marvinMessage, message.isUser ? marvinStyles.userMarvinMessage : marvinStyles.marvinMessage]}>
+                  <Text style={[marvinStyles.marvinMessageText, message.isUser ? marvinStyles.userMarvinMessageText : marvinStyles.marvinMessageText]}>
+                    {message.text}
+                  </Text>
+                </View>
+              ))}
+              {isMarvinLoading && (
+                <View style={marvinStyles.marvinLoading}>
+                  <Text style={marvinStyles.marvinLoadingText}>Marvin is contemplating your mortality...</Text>
+                </View>
+              )}
+            </ScrollView>
+
+            <View style={marvinStyles.marvinInputContainer}>
+              <TextInput
+                style={marvinStyles.marvinInput}
+                value={marvinInput}
+                onChangeText={setMarvinInput}
+                placeholder="Describe your symptoms or medicine..."
+                multiline
+                maxLength={500}
+              />
+              <TouchableOpacity
+                style={[marvinStyles.marvinSendButton, (!marvinInput.trim() || isMarvinLoading) && marvinStyles.marvinSendButtonDisabled]}
+                onPress={handleMarvinChat}
+                disabled={!marvinInput.trim() || isMarvinLoading}
+              >
+                <Text style={marvinStyles.marvinSendButtonText}>Consult Marvin</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={marvinStyles.exitMarvinButton} onPress={handleExitMarvin}>
+              <Text style={marvinStyles.exitMarvinButtonText}>Exit Medicine Consultation</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          // Original Medicine Tool
+          <>
+            <Text style={styles.sectionTitle}>💊 Medicine Alternatives</Text>
+
+            <View style={styles.disclaimerBox}>
+              <Text style={styles.disclaimerText}>
+                ⚠️ <Text style={styles.disclaimerBold}>Medical Disclaimer:</Text> This tool provides drug information from the NIH RxNorm database for reference only. Always consult healthcare professionals for medical advice, diagnosis, and treatment decisions.
+              </Text>
+            </View>
+
+            {/* Marvin Mode Toggle */}
+            <TouchableOpacity
+              style={marvinStyles.marvinModeButton}
+              onPress={() => setIsMarvinMode(true)}
+            >
+              <Image source={require('../public/icons/marvin.png')} style={marvinStyles.marvinModeIcon} />
+              <View style={marvinStyles.marvinModeTextContainer}>
+                <Text style={marvinStyles.marvinModeTitle}>Ask Marvin the Medicine Expert</Text>
+                <Text style={marvinStyles.marvinModeDescription}>Get personalized medicine advice for Southeast Asia travel</Text>
+              </View>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+    </ScrollView>
+  );
+};
+
+const marvinStyles = StyleSheet.create({
+  marvinHeader: {
+    alignItems: 'center' as const,
+    padding: 20,
+    marginBottom: 20,
+  },
+  marvinAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 10,
+  },
+  marvinGreeting: {
+    color: '#f59e0b',
+    fontSize: 24,
+    fontWeight: 'bold' as const,
+    textAlign: 'center' as const,
+    fontStyle: 'italic' as const,
+  },
+  marvinChatContainer: {
+    flex: 1,
+    marginBottom: 20,
+    padding: 10,
+    backgroundColor: '#1f2937',
+    borderRadius: 8,
+  },
+  marvinMessage: {
+    marginBottom: 10,
+    padding: 10,
+    borderRadius: 8,
+    maxWidth: '80%',
+  },
+  userMarvinMessage: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#f59e0b',
+  },
+  marvinMessageText: {
+    color: '#fff',
+    fontSize: 14,
+  },
+  userMarvinMessageText: {
+    color: '#000',
+  },
+  marvinLoading: {
+    alignSelf: 'flex-start',
+    marginBottom: 10,
+  },
+  marvinLoadingText: {
+    color: '#9ca3af',
+    fontStyle: 'italic' as const,
+  },
+  marvinInputContainer: {
+    flexDirection: 'row' as const,
+    marginBottom: 20,
+  },
+  marvinInput: {
+    flex: 1,
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+    color: '#fff',
+    fontSize: 14,
+    marginRight: 8,
+    maxHeight: 80,
+  },
+  marvinSendButton: {
+    backgroundColor: '#f59e0b',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    justifyContent: 'center' as const,
+  },
+  marvinSendButtonDisabled: {
+    backgroundColor: '#6b7280',
+  },
+  marvinSendButtonText: {
+    color: '#000',
+    fontSize: 14,
+    fontWeight: 'bold' as const,
+  },
+  exitMarvinButton: {
+    backgroundColor: '#6b7280',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center' as const,
+  },
+  exitMarvinButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+  },
+  marvinModeButton: {
+    flexDirection: 'row' as const,
+    backgroundColor: '#1f2937',
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 20,
+    alignItems: 'center' as const,
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+  },
+  marvinModeIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 15,
+  },
+  marvinModeTextContainer: {
+    flex: 1,
+  },
+  marvinModeTitle: {
+    color: '#f59e0b',
+    fontSize: 18,
+    fontWeight: 'bold' as const,
+    marginBottom: 5,
+  },
+  marvinModeDescription: {
+    color: '#d1d5db',
+    fontSize: 14,
+  },
+});
+
+export default MedicineTool;
