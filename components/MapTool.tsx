@@ -57,7 +57,7 @@ const MapTool: React.FC<MapToolProps> = ({ onBack }) => {
       console.log('=== MAP TOOL: Starting reverse geocoding ===');
       console.log('Coordinates:', { latitude, longitude });
 
-      const apiKey = process.env.GOOGLE_MAPS_API || 'AIzaSyCClCgAlAsTxauYkK5Tom6p_atUxZi3WeA';
+      const apiKey = process.env.GOOGLE_MAPS_API;
       const geocodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?` +
         `latlng=${latitude},${longitude}&` +
         `key=${apiKey}`;
@@ -104,7 +104,7 @@ const MapTool: React.FC<MapToolProps> = ({ onBack }) => {
       console.log('Search query:', query);
       console.log('Current location:', location);
 
-      const apiKey = process.env.GOOGLE_MAPS_API || 'AIzaSyCClCgAlAsTxauYkK5Tom6p_atUxZi3WeA';
+      const apiKey = process.env.GOOGLE_MAPS_API;
       const { latitude, longitude } = location;
 
       // Use Google Places API for nearby search
@@ -256,7 +256,7 @@ const MapTool: React.FC<MapToolProps> = ({ onBack }) => {
   };
 
   const generateMapHTML = (userLat: number, userLng: number, placesToShow: any[] = [], zoom = 13, centerLat?: number, centerLng?: number, selectedPlace?: any) => {
-    const apiKey = process.env.GOOGLE_MAPS_API || 'AIzaSyCClCgAlAsTxauYkK5Tom6p_atUxZi3WeA';
+    const apiKey = process.env.GOOGLE_MAPS_API;
 
     const actualCenterLat = centerLat || userLat;
     const actualCenterLng = centerLng || userLng;

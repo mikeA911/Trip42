@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyBdj3uGFbCvcrCzx-uTercMe5eyRjO8T10';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
 
 export interface TranslationResult {

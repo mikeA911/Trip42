@@ -13,6 +13,8 @@ export interface UserCredits {
   history: CreditHistoryEntry[];
   deviceId: string;
   isAnonymous: boolean;
+  monthlyRedeemed: number;
+  lastReset: string;
 }
 
 // Credit pricing constants
@@ -114,7 +116,9 @@ export const initializeCredits = async (): Promise<UserCredits> => {
         type: 'credit'
       }],
       deviceId,
-      isAnonymous: true
+      isAnonymous: true,
+      monthlyRedeemed: 0,
+      lastReset: new Date().toISOString()
     };
 
     await AsyncStorage.setItem('userCredits', JSON.stringify(initialCredits));
@@ -133,7 +137,9 @@ export const initializeCredits = async (): Promise<UserCredits> => {
         type: 'credit'
       }],
       deviceId: 'fallback-device',
-      isAnonymous: true
+      isAnonymous: true,
+      monthlyRedeemed: 0,
+      lastReset: new Date().toISOString()
     };
   }
 };
@@ -224,20 +230,63 @@ export const addCredits = async (amount: number, description: string): Promise<b
   }
 };
 
+// Check and reset monthly limit if needed
+const checkAndResetMonthlyLimit = async (currentCredits: UserCredits): Promise<UserCredits> => {
+  const now = new Date();
+  const lastReset = new Date(currentCredits.lastReset);
+  const currentMonth = now.getMonth();
+  const lastResetMonth = lastReset.getMonth();
+
+  if (currentMonth !== lastResetMonth) {
+    console.log('📅 Resetting monthly redeemed credits');
+    const updatedCredits = {
+      ...currentCredits,
+      monthlyRedeemed: 0,
+      lastReset: now.toISOString()
+    };
+    await AsyncStorage.setItem('userCredits', JSON.stringify(updatedCredits));
+    return updatedCredits;
+  }
+  return currentCredits;
+};
+
 // Redeem voucher
 export const redeemVoucher = async (voucherCode: string): Promise<{ success: boolean; creditsRedeemed?: number; error?: string }> => {
   try {
     console.log('🎫 Attempting to redeem voucher:', voucherCode.toUpperCase());
 
-    const currentCredits = await getCredits();
+    let currentCredits = await getCredits();
+    currentCredits = await checkAndResetMonthlyLimit(currentCredits);
 
-    // Special hidden voucher for testing
-    if (voucherCode.trim().toLowerCase() === '42ikigai') {
-      console.log('🎫 Special test voucher detected: 42ikigai');
-      const added = await addCredits(100, 'Test Voucher: 42ikigai');
+    // Special hidden vouchers for testing
+    const testVouchers: Record<string, number> = {
+      '42ikigai': 100,
+      'ford77prefect': 100,
+      'arturdent88': 100,
+      'trillian25': 100
+    };
+
+    const voucherKey = voucherCode.trim().toLowerCase();
+    if (voucherKey in testVouchers) {
+      const creditsToAdd = testVouchers[voucherKey];
+
+      // Check monthly limit
+      if (currentCredits.monthlyRedeemed + creditsToAdd > 2000) {
+        console.log('🎫 Monthly limit exceeded for test voucher');
+        return { success: false, error: 'Monthly voucher redemption limit exceeded (2000 credits)' };
+      }
+
+      console.log(`🎫 Special test voucher detected: ${voucherKey}`);
+      const added = await addCredits(creditsToAdd, `Test Voucher: ${voucherKey}`);
       if (added) {
-        console.log('🎫 Test voucher redeemed successfully: 100 credits');
-        return { success: true, creditsRedeemed: 100 };
+        // Update monthly redeemed
+        const updatedCredits = {
+          ...currentCredits,
+          monthlyRedeemed: currentCredits.monthlyRedeemed + creditsToAdd
+        };
+        await AsyncStorage.setItem('userCredits', JSON.stringify(updatedCredits));
+        console.log(`🎫 Test voucher redeemed successfully: ${creditsToAdd} credits`);
+        return { success: true, creditsRedeemed: creditsToAdd };
       } else {
         return { success: false, error: 'Failed to add test credits' };
       }
@@ -265,9 +314,21 @@ export const redeemVoucher = async (voucherCode: string): Promise<{ success: boo
     }
 
     if (data.success) {
+      // Check monthly limit for regular vouchers too
+      if (currentCredits.monthlyRedeemed + data.creditsRedeemed > 2000) {
+        console.log('🎫 Monthly limit exceeded for regular voucher');
+        return { success: false, error: 'Monthly voucher redemption limit exceeded (2000 credits)' };
+      }
+
       // Add credits locally
       const added = await addCredits(data.creditsRedeemed, `Voucher redemption: ${voucherCode.toUpperCase()}`);
       if (added) {
+        // Update monthly redeemed
+        const updatedCredits = {
+          ...currentCredits,
+          monthlyRedeemed: currentCredits.monthlyRedeemed + data.creditsRedeemed
+        };
+        await AsyncStorage.setItem('userCredits', JSON.stringify(updatedCredits));
         console.log('🎫 Voucher redeemed successfully:', data.creditsRedeemed, 'credits');
         return { success: true, creditsRedeemed: data.creditsRedeemed };
       } else {

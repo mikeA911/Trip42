@@ -2,15 +2,13 @@
   "expo": {
     "name": "Trip42",
     "slug": "mike-a",
-    "version": "1.0.0",
+    "version": "0.2",
     "owner": "mikeatpp",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "extra": {
-      "GEMINI_API": "AIzaSyBdj3uGFbCvcrCzx-uTercMe5eyRjO8T10",
-      "GOOGLE_MAPS_API": "AIzaSyCClCgAlAsTxauYkK5Tom6p_atUxZi3WeA",
       "eas": {
         "projectId": "25302f4e-b0d1-4980-b860-7638cf72cb16"
       }
@@ -23,7 +21,6 @@
     "ios": {
       "supportsTablet": true,
       "config": {
-        "googleMapsApiKey": "AIzaSyCClCgAlAsTxauYkK5Tom6p_atUxZi3WeA"
       },
       "infoPlist": {
         "NSMicrophoneUsageDescription": "This app needs access to microphone for voice recording and translation.",
@@ -42,7 +39,6 @@
       "predictiveBackGestureEnabled": false,
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyCClCgAlAsTxauYkK5Tom6p_atUxZi3WeA"
         }
       },
       "permissions": [
