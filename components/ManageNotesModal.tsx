@@ -10,12 +10,18 @@ import {
   TextInput,
   ScrollView,
   Image,
-  Platform
+  Platform,
+  Linking
 } from 'react-native';
-import { Note, getSettings, saveSettings } from '../utils/storage';
+import { Note, getSettings, saveSettings, saveNote } from '../utils/storage';
 import { LANGUAGES } from '../components/SettingsPage';
 import { useNotes } from '../hooks/useNotes';
 import * as ImagePicker from 'expo-image-picker';
+import * as Sharing from 'expo-sharing';
+import * as Clipboard from 'expo-clipboard';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as DocumentPicker from 'expo-document-picker';
+import { supabase, uploadImageForSharing } from '../supabase';
 
 interface ManageNotesModalProps {
   visible: boolean;
@@ -54,6 +60,10 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
     'Work', 'Personal', 'Ideas', 'Health', 'Fitness', 'Nutrition', 'Sleep', 'Mood', 'Energy', 'Focus', 'Creativity'
   ]);
   const [enabledLanguages, setEnabledLanguages] = useState<string[]>([]);
+  const [enabledTags, setEnabledTags] = useState<string[]>([]);
+  const [showTagSelectorModal, setShowTagSelectorModal] = useState(false);
+  const [selectedTagsForNote, setSelectedTagsForNote] = useState<string[]>([]);
+  const [showMoreOptionsModal, setShowMoreOptionsModal] = useState(false);
   // Always sort by date newest first
   const sortOptions = { field: 'date' as const, direction: 'desc' as const };
   const [searchText, setSearchText] = useState('');
@@ -86,6 +96,8 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       loadCustomTags();
       // Load enabled languages from settings
       loadEnabledLanguages();
+      // Load enabled tags from settings
+      loadEnabledTags();
     }
   }, [visible]); // Remove notes from dependency array to prevent infinite loop
 
@@ -120,6 +132,16 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
     } catch (error) {
       console.error('Error loading enabled languages:', error);
       setEnabledLanguages(['en', 'lo', 'km', 'th', 'vi', 'zh', 'ja', 'ko', 'uk', 'fil']);
+    }
+  };
+
+  const loadEnabledTags = async () => {
+    try {
+      const settings = await getSettings();
+      setEnabledTags(settings.enabledTags || []);
+    } catch (error) {
+      console.error('Error loading enabled tags:', error);
+      setEnabledTags([]);
     }
   };
 
@@ -240,38 +262,130 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
     );
   };
 
-  const handleSaveSelected = async () => {
+  const handleExportSelected = async () => {
     if (selectedNotes.size === 0) return;
 
     try {
-      const notesToSave = notes.filter(note => selectedNotes.has(note.id));
+      const notesToExport = notes.filter(note => selectedNotes.has(note.id));
 
-      const jsonBlob = JSON.stringify({
-        version: '1.0',
-        exportedAt: new Date().toISOString(),
-        notes: notesToSave
-      }, null, 2);
+      // Create IKE file format for each note
+      const exportPromises = notesToExport.map(async (note) => {
+        const exportNote = { ...note };
+
+        // Process attached media - convert URIs to base64 blobs
+        if (exportNote.attachedMedia && exportNote.attachedMedia.length > 0) {
+          const processedMedia: string[] = [];
+
+          for (let i = 0; i < exportNote.attachedMedia.length; i++) {
+            const mediaUri = exportNote.attachedMedia[i];
+
+            try {
+              let base64Data: string;
+
+              if (Platform.OS === 'web') {
+                // For web, fetch the blob and convert to base64
+                const response = await fetch(mediaUri);
+                const blob = await response.blob();
+                base64Data = await new Promise((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve(reader.result as string);
+                  reader.onerror = () => reject(new Error('FileReader failed'));
+                  reader.readAsDataURL(blob);
+                });
+              } else {
+                // For native, read file as base64
+                const rawBase64 = await FileSystem.readAsStringAsync(mediaUri, {
+                  encoding: FileSystem.EncodingType.Base64,
+                });
+                const isAudio = mediaUri.includes('.mp3') || mediaUri.includes('.wav') || mediaUri.includes('.m4a');
+                const mimeType = isAudio ? 'audio/mpeg' : 'image/jpeg';
+                base64Data = `data:${mimeType};base64,${rawBase64}`;
+              }
+
+              processedMedia.push(base64Data);
+            } catch (mediaError) {
+              console.error('Error processing media:', mediaError);
+              processedMedia.push(mediaUri); // Keep original URI if processing fails
+            }
+          }
+
+          exportNote.attachedMedia = processedMedia;
+        }
+
+        return exportNote;
+      });
+
+      const processedNotes = await Promise.all(exportPromises);
 
       if (Platform.OS === 'web') {
-        // For web, download the file
-        const blob = new Blob([jsonBlob], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `trip42_notes_${new Date().toISOString().split('T')[0]}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
+        // For web, create individual .ike files or a zip
+        if (processedNotes.length === 1) {
+          // Single note - download as .ike file
+          const noteJson = JSON.stringify(processedNotes[0], null, 2);
+          const blob = new Blob([noteJson], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${processedNotes[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.ike`;
+          a.click();
+          URL.revokeObjectURL(url);
+          Alert.alert('Success', `Note exported as ${processedNotes[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.ike`);
+        } else {
+          // Multiple notes - create a collection file
+          const collectionData = {
+            version: '1.0',
+            exportedAt: new Date().toISOString(),
+            notes: processedNotes
+          };
+          const jsonBlob = JSON.stringify(collectionData, null, 2);
+          const blob = new Blob([jsonBlob], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `trip42_notes_${new Date().toISOString().split('T')[0]}.ike`;
+          a.click();
+          URL.revokeObjectURL(url);
+          Alert.alert('Success', `${processedNotes.length} notes exported as collection!`);
+        }
       } else {
-        // For native, use Share API
-        await Share.share({
-          message: jsonBlob,
-          title: `Trip42 Notes Export - ${notesToSave.length} notes`
-        });
-      }
+        // For native platforms
+        if (processedNotes.length === 1) {
+          // Single note - save as .ike file
+          const noteJson = JSON.stringify(processedNotes[0], null, 2);
+          const fileName = `${processedNotes[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.ike`;
 
-      Alert.alert('Success', 'Notes exported successfully!');
+          try {
+            const documentsDir = FileSystem.documentDirectory;
+            if (documentsDir) {
+              const fileUri = `${documentsDir}${fileName}`;
+              await FileSystem.writeAsStringAsync(fileUri, noteJson, {
+                encoding: FileSystem.EncodingType.UTF8,
+              });
+              Alert.alert('Success', `Note saved to Documents as ${fileName}`);
+            } else {
+              throw new Error('No documents directory available');
+            }
+          } catch (saveError) {
+            console.error('Error saving file:', saveError);
+            Alert.alert('Error', 'Failed to save note file');
+          }
+        } else {
+          // Multiple notes - share as JSON collection
+          const collectionData = {
+            version: '1.0',
+            exportedAt: new Date().toISOString(),
+            notes: processedNotes
+          };
+          const jsonBlob = JSON.stringify(collectionData, null, 2);
+          await Share.share({
+            message: jsonBlob,
+            title: `Trip42 Notes Export - ${processedNotes.length} notes`
+          });
+          Alert.alert('Success', `${processedNotes.length} notes exported!`);
+        }
+      }
     } catch (error) {
-      console.error('Error saving notes:', error);
+      console.error('Error exporting notes:', error);
       Alert.alert('Error', 'Failed to export notes');
     }
   };
@@ -283,13 +397,80 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       const notesToShare = notes.filter(note => selectedNotes.has(note.id));
 
       // Create JSON blob first
-      await handleSaveSelected();
+      await handleExportSelected();
 
       // Then share via Telegram (placeholder - would need Telegram sharing implementation)
       Alert.alert('Share', 'Notes saved and ready to share via Telegram!');
     } catch (error) {
       console.error('Error sharing notes:', error);
       Alert.alert('Error', 'Failed to share notes');
+    }
+  };
+
+  const handleImportNotes = async () => {
+    try {
+      if (Platform.OS === 'web') {
+        // For web, use file input
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.ike';
+        input.multiple = true;
+        input.onchange = async (event) => {
+          const files = (event.target as HTMLInputElement).files;
+          if (files) {
+            for (let i = 0; i < files.length; i++) {
+              const file = files[i];
+              if (file.name.endsWith('.ike')) {
+                const text = await file.text();
+                try {
+                  const importedNote: Note = JSON.parse(text);
+                  // Validate the imported note has required fields
+                  if (importedNote.id && importedNote.title && importedNote.text && importedNote.timestamp) {
+                    await saveNote(importedNote);
+                    Alert.alert('Success', `Imported note: ${importedNote.title}`);
+                  } else {
+                    Alert.alert('Error', `Invalid note format in ${file.name}`);
+                  }
+                } catch (parseError) {
+                  Alert.alert('Error', `Failed to parse ${file.name}`);
+                }
+              }
+            }
+            refreshNotes();
+          }
+        };
+        input.click();
+      } else {
+        // For native, use DocumentPicker
+        const result = await DocumentPicker.getDocumentAsync({
+          type: 'application/json',
+          multiple: true,
+        });
+
+        if (!result.canceled && result.assets) {
+          for (const asset of result.assets) {
+            if (asset.name?.endsWith('.ike')) {
+              const text = await FileSystem.readAsStringAsync(asset.uri);
+              try {
+                const importedNote: Note = JSON.parse(text);
+                // Validate the imported note has required fields
+                if (importedNote.id && importedNote.title && importedNote.text && importedNote.timestamp) {
+                  await saveNote(importedNote);
+                  Alert.alert('Success', `Imported note: ${importedNote.title}`);
+                } else {
+                  Alert.alert('Error', `Invalid note format in ${asset.name}`);
+                }
+              } catch (parseError) {
+                Alert.alert('Error', `Failed to parse ${asset.name}`);
+              }
+            }
+          }
+          refreshNotes();
+        }
+      }
+    } catch (error) {
+      console.error('Error importing notes:', error);
+      Alert.alert('Error', 'Failed to import notes');
     }
   };
 
@@ -363,6 +544,16 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
     }
   };
 
+  const handleCopyText = async (text: string, label: string = 'text') => {
+    try {
+      await Clipboard.setStringAsync(text);
+      Alert.alert('Success', `${label} copied to clipboard!`);
+    } catch (error) {
+      console.error('Error copying text:', error);
+      Alert.alert('Error', 'Failed to copy text');
+    }
+  };
+
   const handleShareNote = async () => {
     if (!selectedNote) return;
 
@@ -387,13 +578,199 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         }
       }
 
-      await Share.share({
-        message,
-        title: `Shared note from Trip42: ${selectedNote.title}`
-      });
+      // Share with attached media if available
+      if (selectedNote.attachedMedia && selectedNote.attachedMedia.length > 0) {
+        try {
+          Alert.alert('Sharing', 'Uploading media to cloud storage...');
+
+          const mediaUri = selectedNote.attachedMedia[0];
+
+          // Use the working uploadImageForSharing function from utils/supabase.js
+          const mediaUrl = await uploadImageForSharing(mediaUri);
+
+          // Share with media URL in message
+          const shareMessage = `${message}\n\n📎 Media: ${mediaUrl}\n\n*Note: Media files are automatically deleted after 30 days for privacy*`;
+
+          // Try Telegram first, fallback to regular share
+          const telegramUrl = `tg://msg?text=${encodeURIComponent(shareMessage)}`;
+          const canOpen = await Linking.canOpenURL(telegramUrl);
+
+          if (canOpen) {
+            await Linking.openURL(telegramUrl);
+            Alert.alert('Success', 'Note shared to Telegram with media link!');
+          } else {
+            await Share.share({
+              message: shareMessage,
+              title: `Shared note from Trip42: ${selectedNote.title}`
+            });
+          }
+
+          console.log('Shared with Supabase media URL:', mediaUrl);
+        } catch (mediaError) {
+          console.error('Error sharing with media:', mediaError);
+          Alert.alert('Media Upload Failed', 'Sharing note text only. Media could not be uploaded.');
+
+          // Fallback to text-only sharing
+          const telegramUrl = `tg://msg?text=${encodeURIComponent(message + '\n\n[Media upload failed]')}`;
+          const canOpen = await Linking.canOpenURL(telegramUrl);
+
+          if (canOpen) {
+            await Linking.openURL(telegramUrl);
+            Alert.alert('Shared', 'Note shared to Telegram (media upload failed)');
+          } else {
+            await Share.share({
+              message: message + '\n\n[Media attached but upload failed]',
+              title: `Shared note from Trip42: ${selectedNote.title}`
+            });
+          }
+        }
+      } else {
+        // Text-only sharing
+        const telegramUrl = `tg://msg?text=${encodeURIComponent(message)}`;
+        const canOpen = await Linking.canOpenURL(telegramUrl);
+
+        if (canOpen) {
+          await Linking.openURL(telegramUrl);
+          Alert.alert('Success', 'Note shared to Telegram!');
+        } else {
+          await Share.share({
+            message,
+            title: `Shared note from Trip42: ${selectedNote.title}`
+          });
+        }
+
+        console.log('Share options (text only):', { message, title: `Shared note from Trip42: ${selectedNote.title}` });
+      }
+
+      if (selectedNote.attachedMedia && selectedNote.attachedMedia.length > 1) {
+        Alert.alert(
+          'Additional Media',
+          `Shared first media file. Use 💾 Save button for ${selectedNote.attachedMedia.length - 1} additional file(s).`,
+          [{ text: 'OK' }]
+        );
+      }
     } catch (error) {
       console.error('Error sharing note:', error);
       Alert.alert('Error', 'Failed to share note');
+    }
+  };
+
+  const handleExportNote = async () => {
+    if (!selectedNote) return;
+
+    try {
+      console.log('Starting note export for:', selectedNote.title);
+      Alert.alert('Exporting', 'Preparing note with media...');
+
+      // Create a copy of the note for export
+      const exportNote = { ...selectedNote };
+
+      // Process attached media - convert URIs to base64 blobs
+      if (exportNote.attachedMedia && exportNote.attachedMedia.length > 0) {
+        console.log('Processing', exportNote.attachedMedia.length, 'media files');
+        const processedMedia: string[] = [];
+
+        for (let i = 0; i < exportNote.attachedMedia.length; i++) {
+          const mediaUri = exportNote.attachedMedia[i];
+          console.log(`Processing media ${i + 1}:`, mediaUri);
+
+          try {
+            let base64Data: string;
+
+            if (Platform.OS === 'web') {
+              // For web, fetch the blob and convert to base64
+              console.log('Fetching media for web...');
+              const response = await fetch(mediaUri);
+              const blob = await response.blob();
+              console.log('Blob size:', blob.size, 'type:', blob.type);
+              base64Data = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  console.log('FileReader loaded successfully');
+                  resolve(reader.result as string);
+                };
+                reader.onerror = () => {
+                  console.error('FileReader error');
+                  reject(new Error('FileReader failed'));
+                };
+                reader.readAsDataURL(blob);
+              });
+            } else {
+              // For native, read file as base64
+              console.log('Reading file for native platform...');
+              const rawBase64 = await FileSystem.readAsStringAsync(mediaUri, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+              console.log('Raw base64 length:', rawBase64.length);
+
+              // Add data URL prefix based on file type
+              const isAudio = mediaUri.includes('.mp3') || mediaUri.includes('.wav') || mediaUri.includes('.m4a');
+              const mimeType = isAudio ? 'audio/mpeg' : 'image/jpeg';
+              base64Data = `data:${mimeType};base64,${rawBase64}`;
+            }
+
+            console.log('Base64 data length:', base64Data.length);
+            processedMedia.push(base64Data);
+          } catch (mediaError) {
+            console.error('Error processing media:', mediaError);
+            // Keep original URI if processing fails
+            processedMedia.push(mediaUri);
+          }
+        }
+
+        exportNote.attachedMedia = processedMedia;
+      }
+
+      console.log('Creating JSON string...');
+      const noteJson = JSON.stringify(exportNote, null, 2);
+      console.log('JSON length:', noteJson.length);
+
+      const fileName = `${selectedNote.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.ike`;
+      console.log('Filename:', fileName);
+
+      if (Platform.OS === 'web') {
+        console.log('Using web download method');
+        // For web, download the file
+        const blob = new Blob([noteJson], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+        Alert.alert('Success', `Note exported as ${fileName}`);
+      } else {
+        console.log('Using native file save method');
+        // For native, save directly to documents directory
+        try {
+          const documentsDir = FileSystem.documentDirectory;
+          if (documentsDir) {
+            const fileUri = `${documentsDir}${fileName}`;
+            console.log('Saving to:', fileUri);
+
+            await FileSystem.writeAsStringAsync(fileUri, noteJson, {
+              encoding: FileSystem.EncodingType.UTF8,
+            });
+            console.log('File saved successfully');
+
+            Alert.alert('Success', `Note saved to Documents as ${fileName}\n\nLocation: ${fileUri}`);
+          } else {
+            throw new Error('No documents directory available');
+          }
+        } catch (saveError) {
+          console.error('Error saving file:', saveError);
+          Alert.alert('Error', 'Failed to save note file');
+        }
+      }
+    } catch (error) {
+      console.error('Error exporting note:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error details:', {
+        message: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+        name: error instanceof Error ? error.name : undefined
+      });
+      Alert.alert('Error', `Failed to export note: ${errorMessage}`);
     }
   };
 
@@ -512,91 +889,103 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       <Modal visible={showNoteDetail} animationType="slide" onRequestClose={() => setShowNoteDetail(false)}>
         <View style={styles.detailContainer}>
           <ScrollView style={styles.detailContent}>
-            {/* Note Text - Display first */}
-            <Text style={styles.noteText}>{selectedNote.text}</Text>
+            <View style={styles.detailContentContainer}>
+              {/* Note Text - Display first */}
+              <TouchableOpacity onLongPress={() => handleCopyText(selectedNote.text, 'Note text')}>
+                <Text style={styles.noteText} selectable={true}>{selectedNote.text}</Text>
+              </TouchableOpacity>
 
-            {/* Original Text if different */}
-            {selectedNote.originalText && selectedNote.originalText !== selectedNote.text && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Original:</Text>
-                <Text style={styles.originalText}>{selectedNote.originalText}</Text>
-              </View>
-            )}
+              {/* Original Text if different */}
+              {selectedNote.originalText && selectedNote.originalText !== selectedNote.text && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Original:</Text>
+                  <TouchableOpacity onLongPress={() => handleCopyText(selectedNote.originalText!, 'Original text')}>
+                    <Text style={styles.originalText} selectable={true}>{selectedNote.originalText}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
-            {/* Polished Text if different */}
-            {selectedNote.polishedText && selectedNote.polishedText !== selectedNote.text && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Polished:</Text>
-                <Text style={styles.polishedText}>{selectedNote.polishedText}</Text>
-              </View>
-            )}
+              {/* Polished Text if different */}
+              {selectedNote.polishedText && selectedNote.polishedText !== selectedNote.text && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Polished:</Text>
+                  <TouchableOpacity onLongPress={() => handleCopyText(selectedNote.polishedText!, 'Polished text')}>
+                    <Text style={styles.polishedText} selectable={true}>{selectedNote.polishedText}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
-            {/* Translations */}
-            {selectedNote.translations && Object.keys(selectedNote.translations).length > 0 && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Translations:</Text>
-                {Object.entries(selectedNote.translations).map(([lang, text]) => (
-                  <View key={lang} style={styles.translationItem}>
-                    <Text style={styles.translationLang}>{lang}:</Text>
-                    <Text style={styles.translationText}>{text}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {/* Media Section */}
-            {selectedNote.attachedMedia && selectedNote.attachedMedia.length > 0 && (
-              <View style={styles.mediaSection}>
-                <Text style={styles.sectionTitle}>Media:</Text>
-                {selectedNote.attachedMedia.map((mediaUri, index) => (
-                  <View key={index} style={styles.mediaItem}>
-                    {mediaUri.includes('.mp3') || mediaUri.includes('.wav') ? (
-                      <View style={styles.audioItem}>
-                        <Text style={styles.audioIndicator}>🎵 Audio File</Text>
-                        <TouchableOpacity
-                          style={styles.playButton}
-                          onPress={() => {
-                            // TODO: Implement audio playback
-                            Alert.alert('Play', 'Audio playback not implemented yet');
-                          }}
-                        >
-                          <Text style={styles.playButtonText}>▶️ Play</Text>
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <View style={styles.imageItem}>
-                        <Image source={{ uri: mediaUri }} style={styles.mediaImage} />
-                        <TouchableOpacity
-                          style={styles.saveMediaButton}
-                          onPress={() => handleSaveMediaFromNote(mediaUri)}
-                        >
-                          <Text style={styles.saveMediaText}>💾 Save</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {/* Tags */}
-            {(selectedNote.tags || []).length > 0 && (
-              <View style={styles.tagsSection}>
-                <Text style={styles.sectionTitle}>Tags:</Text>
-                <View style={styles.tagsContainer}>
-                  {(selectedNote.tags || []).map(tag => (
-                    <Text key={tag} style={styles.tag}>
-                      #{tag}
-                    </Text>
+              {/* Translations */}
+              {selectedNote.translations && Object.keys(selectedNote.translations).length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Translations:</Text>
+                  {Object.entries(selectedNote.translations).map(([lang, text]) => (
+                    <View key={lang} style={styles.translationItem}>
+                      <Text style={styles.translationLang}>{lang}:</Text>
+                      <TouchableOpacity onLongPress={() => handleCopyText(text, `${lang} translation`)}>
+                        <Text style={styles.translationText} selectable={true}>{text}</Text>
+                      </TouchableOpacity>
+                    </View>
                   ))}
                 </View>
-              </View>
-            )}
+              )}
 
-            {/* Timestamp */}
-            <Text style={styles.timestamp}>
-              Created: {new Date(selectedNote.timestamp).toLocaleString()}
-            </Text>
+              {/* Media Section */}
+              {selectedNote.attachedMedia && selectedNote.attachedMedia.length > 0 && (
+                <View style={styles.mediaSection}>
+                  <Text style={styles.sectionTitle}>Media:</Text>
+                  {selectedNote.attachedMedia.map((mediaUri, index) => (
+                    <View key={index} style={styles.mediaItem}>
+                      {mediaUri.includes('.mp3') || mediaUri.includes('.wav') ? (
+                        <View style={styles.audioItem}>
+                          <Text style={styles.audioIndicator}>🎵 Audio File</Text>
+                          <TouchableOpacity
+                            style={styles.playButton}
+                            onPress={() => {
+                              // TODO: Implement audio playback
+                              Alert.alert('Play', 'Audio playback not implemented yet');
+                            }}
+                          >
+                            <Text style={styles.playButtonText}>▶️ Play</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <View style={styles.imageItem}>
+                          <Image source={{ uri: mediaUri }} style={styles.mediaImage} />
+                          <TouchableOpacity
+                            style={styles.saveMediaButton}
+                            onPress={() => handleSaveMediaFromNote(mediaUri)}
+                          >
+                            <Text style={styles.saveMediaText}>💾 Save</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Tags */}
+              {(selectedNote.tags || []).length > 0 && (
+                <View style={styles.tagsSection}>
+                  <Text style={styles.sectionTitle}>Tags:</Text>
+                  <View style={styles.tagsContainer}>
+                    {(selectedNote.tags || []).map(tag => (
+                      <Text key={tag} style={styles.tag}>
+                        #{tag}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Timestamp */}
+              <View style={styles.timestampContainer}>
+                <Text style={styles.timestamp}>
+                  Created: {new Date(selectedNote.timestamp).toLocaleString()}
+                </Text>
+              </View>
+            </View>
           </ScrollView>
 
           {/* Bottom Action Bar */}
@@ -611,8 +1000,8 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
                 [
                   { text: 'Photo', onPress: handleAddMediaToNote },
                   { text: 'Tag', onPress: () => {
-                    // TODO: Implement tag addition
-                    Alert.alert('Tag', 'Tag addition not implemented yet');
+                    setSelectedTagsForNote(selectedNote?.tags || []);
+                    setShowTagSelectorModal(true);
                   }},
                   { text: 'Cancel', style: 'cancel' }
                 ]
@@ -620,39 +1009,13 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             }}>
               <Text style={styles.bottomActionText}>📎 Add</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.bottomActionButton} onPress={() => {
-              Alert.alert(
-                'Share note to Telegram',
-                'Share this note to Telegram?',
-                [
-                  { text: 'Share', onPress: async () => {
-                    try {
-                      let message = `${selectedNote.title}\n\n${selectedNote.text}`;
-
-                      if ((selectedNote.tags || []).length > 0) {
-                        message += `\n\nTags: ${(selectedNote.tags || []).map(tag => `#${tag}`).join(' ')}`;
-                      }
-
-                      // For now, just share text. Media sharing would need more complex implementation
-                      await Share.share({
-                        message,
-                        title: `Shared note from Trip42: ${selectedNote.title}`
-                      });
-                    } catch (error) {
-                      console.error('Error sharing note:', error);
-                      Alert.alert('Error', 'Failed to share note');
-                    }
-                  }},
-                  { text: 'Cancel', style: 'cancel' }
-                ]
-              );
-            }}>
+            <TouchableOpacity style={styles.bottomActionButton} onPress={() => handleCopyText(selectedNote.text, 'Note text')}>
+              <Text style={styles.bottomActionText}>📋 Copy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.bottomActionButton} onPress={handleShareNote}>
               <Text style={styles.bottomActionText}>📤 Share</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.bottomActionButton} onPress={() => {
-              // TODO: Implement more options
-              Alert.alert('More', 'More options not implemented yet');
-            }}>
+            <TouchableOpacity style={styles.bottomActionButton} onPress={() => setShowMoreOptionsModal(true)}>
               <Text style={styles.bottomActionText}>⋯ More</Text>
             </TouchableOpacity>
           </View>
@@ -785,15 +1148,16 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
                   return (
                     <TouchableOpacity
                       key={`tag-${tag}`}
-                      style={[styles.tagOption, filters.tags.includes(tag) && styles.tagOptionSelected]}
+                      style={[styles.tagOption, filters.tags.includes(tag) && styles.tagOptionSelected, !enabledTags.includes(tag) && { backgroundColor: '#2d3748', opacity: 0.5 }]}
                       onPress={() => {
                         const newTags = filters.tags.includes(tag)
                           ? filters.tags.filter(t => t !== tag)
                           : [...filters.tags, tag];
                         setFilters(prev => ({ ...prev, tags: newTags }));
                       }}
+                      disabled={!enabledTags.includes(tag)}
                     >
-                      <Text style={[styles.tagOptionText, filters.tags.includes(tag) && styles.tagOptionTextSelected]}>
+                      <Text style={[styles.tagOptionText, filters.tags.includes(tag) && styles.tagOptionTextSelected, !enabledTags.includes(tag) && { color: '#6b7280' }]}>
                         {icon} {tag}
                       </Text>
                     </TouchableOpacity>
@@ -827,11 +1191,24 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
 
         {/* Selection Header */}
         <View style={styles.selectionHeader}>
+          <TouchableOpacity style={styles.importButton} onPress={handleImportNotes}>
+            <Text style={styles.importText}>Import</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.selectButton} onPress={handleSelectAll}>
             <Text style={styles.selectText}>
               {selectedNotes.size === filteredNotes.length && filteredNotes.length > 0 ? '☑' : '□'} Select ({filteredNotes.length})
             </Text>
           </TouchableOpacity>
+          {selectedNotes.size > 0 && (
+            <>
+              <TouchableOpacity style={styles.actionButton} onPress={handleExportSelected}>
+                <Text style={styles.actionButtonText}>📤 Export ({selectedNotes.size})</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButton} onPress={handleDeleteSelected}>
+                <Text style={styles.actionButtonText}>🗑️ Delete ({selectedNotes.size})</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         {/* Notes List */}
@@ -844,6 +1221,62 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         />
 
         {renderNoteDetail()}
+
+        {/* More Options Modal */}
+        <Modal visible={showMoreOptionsModal} animationType="fade" transparent={true}>
+          <View style={styles.moreOptionsModalOverlay}>
+            <View style={styles.moreOptionsModalContent}>
+              <Text style={styles.moreOptionsModalTitle}>More Options</Text>
+
+              <TouchableOpacity
+                style={styles.moreOptionButton}
+                onPress={() => {
+                  setShowMoreOptionsModal(false);
+                  handleExportNote();
+                }}
+              >
+                <Text style={styles.moreOptionText}>📤 Export Note</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.moreOptionButton, styles.deleteOptionButton]}
+                onPress={() => {
+                  setShowMoreOptionsModal(false);
+                  handleDeleteNote();
+                }}
+              >
+                <Text style={styles.moreOptionText}>🗑️ Delete Note</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.moreOptionCancelButton}
+                onPress={() => setShowMoreOptionsModal(false)}
+              >
+                <Text style={styles.moreOptionCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Tag Selector Modal - Rendered at the end to ensure it's on top */}
+        <TagSelectorModal
+          visible={showTagSelectorModal}
+          onClose={() => setShowTagSelectorModal(false)}
+          selectedTags={selectedTagsForNote}
+          onTagsChange={setSelectedTagsForNote}
+          onConfirm={(finalSelectedTags) => {
+            if (selectedNote) {
+              const updatedNote = {
+                ...selectedNote,
+                tags: finalSelectedTags
+              };
+              editNote(updatedNote);
+              setSelectedNote(updatedNote);
+              refreshNotes();
+              setShowTagSelectorModal(false);
+            }
+          }}
+        />
       </View>
     </Modal>
   );
@@ -939,6 +1372,18 @@ const styles = {
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#374151',
+  },
+  importButton: {
+    backgroundColor: '#374151',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  importText: {
+    color: '#f59e0b',
+    fontSize: 14,
+    fontWeight: 'bold' as const,
   },
   selectButton: {
     flex: 1,
@@ -1135,6 +1580,12 @@ const styles = {
     color: '#9ca3af',
     fontStyle: 'italic' as const,
   },
+  timestampContainer: {
+    marginTop: 20,
+  },
+  detailContentContainer: {
+    flex: 1,
+  },
   tagSelectorButton: {
     flex: 1,
     backgroundColor: '#374151',
@@ -1185,6 +1636,9 @@ const styles = {
   tagOptionTextSelected: {
     color: '#000',
     fontWeight: 'bold' as const,
+  },
+  tagOptionTextDisabled: {
+    color: '#6b7280',
   },
   customTagInput: {
     backgroundColor: '#374151',
@@ -1348,6 +1802,381 @@ const styles = {
     backgroundColor: '#374151',
     marginVertical: 10,
   },
+  tagSelectorItem: {
+    flex: 1,
+    backgroundColor: '#4b5563',
+    borderRadius: 8,
+    padding: 12,
+    margin: 4,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    minHeight: 50,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+  },
+  tagSelectorItemSelected: {
+    backgroundColor: '#f59e0b',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  tagSelectorItemDisabled: {
+    backgroundColor: '#2d3748',
+    opacity: 0.5,
+  },
+  tagSelectorItemText: {
+    color: '#ffffff',
+    fontSize: 14,
+    textAlign: 'left' as const,
+    fontWeight: 'bold' as const,
+  },
+  tagSelectorItemTextSelected: {
+    color: '#000',
+    fontWeight: 'bold' as const,
+  },
+  tagSelectorItemTextDisabled: {
+    color: '#6b7280',
+  },
+  tagSelectorModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    zIndex: 9999,
+  },
+  tagSelectorModalContent: {
+    backgroundColor: '#1f2937',
+    borderRadius: 12,
+    padding: 20,
+    width: '90%' as const,
+    maxWidth: 400,
+    maxHeight: '80%' as const,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    zIndex: 10000,
+  },
+  tagSelectorModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold' as const,
+    color: '#f59e0b',
+    textAlign: 'center' as const,
+    marginBottom: 20,
+  },
+  tagSelectorList: {
+    paddingBottom: 10,
+  },
+  addNewTagContainer: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  addNewTagInput: {
+    flex: 1,
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+    color: '#fff',
+    fontSize: 16,
+    marginRight: 10,
+  },
+  addNewTagButton: {
+    backgroundColor: '#f59e0b',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
+  addNewTagButtonText: {
+    color: '#000',
+    fontSize: 20,
+    fontWeight: 'bold' as const,
+  },
+  tagSelectorModalButtons: {
+    flexDirection: 'row' as const,
+    justifyContent: 'center' as const,
+  },
+  tagSelectorModalCancelButton: {
+    backgroundColor: '#6b7280',
+    padding: 15,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center' as const,
+    marginRight: 10,
+  },
+  tagSelectorModalCancelText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+  },
+  tagSelectorModalSaveButton: {
+    backgroundColor: '#10b981',
+    padding: 15,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center' as const,
+    marginLeft: 10,
+  },
+  tagSelectorModalSaveText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+  },
+  tagItemContent: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'flex-start' as const,
+  },
+  checkboxSymbol: {
+    fontSize: 18,
+    marginRight: 8,
+    color: '#ffffff',
+  },
+  checkboxSymbolSelected: {
+    color: '#f59e0b',
+  },
+  tagSelectorScrollView: {
+    maxHeight: 300,
+    marginBottom: 10,
+  },
+  tagSelectorOption: {
+    backgroundColor: '#4b5563',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#6b7280',
+  },
+  tagSelectorOptionSelected: {
+    backgroundColor: '#f59e0b',
+    borderColor: '#fff',
+  },
+  tagSelectorOptionText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+  },
+  tagSelectorOptionTextSelected: {
+    color: '#000',
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  disabledText: {
+    color: '#6b7280',
+  },
+  moreOptionsModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    zIndex: 9999,
+  },
+  moreOptionsModalContent: {
+    backgroundColor: '#1f2937',
+    borderRadius: 12,
+    padding: 20,
+    width: '80%' as const,
+    maxWidth: 300,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    zIndex: 10000,
+  },
+  moreOptionsModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold' as const,
+    color: '#f59e0b',
+    textAlign: 'center' as const,
+    marginBottom: 20,
+  },
+  moreOptionButton: {
+    backgroundColor: '#374151',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+    alignItems: 'center' as const,
+  },
+  moreOptionText: {
+    color: '#f59e0b',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+  },
+  moreOptionCancelButton: {
+    backgroundColor: '#6b7280',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center' as const,
+  },
+  moreOptionCancelText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+  },
+  deleteOptionButton: {
+    backgroundColor: '#dc2626',
+  },
+};
+
+// Tag Selector Modal Component - Simplified dropdown approach
+const TagSelectorModal: React.FC<{
+  visible: boolean;
+  onClose: () => void;
+  selectedTags: string[];
+  onTagsChange: (tags: string[]) => void;
+  onConfirm: (finalSelectedTags: string[]) => void;
+}> = ({ visible, onClose, selectedTags, onTagsChange, onConfirm }) => {
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [newTagInput, setNewTagInput] = useState('');
+
+  useEffect(() => {
+    if (visible) {
+      loadAvailableTags();
+    }
+  }, [visible]);
+
+  const loadAvailableTags = async () => {
+    try {
+      const settings = await getSettings();
+      const enabledTags = settings.enabledTags || [];
+      const customTags = settings.customTags || [];
+      const defaultTags = [
+        'vitals', 'medicines', 'events', 'activities', 'habits',
+        'Work', 'Personal', 'Ideas', 'Health', 'Fitness', 'Nutrition', 'Sleep', 'Mood', 'Energy', 'Focus', 'Creativity'
+      ];
+      const allTags = Array.from(new Set([...enabledTags, ...customTags, ...defaultTags]));
+      setAvailableTags(allTags);
+    } catch (error) {
+      console.error('Error loading tags:', error);
+      setAvailableTags([
+        'vitals', 'medicines', 'events', 'activities', 'habits',
+        'Work', 'Personal', 'Ideas', 'Health', 'Fitness', 'Nutrition', 'Sleep', 'Mood', 'Energy', 'Focus', 'Creativity'
+      ]);
+    }
+  };
+
+  const saveCustomTag = async (tag: string) => {
+    try {
+      const currentSettings = await getSettings();
+      const customTags = currentSettings.customTags || [];
+      if (!customTags.includes(tag)) {
+        const updatedSettings = {
+          ...currentSettings,
+          customTags: [...customTags, tag]
+        };
+        await saveSettings(updatedSettings);
+      }
+    } catch (error) {
+      console.error('Error saving custom tag:', error);
+    }
+  };
+
+  const handleTagToggle = (tag: string) => {
+    if (selectedTags.includes(tag)) {
+      onTagsChange(selectedTags.filter(t => t !== tag));
+    } else {
+      onTagsChange([...selectedTags, tag]);
+    }
+  };
+
+  const handleAddNewTag = () => {
+    const newTag = newTagInput.trim();
+    if (newTag && !availableTags.includes(newTag)) {
+      setAvailableTags(prev => [...prev, newTag]);
+      saveCustomTag(newTag);
+      onTagsChange([...selectedTags, newTag]);
+      setNewTagInput('');
+    }
+  };
+
+  const permanentTagIcons: { [key: string]: string } = {
+    'vitals': '❤️',
+    'medicines': '💊',
+    'events': '📅',
+    'activities': '🏃',
+    'habits': '🎯',
+    'Work': '💼',
+    'Personal': '🏠',
+    'Ideas': '💡',
+    'Health': '🏥',
+    'Fitness': '💪',
+    'Nutrition': '🥗',
+    'Sleep': '😴',
+    'Mood': '😊',
+    'Energy': '⚡',
+    'Focus': '🎯',
+    'Creativity': '🎨'
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent={true}>
+      <View style={styles.tagSelectorModalOverlay}>
+        <View style={styles.tagSelectorModalContent}>
+          <Text style={styles.tagSelectorModalTitle}>Select Tags</Text>
+
+          <ScrollView style={styles.tagSelectorScrollView}>
+            {availableTags.sort((a, b) => a.localeCompare(b)).map(tag => {
+              const isSelected = selectedTags.includes(tag);
+              const icon = permanentTagIcons[tag] || '🏷️';
+
+              return (
+                <TouchableOpacity
+                  key={tag}
+                  style={[styles.tagSelectorOption, isSelected && styles.tagSelectorOptionSelected]}
+                  onPress={() => handleTagToggle(tag)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.tagSelectorOptionText, isSelected && styles.tagSelectorOptionTextSelected]}>
+                    {isSelected ? '☑' : '□'} {icon} {tag}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <View style={styles.addNewTagContainer}>
+            <TextInput
+              style={styles.addNewTagInput}
+              placeholder="Add new tag..."
+              placeholderTextColor="#9ca3af"
+              value={newTagInput}
+              onChangeText={setNewTagInput}
+              onSubmitEditing={handleAddNewTag}
+            />
+            <TouchableOpacity
+              style={styles.addNewTagButton}
+              onPress={handleAddNewTag}
+            >
+              <Text style={styles.addNewTagButtonText}>+</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.tagSelectorModalButtons}>
+            <TouchableOpacity
+              style={styles.tagSelectorModalCancelButton}
+              onPress={onClose}
+            >
+              <Text style={styles.tagSelectorModalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.tagSelectorModalSaveButton}
+              onPress={() => onConfirm(selectedTags)}
+            >
+              <Text style={styles.tagSelectorModalSaveText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 };
 
 export default ManageNotesModal;

@@ -2,16 +2,20 @@
   "expo": {
     "name": "Trip42",
     "slug": "mike-a",
-    "version": "0.2",
+    "version": "0.4",
     "owner": "mikeatpp",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/trip42.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "extra": {
       "eas": {
         "projectId": "25302f4e-b0d1-4980-b860-7638cf72cb16"
-      }
+      },
+      "GEMINI_API": "${GEMINI_API}",
+      "GOOGLE_MAPS_API": "${GOOGLE_MAPS_API}",
+      "SUPABASE_URL": "${EXPO_PUBLIC_SUPABASE_URL}",
+      "SUPABASE_ANON_KEY": "${EXPO_PUBLIC_SUPABASE_ANON_KEY}"
     },
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -32,7 +36,7 @@
     "android": {
       "package": "com.mikeatpp.trip42",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/trip42.png",
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
@@ -51,7 +55,37 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "name": "Trip42",
+      "shortName": "Trip42",
+      "lang": "en",
+      "scope": "/",
+      "themeColor": "#000000",
+      "description": "AI-powered travel companion app with voice recording, translation, and note-taking features.",
+      "orientation": "portrait",
+      "display": "standalone",
+      "startUrl": "/",
+      "backgroundColor": "#000000",
+      "splash": {
+        "image": "./assets/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#000000"
+      },
+      "build": {
+        "babel": {
+          "include": ["expo-pwa"]
+        }
+      },
+      "config": {
+        "firebase": {
+          "apiKey": "AIzaSy...",
+          "authDomain": "trip42.firebaseapp.com",
+          "projectId": "trip42",
+          "storageBucket": "trip42.appspot.com",
+          "messagingSenderId": "123456789",
+          "appId": "1:123456789:web:abcdef123456"
+        }
+      }
     },
     "plugins": [
       [

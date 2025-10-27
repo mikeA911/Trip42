@@ -19,6 +19,7 @@ const CreditsTab: React.FC<CreditsTabProps> = ({ onBack }) => {
   const loadCredits = async () => {
     try {
       const creditsData = await getCredits();
+      console.log('🔄 Loading credits in UI:', creditsData.balance);
       setCredits(creditsData);
     } catch (error) {
       console.error('Error loading credits:', error);
@@ -52,20 +53,14 @@ const CreditsTab: React.FC<CreditsTabProps> = ({ onBack }) => {
 
     setIsRedeeming(true);
     try {
-      let result;
-
-      // Special hidden voucher for testing
-      if (voucherCode.trim().toLowerCase() === '42ikigai') {
-        // Add 100 credits for testing
-        result = await redeemVoucher('42ikigai');
-      } else {
-        result = await redeemVoucher(voucherCode.trim());
-      }
+      const result = await redeemVoucher(voucherCode.trim());
 
       if (result.success) {
         setVoucherCode('');
-        // Reload credits to show updated balance
+        // Reload credits from storage to get the updated balance
+        console.log('🔄 Reloading credits after successful redemption...');
         await loadCredits();
+        console.log('🔄 Credits reloaded successfully');
         Alert.alert('Success', `Successfully redeemed ${result.creditsRedeemed} credits!`);
       } else {
         Alert.alert('Error', result.error || 'Failed to redeem voucher');

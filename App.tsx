@@ -24,6 +24,7 @@ type AppScreen = 'landing' | 'notes' | 'record' | 'manageNotes' | 'credits' | 'f
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('landing');
   const { notes, addNote, removeNote, loading } = useNotes();
+  const [aiTheme, setAiTheme] = useState('h2g2');
 
   // Initialize credits on app start
   useEffect(() => {
@@ -114,6 +115,8 @@ export default function App() {
           <LandingPage
             onNavigateToNotes={() => setCurrentScreen('notes')}
             onNavigateToRecord={handleLogoPress}
+            savedNotes={notes}
+            onSaveNote={handleSaveNote}
           />
         );
       case 'notes':
@@ -163,6 +166,7 @@ export default function App() {
             setNoteTitle={() => {}}
             tags={[]}
             setTags={() => {}}
+            aiTheme={aiTheme}
           />
         );
       case 'tetris':

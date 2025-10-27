@@ -16,7 +16,8 @@ import * as Location from 'expo-location';
 import { translateTextWithGemini, translateSignWithGemini, transcribeAudioWithGemini, polishNoteWithGemini } from '../services/geminiService';
 import { speakTextWithGoogleTTS, getVoiceForLanguage } from '../services/googleTTSService';
 import { Note, generateNoteId, getSettings } from '../utils/storage';
-import { deductCredits, CREDIT_PRICING, getCredits } from '../utils/credits';
+import { deductCredits, CREDIT_PRICING, getCredits, checkCreditsAndNotify } from '../utils/credits';
+import { LANGUAGES } from './SettingsPage';
 import ActionsView from './record/ActionsView';
 import RecordingView from './record/RecordingView';
 import TypingView from './record/TypingView';
@@ -28,18 +29,6 @@ interface RecordTranslateProps {
   onSaveNote: (note: Note) => void;
   setCurrentScreen: (screen: any) => void;
 }
-
-const LANGUAGES = [
-  { code: 'en', name: 'English', phonetic: false },
-  { code: 'lo', name: 'Lao', phonetic: true },
-  { code: 'km', name: 'Khmer', phonetic: true },
-  { code: 'th', name: 'Thai', phonetic: true },
-  { code: 'vi', name: 'Vietnamese', phonetic: true },
-  { code: 'fil', name: 'Filipino', phonetic: true },
-  { code: 'zh', name: 'Chinese', phonetic: true },
-  { code: 'ja', name: 'Japanese', phonetic: true },
-  { code: 'ko', name: 'Korean', phonetic: true },
-];
 
 export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, setCurrentScreen }) => {
   // Recording view mode states
@@ -59,27 +48,26 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
   // Translation states
   const [targetLanguage, setTargetLanguage] = useState('en');
-  const [availableLanguages, setAvailableLanguages] = useState([
-    { code: 'en', name: 'English', phonetic: false },
-    { code: 'lo', name: 'Lao', phonetic: true },
-    { code: 'km', name: 'Khmer', phonetic: true },
-    { code: 'th', name: 'Thai', phonetic: true },
-    { code: 'vi', name: 'Vietnamese', phonetic: true },
-    { code: 'fil', name: 'Filipino', phonetic: true },
-    { code: 'zh', name: 'Chinese', phonetic: true },
-    { code: 'ja', name: 'Japanese', phonetic: true },
-    { code: 'ko', name: 'Korean', phonetic: true },
-  ]);
+  const [availableLanguages, setAvailableLanguages] = useState(LANGUAGES);
 
-  // Load user preferred language from settings
+  // Load user preferred language and enabled languages from settings
   useEffect(() => {
     const loadSettings = async () => {
       try {
         const settings = await getSettings();
         setTargetLanguage(settings.uiLanguage || 'en');
+
+        // Filter LANGUAGES to only include enabled languages
+        const enabledLangCodes = settings.enabledLanguages || ['en', 'lo', 'km', 'th', 'vi', 'zh', 'ja', 'ko', 'uk', 'fil'];
+        const enabledLangs = LANGUAGES.filter(lang => enabledLangCodes.includes(lang.code));
+        setAvailableLanguages(enabledLangs);
       } catch (error) {
         console.error('Error loading settings:', error);
         setTargetLanguage('en');
+        // Fallback to default enabled languages
+        const defaultEnabled = ['en', 'lo', 'km', 'th', 'vi', 'zh', 'ja', 'ko', 'uk', 'fil'];
+        const defaultLangs = LANGUAGES.filter(lang => defaultEnabled.includes(lang.code));
+        setAvailableLanguages(defaultLangs);
       }
     };
     loadSettings();
@@ -120,10 +108,29 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
   // Handler functions for the new component structure
   const handleSignTranslation = async () => {
     try {
-      // Check and deduct credits for sign translation
+      // Check credits first
+      const hasCredits = await checkCreditsAndNotify(CREDIT_PRICING.SIGN_TRANSLATION, 'Sign Language Translation');
+      if (!hasCredits) {
+        // Show alert and offer to navigate to credits page
+        Alert.alert(
+          'Insufficient Credits',
+          `You need ${CREDIT_PRICING.SIGN_TRANSLATION} credits for sign language translation, but you don't have enough.\n\nWould you like to go to the Credits page to get more credits?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Go to Credits',
+              onPress: () => setCurrentScreen('credits')
+            }
+          ]
+        );
+        return;
+      }
+
+      // Deduct credits for sign translation
       const creditDeducted = await deductCredits(CREDIT_PRICING.SIGN_TRANSLATION, 'Sign Language Translation');
       if (!creditDeducted) {
-        return; // Stop if credit deduction failed
+        Alert.alert('Error', 'Failed to process credits. Please try again.');
+        return;
       }
 
       // Request camera permissions
@@ -173,15 +180,89 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
   };
 
   const handleVoiceRecording = async () => {
-    // Check and deduct credits for voice recording
+    // Check credits first
+    const hasCredits = await checkCreditsAndNotify(CREDIT_PRICING.VOICE_RECORDING, 'Voice Recording + AI Processing');
+    if (!hasCredits) {
+      // Show alert and offer to navigate to credits page
+      Alert.alert(
+        'Insufficient Credits',
+        `You need ${CREDIT_PRICING.VOICE_RECORDING} credits for voice recording, but you don't have enough.\n\nWould you like to go to the Credits page to get more credits?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Go to Credits',
+            onPress: () => setCurrentScreen('credits')
+          }
+        ]
+      );
+      return;
+    }
+
+    // Deduct credits for voice recording
     const creditDeducted = await deductCredits(CREDIT_PRICING.VOICE_RECORDING, 'Voice Recording + AI Processing');
     if (!creditDeducted) {
-      return; // Stop if credit deduction failed
+      Alert.alert('Error', 'Failed to process credits. Please try again.');
+      return;
     }
 
     // Start recording immediately
+    console.log('DEBUG: Starting voice recording - setting view mode to recording');
     setRecordingViewMode('recording');
-    // The RecordingView component will handle starting the actual recording
+    setIsRecording(true);
+    console.log('DEBUG: Set isRecording to true');
+    // Start the actual recording
+    await handleStartRecording();
+  };
+
+  const handleStartRecording = async () => {
+    try {
+      console.log('DEBUG: handleStartRecording called');
+      // Request permissions
+      const permission = await Audio.requestPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert('Permission needed', 'Audio recording permission is required');
+        return;
+      }
+
+      // Prepare recording
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+
+      const recording = new Audio.Recording();
+      await recording.prepareToRecordAsync({
+        android: {
+          extension: '.m4a',
+          outputFormat: 2, // MPEG_4
+          audioEncoder: 3, // AAC
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: '.m4a',
+          audioQuality: 127, // High
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+        web: {},
+      });
+      await recording.startAsync();
+
+      recordingRef.current = recording;
+      setRecording(recording);
+      console.log('DEBUG: Recording started successfully, recordingRef set');
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      Alert.alert('Error', 'Failed to start recording');
+    }
   };
 
   const handleTextInput = () => {
@@ -190,20 +271,32 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
   const handleStopRecording = async () => {
     try {
-      if (!recordingRef.current) return;
+      console.log('DEBUG: handleStopRecording called in RecordTranslate');
+      if (!recordingRef.current) {
+        console.log('DEBUG: No recording ref found');
+        return;
+      }
 
+      console.log('DEBUG: Setting isRecording to false');
       setIsRecording(false);
+      console.log('DEBUG: Stopping and unloading recording');
       await recordingRef.current.stopAndUnloadAsync();
       const uri = recordingRef.current.getURI();
+      console.log('DEBUG: Got URI:', uri);
 
       if (uri) {
+        console.log('DEBUG: Starting transcription');
         setIsTranscribing(true);
         // Transcribe the audio
         const transcribedText = await transcribeAudioWithGemini(uri);
+        console.log('DEBUG: Transcription completed:', transcribedText);
 
         // Polish the transcription
+        console.log('DEBUG: Starting polish');
         const polished = await polishNoteWithGemini(transcribedText);
+        console.log('DEBUG: Polish completed:', polished.polishedNote);
 
+        console.log('DEBUG: Setting recording current note');
         setRecordingCurrentNote({
           rawTranscription: transcribedText,
           polishedNote: polished.polishedNote,
@@ -211,13 +304,22 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           audioUri: uri
         });
 
+        // Add the audio URI to attached media
+        console.log('DEBUG: Adding audio URI to attached media');
+        setAttachedMedia(prev => [...prev, uri]);
+
+        console.log('DEBUG: Setting view mode to tabs');
         setRecordingViewMode('tabs');
         setActiveRecordingTab('polished');
+        console.log('DEBUG: Navigation to tabs completed');
+      } else {
+        console.log('DEBUG: No URI received from recording');
       }
     } catch (error) {
       console.error('Failed to stop recording:', error);
       Alert.alert('Error', 'Failed to process recording');
     } finally {
+      console.log('DEBUG: Finally block - setting isTranscribing to false');
       setIsTranscribing(false);
       setRecording(null);
       recordingRef.current = null;
@@ -242,10 +344,29 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       return;
     }
 
-    // Check and deduct credits for text translation
+    // Check credits first
+    const hasCredits = await checkCreditsAndNotify(CREDIT_PRICING.TEXT_TRANSLATION, 'Text Translation');
+    if (!hasCredits) {
+      // Show alert and offer to navigate to credits page
+      Alert.alert(
+        'Insufficient Credits',
+        `You need ${CREDIT_PRICING.TEXT_TRANSLATION} credits for text translation, but you don't have enough.\n\nWould you like to go to the Credits page to get more credits?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Go to Credits',
+            onPress: () => setCurrentScreen('credits')
+          }
+        ]
+      );
+      return;
+    }
+
+    // Deduct credits for text translation
     const creditDeducted = await deductCredits(CREDIT_PRICING.TEXT_TRANSLATION, 'Text Translation');
     if (!creditDeducted) {
-      return; // Stop if credit deduction failed
+      Alert.alert('Error', 'Failed to process credits. Please try again.');
+      return;
     }
 
     try {
@@ -269,12 +390,30 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       const newLang = {
         code: newLanguageCode.trim().toLowerCase(),
         name: newLanguageName.trim(),
-        phonetic: true
+        flag: '🏳️'
       };
       setAvailableLanguages(prev => [...prev, newLang]);
       setNewLanguageCode('');
       setNewLanguageName('');
       setShowLanguageDropdown(false);
+
+      // Add to enabled languages in settings
+      const addToEnabledLanguages = async () => {
+        try {
+          const settings = await getSettings();
+          const enabledLanguages = settings.enabledLanguages || [];
+          if (!enabledLanguages.includes(newLang.code)) {
+            const updatedSettings = {
+              ...settings,
+              enabledLanguages: [...enabledLanguages, newLang.code]
+            };
+            await import('../utils/storage').then(({ saveSettings }) => saveSettings(updatedSettings));
+          }
+        } catch (error) {
+          console.error('Error adding language to settings:', error);
+        }
+      };
+      addToEnabledLanguages();
     }
   };
 

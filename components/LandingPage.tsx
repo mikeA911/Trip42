@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, TouchableOpacity, Animated, Image, Text, Modal, ScrollView, Alert, Dimensions, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, Animated, Image, Text, Modal, ScrollView, Alert, Dimensions, StyleSheet, Easing, TextInput, Platform } from 'react-native';
 import { PanGestureHandler, State, PanGestureHandlerGestureEvent, PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import { QUOTES } from '../constants/quotes';
 import { ChatbotModal } from './ChatbotModal';
@@ -7,21 +7,25 @@ import { ChatbotModal } from './ChatbotModal';
 const { width, height } = Dimensions.get('window');
 
 const LANDING_IMAGES = [
-  require('../assets/splash-icon.png'), // Trip42 logo
-  require('../public/icons/arturDent.png'),
-  require('../public/icons/Ford.png'),
+  require('../assets/trip42.png'), // Trip42 logo
+  require('../public/icons/arturBent.png'),
+  require('../public/icons/fordPretext.png'),
   require('../public/icons/marvin.png'),
-  require('../public/icons/Zaphod.png'),
+  require('../public/icons/zaphodBabblefish.png'),
 ];
 
 interface LandingPageProps {
   onNavigateToNotes: () => void;
   onNavigateToRecord: () => void;
+  savedNotes?: any[];
+  onSaveNote?: (note: any) => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   onNavigateToNotes,
-  onNavigateToRecord
+  onNavigateToRecord,
+  savedNotes = [],
+  onSaveNote
 }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [spinCount, setSpinCount] = useState(0);
@@ -33,9 +37,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [showChatbot, setShowChatbot] = useState(false);
   const [isQuoteMode, setIsQuoteMode] = useState(false);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [noteTitle, setNoteTitle] = useState('');
+  const [noteText, setNoteText] = useState('');
+  const [selectedDateForNote, setSelectedDateForNote] = useState<Date | null>(null);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [showPwaInfoModal, setShowPwaInfoModal] = useState(false);
 
   const spinValue = useRef(new Animated.Value(0)).current;
   const pulsateValue = useRef(new Animated.Value(1)).current;
+  const verticalSpinValue = useRef(new Animated.Value(0)).current;
 
   // Update time every second
   useEffect(() => {
@@ -53,19 +64,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         Animated.timing(pulsateValue, {
           toValue: 1.5,
           duration: 1000,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(pulsateValue, {
           toValue: 1,
           duration: 1000,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ])
     );
     pulsateAnimation.start();
 
     return () => pulsateAnimation.stop();
-  }, [pulsateValue]);
+  }, []);
 
 
   // Remove automatic quote cycling - quotes only show after spins
@@ -77,13 +88,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     setCurrentQuote('');
     setSpinCount(prev => prev + 1);
 
-    // Simple spin animation
-    Animated.timing(spinValue, {
-      toValue: 1080, // 3 full spins
-      duration: 1000,
-      useNativeDriver: true,
-    }).start(() => {
+    // Top-like spin animation - fast rotation that slows down
+    const topSpinAnimation = Animated.timing(spinValue, {
+      toValue: 2160, // 6 full spins (more like a top)
+      duration: 2000, // Longer duration for top-like spin
+      easing: Easing.out(Easing.quad), // Quadratic easing for realistic slowdown
+      useNativeDriver: false,
+    });
+
+    topSpinAnimation.start(() => {
       spinValue.setValue(0); // Reset for next spin
+      verticalSpinValue.setValue(0); // Reset vertical spin
       // Always default to trip42 icon
       let nextIndex = 0;
       if (isQuoteMode) {
@@ -93,9 +108,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       setCurrentImageIndex(nextIndex);
       setIsSpinning(false);
 
-      // Show random quote after 4-9 spins
-      const minSpins = 4;
-      const maxSpins = 9;
+      // Show random quote after 2-5 spins (more frequent)
+      const minSpins = 2;
+      const maxSpins = 5;
       const randomSpinThreshold = Math.floor(Math.random() * (maxSpins - minSpins + 1)) + minSpins;
 
       if (spinCount >= randomSpinThreshold - 1) {
@@ -130,7 +145,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     const dateString = selectedDate.toDateString();
 
     // Check if there are existing notes for this date
-    const existingNotes = [] as any[]; // We'll need to pass savedNotes as prop
+    const existingNotes = savedNotes.filter(note => {
+      const noteDate = new Date(note.timestamp);
+      return noteDate.toDateString() === dateString;
+    });
 
     if (existingNotes.length > 0) {
       // Show dialog asking if user wants to create a new note or view existing ones
@@ -174,16 +192,57 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       day: 'numeric'
     });
 
-    // Navigate to text input mode
-    onNavigateToRecord();
-
+    // Open the note creation modal
+    setSelectedDateForNote(selectedDate);
+    setNoteTitle(dateTitle);
+    setNoteText('');
+    setIsInputFocused(false);
+    setShowNoteModal(true);
     setShowCalendar(false);
+  };
+
+  const saveNote = () => {
+    if (!selectedDateForNote || !onSaveNote) return;
+
+    // Check if the selected date is in the future
+    const now = new Date();
+    const isFutureDate = selectedDateForNote > now;
+
+    const newNote = {
+      id: `note-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
+      title: noteTitle,
+      text: noteText,
+      timestamp: selectedDateForNote.toISOString(),
+      tags: isFutureDate ? ['plan'] : [],
+      noteType: 'text_note' as const,
+      isSynced: false,
+      translations: {},
+      attachedMedia: []
+    };
+
+    onSaveNote(newNote);
+    Alert.alert('Note Created', `A new note has been created for ${selectedDateForNote.toLocaleDateString([], { month: 'short', day: 'numeric' })}${isFutureDate ? ' with #plan tag' : ''}.`);
+
+    setShowNoteModal(false);
+    setSelectedDateForNote(null);
+    setNoteTitle('');
+    setNoteText('');
+  };
+
+  const cancelNote = () => {
+    setShowNoteModal(false);
+    setSelectedDateForNote(null);
+    setNoteTitle('');
+    setNoteText('');
+    setIsInputFocused(false);
   };
 
   const hasNotesForDate = (year: number, month: number, day: number) => {
     const dateString = new Date(year, month, day).toDateString();
-    // We'll need to pass savedNotes as prop to check this
-    return false; // Placeholder
+    return savedNotes.some(note => {
+      const noteDate = new Date(note.timestamp);
+      return noteDate.toDateString() === dateString;
+    });
   };
 
   const getDaysInMonth = (date: Date) => {
@@ -263,9 +322,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </TouchableOpacity>
 
       {/* Version in bottom right corner */}
-      <View style={styles.versionContainer}>
-        <Text style={styles.versionText}>v0.9</Text>
-      </View>
+      <TouchableOpacity
+        style={styles.versionContainer}
+        onPress={() => Platform.OS === 'web' && setShowPwaInfoModal(true)}
+      >
+        <Text style={styles.versionText}>v0.4</Text>
+        {Platform.OS === 'web' && (
+          <Text style={styles.pwaIndicatorText}>PWA-01</Text>
+        )}
+      </TouchableOpacity>
 
       {/* Spinning Logo */}
       <PanGestureHandler
@@ -284,14 +349,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   styles.logo,
                   {
                     transform: [{
-                      rotateY: spinValue.interpolate({
-                        inputRange: [0, 360],
-                        outputRange: ['0deg', '360deg']
+                      rotate: spinValue.interpolate({
+                        inputRange: [0, 2160],
+                        outputRange: ['0deg', '2160deg']
                       })
                     }]
                   }
                 ]}
-                resizeMode="cover"
+                resizeMode="contain"
               />
             </View>
           </TouchableOpacity>
@@ -391,6 +456,168 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         visible={showChatbot}
         onClose={() => setShowChatbot(false)}
       />
+
+      {/* Note Creation Modal */}
+      <Modal
+        visible={showNoteModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={cancelNote}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.noteModalContent}>
+            <Text style={styles.noteModalTitle}>
+              Create Note for {selectedDateForNote?.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+            </Text>
+
+            <TextInput
+              style={styles.noteTitleInput}
+              placeholder="Note Title"
+              value={noteTitle}
+              onChangeText={setNoteTitle}
+              onFocus={() => setIsInputFocused(true)}
+              onBlur={() => setIsInputFocused(false)}
+            />
+
+            <TextInput
+              style={styles.noteTextInput}
+              placeholder="Note content..."
+              value={noteText}
+              onChangeText={setNoteText}
+              multiline={true}
+              textAlignVertical="top"
+              onFocus={() => setIsInputFocused(true)}
+              onBlur={() => setIsInputFocused(false)}
+            />
+
+            {isInputFocused && (
+              <View style={styles.noteModalButtons}>
+                <TouchableOpacity
+                  style={[styles.noteModalButton, styles.cancelButton]}
+                  onPress={cancelNote}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.noteModalButton, styles.saveButton]}
+                  onPress={saveNote}
+                >
+                  <Text style={styles.saveButtonText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* PWA Info Modal */}
+      <Modal
+        visible={showPwaInfoModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPwaInfoModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.pwaInfoModalContent}>
+            <Text style={styles.pwaInfoModalTitle}>PWA Limitations</Text>
+            <ScrollView style={styles.pwaInfoScrollView}>
+              <Text style={styles.pwaInfoSectionTitle}>Hardware/Platform Limitations:</Text>
+
+              <Text style={styles.pwaInfoSubTitle}>📱 Device-Specific Features</Text>
+              <Text style={styles.pwaInfoText}>
+                • Camera access: Limited compared to native camera APIs. Web browsers have restrictions on camera permissions and quality.{'\n'}
+                • Microphone access: Web audio recording is less reliable than native audio APIs, especially for continuous recording.{'\n'}
+                • GPS accuracy: Web geolocation is less precise and has different permission models.{'\n'}
+                • File system access: Cannot access device files as comprehensively as native apps.{'\n'}
+                • Device sensors: Limited access to accelerometer, gyroscope, etc.
+              </Text>
+
+              <Text style={styles.pwaInfoSubTitle}>🔔 Push Notifications</Text>
+              <Text style={styles.pwaInfoText}>
+                • Background notifications: PWAs cannot receive push notifications when the app is closed (unlike native apps).{'\n'}
+                • Rich notifications: Limited customization compared to native notification systems.
+              </Text>
+
+              <Text style={styles.pwaInfoSubTitle}>📱 App Store Integration</Text>
+              <Text style={styles.pwaInfoText}>
+                • No app store presence: Cannot be distributed through Apple App Store or Google Play Store.{'\n'}
+                • Installation process: Users must manually add to home screen vs. one-click app store installs.
+              </Text>
+
+              <Text style={styles.pwaInfoSectionTitle}>Performance Limitations:</Text>
+
+              <Text style={styles.pwaInfoSubTitle}>⚡ Processing Power</Text>
+              <Text style={styles.pwaInfoText}>
+                • Background processing: PWAs cannot run background tasks when closed.{'\n'}
+                • Resource usage: Web browsers limit CPU/memory usage compared to native apps.{'\n'}
+                • Offline capabilities: Service workers provide caching but are more limited than native offline storage.
+              </Text>
+
+              <Text style={styles.pwaInfoSubTitle}>🔋 Battery & Resources</Text>
+              <Text style={styles.pwaInfoText}>
+                • Battery optimization: PWAs cannot access native battery optimization features.{'\n'}
+                • Background location: Cannot track location in background like native apps.
+              </Text>
+
+              <Text style={styles.pwaInfoSectionTitle}>Feature Limitations:</Text>
+
+              <Text style={styles.pwaInfoSubTitle}>🎙️ Audio/Video Processing</Text>
+              <Text style={styles.pwaInfoText}>
+                • Real-time audio processing: Web Audio API is less powerful than native audio frameworks.{'\n'}
+                • Video recording: Limited compared to native camera APIs.
+              </Text>
+
+              <Text style={styles.pwaInfoSubTitle}>📁 File Management</Text>
+              <Text style={styles.pwaInfoText}>
+                • Local file access: Cannot access full device file system.{'\n'}
+                • Document picker: Limited file selection capabilities.
+              </Text>
+
+              <Text style={styles.pwaInfoSubTitle}>🔗 System Integration</Text>
+              <Text style={styles.pwaInfoText}>
+                • Deep linking: Less robust deep linking compared to native apps.{'\n'}
+                • Share sheet: Cannot integrate with native share systems as seamlessly.
+              </Text>
+
+              <Text style={styles.pwaInfoSectionTitle}>User Experience Differences:</Text>
+
+              <Text style={styles.pwaInfoSubTitle}>🎨 UI/UX</Text>
+              <Text style={styles.pwaInfoText}>
+                • Gestures: Some native gestures may not work the same way.{'\n'}
+                • Status bar: Cannot control status bar appearance.{'\n'}
+                • Navigation: Browser navigation (back button, etc.) may interfere.
+              </Text>
+
+              <Text style={styles.pwaInfoSubTitle}>🔒 Security & Permissions</Text>
+              <Text style={styles.pwaInfoText}>
+                • Permission model: Different permission dialogs and persistence.{'\n'}
+                • Secure storage: Limited secure storage options compared to native keychains.
+              </Text>
+
+              <Text style={styles.pwaInfoSectionTitle}>Distribution & Updates:</Text>
+
+              <Text style={styles.pwaInfoSubTitle}>📦 Updates</Text>
+              <Text style={styles.pwaInfoText}>
+                • Automatic updates: PWAs update when users refresh, not automatically like app stores.{'\n'}
+                • Version control: Less control over when users get updates.
+              </Text>
+
+              <Text style={styles.pwaInfoSubTitle}>🌐 Browser Compatibility</Text>
+              <Text style={styles.pwaInfoText}>
+                • Feature support: Some features may not work in all browsers.{'\n'}
+                • Performance: Performance varies significantly between browsers.
+              </Text>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.pwaInfoCloseButton}
+              onPress={() => setShowPwaInfoModal(false)}
+            >
+              <Text style={styles.pwaInfoCloseButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -422,10 +649,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 20,
     right: 20,
+    alignItems: 'flex-end',
   },
   versionText: {
     color: '#6b7280',
     fontSize: 12,
+  },
+  pwaIndicatorText: {
+    color: '#f59e0b',
+    fontSize: 10,
+    fontWeight: 'bold' as const,
+    marginTop: 2,
   },
   logoContainer: {
     alignItems: 'center',
@@ -507,18 +741,89 @@ const styles = StyleSheet.create({
     width: 40,
     textAlign: 'center',
   },
+  calendarScrollView: {
+    maxHeight: 300,
+  },
   calendarGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-around',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+    width: 7 * 40, // 7 columns * (36 width + 4 margin) = 280px
+  },
+  calendarMonth: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+    width: 7 * 44, // Ensure exactly 7 columns
   },
   calendarDay: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     justifyContent: 'center',
     alignItems: 'center',
     margin: 2,
     borderRadius: 5,
+    position: 'relative',
+  },
+  noteModalContent: {
+    backgroundColor: '#1f2937',
+    borderRadius: 10,
+    padding: 20,
+    width: width * 0.9,
+    maxWidth: 400,
+  },
+  noteModalTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  noteTitleInput: {
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+    color: '#fff',
+    fontSize: 16,
+    marginBottom: 15,
+  },
+  noteTextInput: {
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+    color: '#fff',
+    fontSize: 16,
+    height: 120,
+    marginBottom: 15,
+  },
+  noteModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  noteModalButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#6b7280',
+  },
+  cancelButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  saveButton: {
+    backgroundColor: '#f59e0b',
+  },
+  saveButtonText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   calendarDaySelected: {
     backgroundColor: '#f59e0b',
@@ -528,7 +833,8 @@ const styles = StyleSheet.create({
   },
   calendarDayText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 14,
+    textAlign: 'center',
   },
   calendarDayTextSelected: {
     color: '#000',
@@ -585,5 +891,55 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.6,
     shadowRadius: 4,
     elevation: 6,
+  },
+  pwaInfoModalContent: {
+    backgroundColor: '#1f2937',
+    borderRadius: 10,
+    padding: 20,
+    width: width * 0.9,
+    maxWidth: 400,
+    maxHeight: height * 0.8,
+  },
+  pwaInfoModalTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold' as const,
+    textAlign: 'center' as const,
+    marginBottom: 20,
+  },
+  pwaInfoScrollView: {
+    maxHeight: height * 0.6,
+  },
+  pwaInfoSectionTitle: {
+    color: '#f59e0b',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+    marginTop: 15,
+    marginBottom: 10,
+  },
+  pwaInfoSubTitle: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold' as const,
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  pwaInfoText: {
+    color: '#9ca3af',
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  pwaInfoCloseButton: {
+    backgroundColor: '#f59e0b',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center' as const,
+    marginTop: 20,
+  },
+  pwaInfoCloseButtonText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
   },
 });

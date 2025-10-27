@@ -14,6 +14,7 @@ interface UserSettings {
   locationPermission: 'always' | 'prompt' | 'never';
   enabledTags: string[];
   enabledLanguages: string[];
+  aiTheme: string;
 }
 
 // Permanent tags with icons and descriptions - sorted alphabetically
@@ -39,100 +40,100 @@ const PERMANENT_TAGS = [
 // Suggested tags for quick selection - now empty since we combined them
 const SUGGESTED_TAGS = [];
 
-// Languages sorted alphabetically by name
+// Languages sorted alphabetically by name with flag emojis
 export const LANGUAGES = [
-  { code: 'af', name: 'Afrikaans' },
-  { code: 'sq', name: 'Albanian' },
-  { code: 'am', name: 'Amharic' },
-  { code: 'ar', name: 'Arabic' },
-  { code: 'hy', name: 'Armenian' },
-  { code: 'az', name: 'Azerbaijani' },
-  { code: 'eu', name: 'Basque' },
-  { code: 'be', name: 'Belarusian' },
-  { code: 'bn', name: 'Bengali' },
-  { code: 'bs', name: 'Bosnian' },
-  { code: 'bg', name: 'Bulgarian' },
-  { code: 'my', name: 'Burmese' },
-  { code: 'ca', name: 'Catalan' },
-  { code: 'ny', name: 'Chichewa' },
-  { code: 'zh', name: 'Chinese' },
-  { code: 'hr', name: 'Croatian' },
-  { code: 'cs', name: 'Czech' },
-  { code: 'da', name: 'Danish' },
-  { code: 'nl', name: 'Dutch' },
-  { code: 'en', name: 'English' },
-  { code: 'et', name: 'Estonian' },
-  { code: 'fi', name: 'Finnish' },
-  { code: 'fil', name: 'Filipino' },
-  { code: 'fr', name: 'French' },
-  { code: 'gl', name: 'Galician' },
-  { code: 'ka', name: 'Georgian' },
-  { code: 'de', name: 'German' },
-  { code: 'el', name: 'Greek' },
-  { code: 'gu', name: 'Gujarati' },
-  { code: 'ha', name: 'Hausa' },
-  { code: 'hi', name: 'Hindi' },
-  { code: 'hu', name: 'Hungarian' },
-  { code: 'is', name: 'Icelandic' },
-  { code: 'id', name: 'Indonesian' },
-  { code: 'ga', name: 'Irish' },
-  { code: 'it', name: 'Italian' },
-  { code: 'ja', name: 'Japanese' },
-  { code: 'jv', name: 'Javanese' },
-  { code: 'kn', name: 'Kannada' },
-  { code: 'kk', name: 'Kazakh' },
-  { code: 'km', name: 'Khmer' },
-  { code: 'rw', name: 'Kinyarwanda' },
-  { code: 'ko', name: 'Korean' },
-  { code: 'lo', name: 'Lao' },
-  { code: 'lv', name: 'Latvian' },
-  { code: 'lt', name: 'Lithuanian' },
-  { code: 'mk', name: 'Macedonian' },
-  { code: 'mg', name: 'Malagasy' },
-  { code: 'ms', name: 'Malay' },
-  { code: 'ml', name: 'Malayalam' },
-  { code: 'mt', name: 'Maltese' },
-  { code: 'mr', name: 'Marathi' },
-  { code: 'mn', name: 'Mongolian' },
-  { code: 'ne', name: 'Nepali' },
-  { code: 'no', name: 'Norwegian' },
-  { code: 'or', name: 'Oriya' },
-  { code: 'om', name: 'Oromo' },
-  { code: 'fa', name: 'Persian' },
-  { code: 'pl', name: 'Polish' },
-  { code: 'pt', name: 'Portuguese' },
-  { code: 'pa', name: 'Punjabi' },
-  { code: 'ro', name: 'Romanian' },
-  { code: 'ru', name: 'Russian' },
-  { code: 'sr', name: 'Serbian' },
-  { code: 'sd', name: 'Sindhi' },
-  { code: 'si', name: 'Sinhala' },
-  { code: 'sk', name: 'Slovak' },
-  { code: 'sl', name: 'Slovenian' },
-  { code: 'so', name: 'Somali' },
-  { code: 'es', name: 'Spanish' },
-  { code: 'ss', name: 'Swati' },
-  { code: 'st', name: 'Sesotho' },
-  { code: 'sn', name: 'Shona' },
-  { code: 'sv', name: 'Swedish' },
-  { code: 'sw', name: 'Swahili' },
-  { code: 'ta', name: 'Tamil' },
-  { code: 'te', name: 'Telugu' },
-  { code: 'tg', name: 'Tajik' },
-  { code: 'th', name: 'Thai' },
-  { code: 'ti', name: 'Tigrinya' },
-  { code: 'tk', name: 'Turkmen' },
-  { code: 'tn', name: 'Tswana' },
-  { code: 'tr', name: 'Turkish' },
-  { code: 'uk', name: 'Ukrainian' },
-  { code: 'ur', name: 'Urdu' },
-  { code: 'uz', name: 'Uzbek' },
-  { code: 'vi', name: 'Vietnamese' },
-  { code: 'cy', name: 'Welsh' },
-  { code: 'xh', name: 'Xhosa' },
-  { code: 'yo', name: 'Yoruba' },
-  { code: 'zu', name: 'Zulu' },
-];
+   { code: 'af', name: 'Afrikaans', flag: '🇿🇦' },
+   { code: 'sq', name: 'Albanian', flag: '🇦🇱' },
+   { code: 'am', name: 'Amharic', flag: '🇪🇹' },
+   { code: 'ar', name: 'Arabic', flag: '🇸🇦' },
+   { code: 'hy', name: 'Armenian', flag: '🇦🇲' },
+   { code: 'az', name: 'Azerbaijani', flag: '🇦🇿' },
+   { code: 'eu', name: 'Basque', flag: '🇪🇸' },
+   { code: 'be', name: 'Belarusian', flag: '🇧🇾' },
+   { code: 'bn', name: 'Bengali', flag: '🇧🇩' },
+   { code: 'bs', name: 'Bosnian', flag: '🇧🇦' },
+   { code: 'bg', name: 'Bulgarian', flag: '🇧🇬' },
+   { code: 'my', name: 'Burmese', flag: '🇲🇲' },
+   { code: 'ca', name: 'Catalan', flag: '🇪🇸' },
+   { code: 'ny', name: 'Chichewa', flag: '🇲🇼' },
+   { code: 'zh', name: 'Chinese', flag: '🇨🇳' },
+   { code: 'hr', name: 'Croatian', flag: '🇭🇷' },
+   { code: 'cs', name: 'Czech', flag: '🇨🇿' },
+   { code: 'da', name: 'Danish', flag: '🇩🇰' },
+   { code: 'nl', name: 'Dutch', flag: '🇳🇱' },
+   { code: 'en', name: 'English', flag: '🇺🇸' },
+   { code: 'et', name: 'Estonian', flag: '🇪🇪' },
+   { code: 'fi', name: 'Finnish', flag: '🇫🇮' },
+   { code: 'fil', name: 'Filipino', flag: '🇵🇭' },
+   { code: 'fr', name: 'French', flag: '🇫🇷' },
+   { code: 'gl', name: 'Galician', flag: '🇪🇸' },
+   { code: 'ka', name: 'Georgian', flag: '🇬🇪' },
+   { code: 'de', name: 'German', flag: '🇩🇪' },
+   { code: 'el', name: 'Greek', flag: '🇬🇷' },
+   { code: 'gu', name: 'Gujarati', flag: '🇮🇳' },
+   { code: 'ha', name: 'Hausa', flag: '🇳🇬' },
+   { code: 'hi', name: 'Hindi', flag: '🇮🇳' },
+   { code: 'hu', name: 'Hungarian', flag: '🇭🇺' },
+   { code: 'is', name: 'Icelandic', flag: '🇮🇸' },
+   { code: 'id', name: 'Indonesian', flag: '🇮🇩' },
+   { code: 'ga', name: 'Irish', flag: '🇮🇪' },
+   { code: 'it', name: 'Italian', flag: '🇮🇹' },
+   { code: 'ja', name: 'Japanese', flag: '🇯🇵' },
+   { code: 'jv', name: 'Javanese', flag: '🇮🇩' },
+   { code: 'kn', name: 'Kannada', flag: '🇮🇳' },
+   { code: 'kk', name: 'Kazakh', flag: '🇰🇿' },
+   { code: 'kh', name: 'Khmer', flag: '🇰🇭' },
+   { code: 'rw', name: 'Kinyarwanda', flag: '🇷🇼' },
+   { code: 'ko', name: 'Korean', flag: '🇰🇷' },
+   { code: 'lo', name: 'Lao', flag: '🇱🇦' },
+   { code: 'lv', name: 'Latvian', flag: '🇱🇻' },
+   { code: 'lt', name: 'Lithuanian', flag: '🇱🇹' },
+   { code: 'mk', name: 'Macedonian', flag: '🇲🇰' },
+   { code: 'mg', name: 'Malagasy', flag: '🇲🇬' },
+   { code: 'ms', name: 'Malay', flag: '🇲🇾' },
+   { code: 'ml', name: 'Malayalam', flag: '🇮🇳' },
+   { code: 'mt', name: 'Maltese', flag: '🇲🇹' },
+   { code: 'mr', name: 'Marathi', flag: '🇮🇳' },
+   { code: 'mn', name: 'Mongolian', flag: '🇲🇳' },
+   { code: 'ne', name: 'Nepali', flag: '🇳🇵' },
+   { code: 'no', name: 'Norwegian', flag: '🇳🇴' },
+   { code: 'or', name: 'Oriya', flag: '🇮🇳' },
+   { code: 'om', name: 'Oromo', flag: '🇪🇹' },
+   { code: 'fa', name: 'Persian', flag: '🇮🇷' },
+   { code: 'pl', name: 'Polish', flag: '🇵🇱' },
+   { code: 'pt', name: 'Portuguese', flag: '🇵🇹' },
+   { code: 'pa', name: 'Punjabi', flag: '🇮🇳' },
+   { code: 'ro', name: 'Romanian', flag: '🇷🇴' },
+   { code: 'ru', name: 'Russian', flag: '🇷🇺' },
+   { code: 'sr', name: 'Serbian', flag: '🇷🇸' },
+   { code: 'sd', name: 'Sindhi', flag: '🇵🇰' },
+   { code: 'si', name: 'Sinhala', flag: '🇱🇰' },
+   { code: 'sk', name: 'Slovak', flag: '🇸🇰' },
+   { code: 'sl', name: 'Slovenian', flag: '🇸🇮' },
+   { code: 'so', name: 'Somali', flag: '🇸🇴' },
+   { code: 'es', name: 'Spanish', flag: '🇪🇸' },
+   { code: 'ss', name: 'Swati', flag: '🇸🇿' },
+   { code: 'st', name: 'Sesotho', flag: '🇱🇸' },
+   { code: 'sn', name: 'Shona', flag: '🇿🇼' },
+   { code: 'sv', name: 'Swedish', flag: '🇸🇪' },
+   { code: 'sw', name: 'Swahili', flag: '🇹🇿' },
+   { code: 'ta', name: 'Tamil', flag: '🇮🇳' },
+   { code: 'te', name: 'Telugu', flag: '🇮🇳' },
+   { code: 'tg', name: 'Tajik', flag: '🇹🇯' },
+   { code: 'th', name: 'Thai', flag: '🇹🇭' },
+   { code: 'ti', name: 'Tigrinya', flag: '🇪🇷' },
+   { code: 'tk', name: 'Turkmen', flag: '🇹🇲' },
+   { code: 'tn', name: 'Tswana', flag: '🇧🇼' },
+   { code: 'tr', name: 'Turkish', flag: '🇹🇷' },
+   { code: 'uk', name: 'Ukrainian', flag: '🇺🇦' },
+   { code: 'ur', name: 'Urdu', flag: '🇵🇰' },
+   { code: 'uz', name: 'Uzbek', flag: '🇺🇿' },
+   { code: 'vi', name: 'Vietnamese', flag: '🇻🇳' },
+   { code: 'cy', name: 'Welsh', flag: '🇬🇧' },
+   { code: 'xh', name: 'Xhosa', flag: '🇿🇦' },
+   { code: 'yo', name: 'Yoruba', flag: '🇳🇬' },
+   { code: 'zu', name: 'Zulu', flag: '🇿🇦' },
+ ];
 
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
@@ -159,6 +160,11 @@ const CURRENCIES = [
   { code: 'MMK', name: 'Myanmar Kyat', symbol: 'K' }
 ];
 
+const AI_THEMES = [
+  { code: 'h2g2', name: 'Hitchhiker\'s Guide to the Galaxy', description: 'Marvin the Paranoid Android' },
+  { code: 'lotr', name: 'Lord of the Rings', description: 'Coming soon...' }
+];
+
 const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
    const [settings, setSettings] = useState<UserSettings>({
      uiLanguage: 'en',
@@ -166,7 +172,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
      customTags: [],
      locationPermission: 'prompt',
      enabledTags: [],
-     enabledLanguages: []
+     enabledLanguages: [],
+     aiTheme: 'h2g2'
    });
    const [tempEnabledTags, setTempEnabledTags] = useState<string[]>([]);
    const [tempEnabledLanguages, setTempEnabledLanguages] = useState<string[]>([]);
@@ -176,6 +183,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
    const [showLocationDropdown, setShowLocationDropdown] = useState(false);
    const [showTagsSelector, setShowTagsSelector] = useState(false);
    const [showLanguagesSelector, setShowLanguagesSelector] = useState(false);
+   const [showThemeDropdown, setShowThemeDropdown] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -191,7 +199,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
     try {
       const savedSettings = await AsyncStorage.getItem('userSettings');
       if (savedSettings) {
-        setSettings(JSON.parse(savedSettings));
+        const parsedSettings = JSON.parse(savedSettings);
+        console.log('DEBUG Settings: Loaded settings:', parsedSettings);
+        console.log('DEBUG Settings: enabledTags:', parsedSettings.enabledTags);
+        setSettings(parsedSettings);
+      } else {
+        console.log('DEBUG Settings: No saved settings found');
       }
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -244,6 +257,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
   const getCurrencyName = (code: string) => {
     const currency = CURRENCIES.find(c => c.code === code);
     return currency ? `${currency.symbol} ${currency.name}` : code;
+  };
+
+  const getThemeName = (code: string) => {
+    const theme = AI_THEMES.find(t => t.code === code);
+    return theme ? theme.name : code;
   };
 
   return (
@@ -363,18 +381,75 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
           )}
         </View>
 
-        {/* Languages to Display */}
+        {/* AI Theme */}
         <View style={sharedStyles.settingsSection}>
-          <Text style={sharedStyles.settingsLabel}>Languages to Display</Text>
+          <Text style={sharedStyles.settingsLabel}>AI Personality Theme</Text>
           <TouchableOpacity
             style={sharedStyles.dropdownButton}
-            onPress={() => setShowLanguagesSelector(!showLanguagesSelector)}
+            onPress={() => setShowThemeDropdown(!showThemeDropdown)}
           >
             <Text style={sharedStyles.dropdownButtonText}>
-              {settings.enabledLanguages.length} languages selected
+              {getThemeName(settings.aiTheme)}
             </Text>
             <Text style={sharedStyles.dropdownArrow}>▼</Text>
           </TouchableOpacity>
+
+          {showThemeDropdown && (
+            <View style={sharedStyles.dropdownList}>
+              {AI_THEMES.map((theme) => (
+                <TouchableOpacity
+                  key={theme.code}
+                  style={sharedStyles.dropdownItem}
+                  onPress={() => {
+                    updateSetting('aiTheme', theme.code);
+                    setShowThemeDropdown(false);
+                  }}
+                >
+                  <Text style={sharedStyles.dropdownItemText}>
+                    {theme.name}
+                  </Text>
+                  <Text style={[sharedStyles.dropdownItemText, { fontSize: 12, color: '#9CA3AF' }]}>
+                    {theme.description}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Languages to Display */}
+        <View style={sharedStyles.settingsSection}>
+           <Text style={sharedStyles.settingsLabel}>Quick select languages</Text>
+           {/* Selected Languages Flags Display */}
+           {settings.enabledLanguages.length > 0 && (
+             <View style={sharedStyles.selectedLanguagesContainer}>
+               <Text style={sharedStyles.selectedLanguagesLabel}>Selected:</Text>
+               <View style={sharedStyles.flagsContainer}>
+                 {settings.enabledLanguages.slice(0, 8).map(langCode => {
+                   const lang = LANGUAGES.find(l => l.code === langCode);
+                   return lang ? (
+                     <Text key={langCode} style={sharedStyles.flagEmoji}>
+                       {lang.flag}
+                     </Text>
+                   ) : null;
+                 })}
+                 {settings.enabledLanguages.length > 8 && (
+                   <Text style={sharedStyles.moreFlagsText}>
+                     +{settings.enabledLanguages.length - 8}
+                   </Text>
+                 )}
+               </View>
+             </View>
+           )}
+           <TouchableOpacity
+             style={sharedStyles.dropdownButton}
+             onPress={() => setShowLanguagesSelector(!showLanguagesSelector)}
+           >
+             <Text style={sharedStyles.dropdownButtonText}>
+               {settings.enabledLanguages.length} languages selected
+             </Text>
+             <Text style={sharedStyles.dropdownArrow}>▼</Text>
+           </TouchableOpacity>
 
           {showLanguagesSelector && (
             <View style={[sharedStyles.tagsSelectorContainer, { maxHeight: 300, borderWidth: 1, borderColor: '#374151' }]}>
@@ -434,15 +509,42 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
 
           {/* Tags Dropdown */}
           <View style={sharedStyles.tagsSection}>
-            <TouchableOpacity
-              style={sharedStyles.dropdownButton}
-              onPress={() => setShowTagsSelector(!showTagsSelector)}
-            >
-              <Text style={sharedStyles.dropdownButtonText}>
-                {tempEnabledTags.length} tags selected
-              </Text>
-              <Text style={sharedStyles.dropdownArrow}>▼</Text>
-            </TouchableOpacity>
+            <View style={sharedStyles.tagsDropdownContainer}>
+              <TouchableOpacity
+                style={sharedStyles.dropdownButton}
+                onPress={() => setShowTagsSelector(!showTagsSelector)}
+              >
+                <Text style={sharedStyles.dropdownButtonText}>
+                  Add
+                </Text>
+                <Text style={sharedStyles.dropdownArrow}>▼</Text>
+              </TouchableOpacity>
+              <Text style={sharedStyles.enabledTagsLabel}>Enabled Tags:</Text>
+              {tempEnabledTags.length > 0 && (
+                <View style={sharedStyles.enabledTagsContainer}>
+                  {tempEnabledTags.map(tagName => {
+                    const tag = PERMANENT_TAGS.find(t => t.name === tagName);
+                    const isCustom = settings.customTags.includes(tagName);
+
+                    return (
+                      <TouchableOpacity
+                        key={tagName}
+                        style={sharedStyles.enabledTagItem}
+                        onPress={() => {
+                          const newEnabledTags = tempEnabledTags.filter(t => t !== tagName);
+                          setTempEnabledTags(newEnabledTags);
+                        }}
+                      >
+                        <Text style={sharedStyles.enabledTagIcon}>
+                          {tag ? tag.icon : tagName.startsWith('🏷️') ? '🏷️' : tagName}
+                        </Text>
+                        <Text style={sharedStyles.enabledTagDelete}>✕</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
 
             {showTagsSelector && (
               <View style={[sharedStyles.tagsSelectorContainer, { maxHeight: 300, borderWidth: 1, borderColor: '#374151' }]}>
@@ -452,23 +554,30 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
                   nestedScrollEnabled={true}
                   contentContainerStyle={{ paddingBottom: 10 }}
                 >
-                  {PERMANENT_TAGS.map((tag) => (
-                    <TouchableOpacity
-                      key={`tag-${tag.name}`}
-                      style={sharedStyles.tagSelectorItem}
-                      onPress={() => {
-                        const newEnabledTags = tempEnabledTags.includes(tag.name)
-                          ? tempEnabledTags.filter(t => t !== tag.name)
-                          : [...tempEnabledTags, tag.name];
-                        setTempEnabledTags(newEnabledTags);
-                      }}
-                    >
-                      <Text style={sharedStyles.checkboxText}>
-                        {tempEnabledTags.includes(tag.name) ? '☑' : '□'}
-                      </Text>
-                      <Text style={sharedStyles.tagSelectorText}>{tag.icon} {tag.name}</Text>
-                    </TouchableOpacity>
-                  ))}
+                  {PERMANENT_TAGS.map((tag) => {
+                    const isRequired = ['vitals', 'medicines', 'activities', 'events', 'habits'].includes(tag.name);
+                    const isSelected = tempEnabledTags.includes(tag.name);
+
+                    return (
+                      <TouchableOpacity
+                        key={`tag-${tag.name}`}
+                        style={sharedStyles.tagSelectorItem}
+                        onPress={() => {
+                          const newEnabledTags = isSelected
+                            ? tempEnabledTags.filter(t => t !== tag.name)
+                            : [...tempEnabledTags, tag.name];
+                          setTempEnabledTags(newEnabledTags);
+                        }}
+                      >
+                        <Text style={sharedStyles.checkboxText}>
+                          {isSelected ? '☑' : '□'}
+                        </Text>
+                        <Text style={sharedStyles.tagSelectorText}>
+                          {tag.icon} {tag.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
 
                   {/* Custom Tags */}
                   {settings.customTags.map((tag) => (

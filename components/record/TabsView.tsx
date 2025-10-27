@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, TextInput, ScrollView, Image, Alert, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, ScrollView, Image, Alert, Modal, FlatList } from 'react-native';
 import { speakTextWithGoogleTTS, getVoiceForLanguage } from '../../services/googleTTSService';
-import { Note, getSettings } from '../../utils/storage';
+import { Note, getSettings, saveSettings } from '../../utils/storage';
 
 interface Translation {
   text: string;
@@ -16,9 +16,9 @@ interface RecordingCurrentNote {
 }
 
 interface Language {
-  code: string;
-  name: string;
-  phonetic: boolean;
+   code: string;
+   name: string;
+   flag: string;
 }
 
 interface TabsViewProps {
@@ -89,8 +89,9 @@ const TabsView: React.FC<TabsViewProps> = ({
   onCancelTranslation
 }) => {
   const [showSaveModal, setShowSaveModal] = useState(false);
-  const [showGpsModal, setShowGpsModal] = useState(false);
   const [includeGps, setIncludeGps] = useState(false);
+  const [showTagSelector, setShowTagSelector] = useState(false);
+  const [noteTags, setNoteTags] = useState<string[]>([]);
 
   // Load user preferred language from settings
   useEffect(() => {
@@ -106,6 +107,19 @@ const TabsView: React.FC<TabsViewProps> = ({
     };
     loadSettings();
   }, []);
+
+  // Update available languages when settings change (passed from parent)
+  useEffect(() => {
+    // availableLanguages is now passed from parent and filtered by enabledLanguages
+    // No need to load here as it's handled in RecordTranslate.tsx
+  }, [availableLanguages]);
+
+  // Set default language to English if not defined
+  useEffect(() => {
+    if (!targetLanguage || targetLanguage === '') {
+      setTargetLanguage('en');
+    }
+  }, [targetLanguage]);
 
   return (
     <>
@@ -209,38 +223,44 @@ const TabsView: React.FC<TabsViewProps> = ({
           <ScrollView style={styles.contentArea}>
             <View style={styles.translationControls}>
               <Text style={styles.labelText}>Target Language:</Text>
-              <View style={styles.languageSelector}>
+
+              {/* Language selection dropdown */}
+              <View style={styles.languageSelectionContainer}>
+                <Text style={styles.quickSelectLabel}>Select target language:</Text>
                 <TouchableOpacity
-                  style={styles.languageDropdown}
+                  style={styles.dropdownButton}
                   onPress={() => setShowLanguageDropdown(!showLanguageDropdown)}
                 >
-                  <Text style={[styles.languageDropdownText, { color: '#f59e0b', fontWeight: 'bold' as const }]}>
-                    {availableLanguages.find(lang => lang.code === targetLanguage)?.name || targetLanguage}
+                  <Text style={styles.dropdownButtonText}>
+                    {availableLanguages.find(lang => lang.code === targetLanguage)?.flag || ''} {availableLanguages.find(lang => lang.code === targetLanguage)?.name || 'Select Language'}
                   </Text>
-                  <Text style={[styles.dropdownArrow, { color: '#f59e0b' }]}>▼</Text>
+                  <Text style={styles.dropdownArrow}>▼</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.addLanguageButton}
-                  onPress={() => setShowLanguageDropdown(!showLanguageDropdown)}
-                >
-                  <Text style={styles.addLanguageButtonText}>+</Text>
-                </TouchableOpacity>
+
+                {showLanguageDropdown && (
+                  <ScrollView style={styles.dropdownList} showsVerticalScrollIndicator={true}>
+                    {availableLanguages
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map(lang => (
+                        <TouchableOpacity
+                          key={lang.code}
+                          style={styles.dropdownItem}
+                          onPress={() => {
+                            setTargetLanguage(lang.code);
+                            setShowLanguageDropdown(false);
+                          }}
+                        >
+                          <Text style={[styles.dropdownItemText, { fontSize: 16 }]}>
+                            {lang.flag} {lang.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                  </ScrollView>
+                )}
               </View>
 
               {showLanguageDropdown && (
                 <View style={styles.languageDropdownList}>
-                  {availableLanguages.map(lang => (
-                    <TouchableOpacity
-                      key={lang.code}
-                      style={styles.languageOption}
-                      onPress={() => {
-                        setTargetLanguage(lang.code);
-                        setShowLanguageDropdown(false);
-                      }}
-                    >
-                      <Text style={[styles.languageOptionText, { color: '#f59e0b', fontWeight: 'bold' as const }]}>{lang.name}</Text>
-                    </TouchableOpacity>
-                  ))}
                   <View style={styles.addLanguageForm}>
                     <TextInput
                       style={styles.addLanguageInput}
@@ -326,73 +346,321 @@ const TabsView: React.FC<TabsViewProps> = ({
           >
             <Text style={styles.cancelButtonText}>❌ Cancel</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.saveNoteButton} onPress={() => setShowGpsModal(true)}>
+          <TouchableOpacity style={styles.saveNoteButton} onPress={() => setShowSaveModal(true)}>
             <Text style={styles.saveNoteButtonText}>💾 Save Note</Text>
           </TouchableOpacity>
         </View>
       )}
     </View>
 
-    {/* GPS Modal */}
-    <Modal visible={showGpsModal} animationType="slide" transparent={true}>
-      <View style={styles.gpsModalOverlay}>
-        <View style={styles.gpsModalContent}>
-          <Text style={styles.gpsModalTitle}>Add Location?</Text>
-          <Text style={styles.gpsModalText}>
-            Would you like to add your current location to this note? You can change this in your browser settings later.
-          </Text>
-          <View style={styles.gpsModalButtons}>
+    {/* Save Modal */}
+    <Modal visible={showSaveModal} animationType="slide" transparent={true}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.saveModalContent}>
+          <Text style={styles.saveModalTitle}>Save Note</Text>
+
+          <View style={styles.locationSection}>
             <TouchableOpacity
-              style={styles.gpsModalButton}
+              style={styles.checkboxContainer}
+              onPress={() => setIncludeGps(!includeGps)}
+            >
+              <Text style={styles.checkboxText}>{includeGps ? '☑' : '□'}</Text>
+              <Text style={styles.checkboxLabel}>Include current location</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.tagsSection}>
+            <Text style={styles.tagsLabel}>Tags:</Text>
+            <View style={styles.enabledTagsList}>
+              {(() => {
+                // Get enabled tags from settings
+                const [enabledTags, setEnabledTags] = useState<string[]>([]);
+
+                useEffect(() => {
+                  const loadEnabledTags = async () => {
+                    try {
+                      // Load directly from AsyncStorage like SettingsPage does
+                      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+                      const savedSettings = await AsyncStorage.getItem('userSettings');
+                      if (savedSettings) {
+                        const settings = JSON.parse(savedSettings);
+                        console.log('DEBUG TabsView: Loaded userSettings:', settings);
+                        console.log('DEBUG TabsView: enabledTags from userSettings:', settings.enabledTags);
+                        const tags = settings.enabledTags || [];
+                        console.log('DEBUG TabsView: Setting enabledTags to:', tags);
+                        setEnabledTags(tags);
+                      } else {
+                        console.log('DEBUG TabsView: No userSettings found');
+                        setEnabledTags([]);
+                      }
+                    } catch (error) {
+                      console.error('Error loading enabled tags:', error);
+                      setEnabledTags([]);
+                    }
+                  };
+                  loadEnabledTags();
+                }, []);
+
+                const permanentTagIcons: { [key: string]: string } = {
+                  'vitals': '❤️',
+                  'medicines': '💊',
+                  'events': '📅',
+                  'activities': '🏃',
+                  'habits': '🎯',
+                  'Work': '💼',
+                  'Personal': '🏠',
+                  'Ideas': '💡',
+                  'Health': '🏥',
+                  'Fitness': '💪',
+                  'Nutrition': '🥗',
+                  'Sleep': '😴',
+                  'Mood': '😊',
+                  'Energy': '⚡',
+                  'Focus': '🎯',
+                  'Creativity': '🎨'
+                };
+
+                console.log('DEBUG: Rendering enabled tags:', enabledTags);
+
+                if (enabledTags.length === 0) {
+                  return (
+                    <Text style={styles.checkboxLabel}>No enabled tags found. Configure tags in Settings.</Text>
+                  );
+                }
+
+                return enabledTags.map(tag => {
+                  const isSelected = noteTags.includes(tag);
+                  const icon = permanentTagIcons[tag] || '🏷️';
+
+                  console.log('DEBUG: Rendering tag:', tag, 'selected:', isSelected);
+
+                  return (
+                    <TouchableOpacity
+                      key={tag}
+                      style={styles.checkboxContainer}
+                      onPress={() => {
+                        console.log('DEBUG: Toggled tag:', tag);
+                        if (isSelected) {
+                          setNoteTags(noteTags.filter(t => t !== tag));
+                        } else {
+                          setNoteTags([...noteTags, tag]);
+                        }
+                      }}
+                    >
+                      <Text style={styles.checkboxText}>{isSelected ? '☑' : '□'}</Text>
+                      <Text style={styles.checkboxLabel}>{icon} {tag}</Text>
+                    </TouchableOpacity>
+                  );
+                });
+              })()}
+            </View>
+          </View>
+
+          <View style={styles.saveModalButtons}>
+            <TouchableOpacity
+              style={styles.saveModalCancelButton}
               onPress={() => {
+                setShowSaveModal(false);
                 setIncludeGps(false);
-                setShowGpsModal(false);
-                setShowSaveModal(true);
+                setNoteTags([]);
               }}
             >
-              <Text style={styles.gpsModalButtonText}>No, Thanks</Text>
+              <Text style={styles.saveModalCancelText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.gpsModalButton, styles.gpsModalButtonPrimary]}
+              style={styles.saveModalSaveButton}
               onPress={() => {
-                setIncludeGps(true);
-                setShowGpsModal(false);
-                setShowSaveModal(true);
+                onSaveNote(includeGps, noteTags);
+                setShowSaveModal(false);
+                setIncludeGps(false);
+                setNoteTags([]);
               }}
             >
-              <Text style={styles.gpsModalButtonTextPrimary}>Yes, Add</Text>
+              <Text style={styles.saveModalSaveText}>Save Note</Text>
             </TouchableOpacity>
           </View>
         </View>
       </View>
     </Modal>
-
-    {/* Save Modal */}
-    <SaveNoteModal
-      visible={showSaveModal}
-      onClose={() => setShowSaveModal(false)}
-      onSave={() => {
-        onSaveNote(includeGps, tags);
-        setShowSaveModal(false);
-      }}
-    />
     </>
   );
 };
-// Save Note Modal Component
-const SaveNoteModal: React.FC<{
+// Tag Selector Modal Component
+const TagSelectorModal: React.FC<{
   visible: boolean;
   onClose: () => void;
-  onSave: () => void;
-}> = ({ visible, onClose, onSave }) => {
-  const [noteTitle, setNoteTitle] = useState('');
-  const [noteTags, setNoteTags] = useState<string[]>([]);
-  const [modalTagInput, setModalTagInput] = useState('');
+  selectedTags: string[];
+  onTagsChange: (tags: string[]) => void;
+}> = ({ visible, onClose, selectedTags, onTagsChange }) => {
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [enabledTags, setEnabledTags] = useState<string[]>([]);
+  const [newTagInput, setNewTagInput] = useState('');
+
+  useEffect(() => {
+    if (visible) {
+      console.log('DEBUG: TagSelectorModal opened');
+      loadAvailableTags();
+      loadEnabledTags();
+    }
+  }, [visible]);
+
+  const loadAvailableTags = async () => {
+    try {
+      const settings = await getSettings();
+      const enabledTags = settings.enabledTags || [];
+      const customTags = settings.customTags || [];
+      const defaultTags = [
+        'vitals', 'medicines', 'events', 'activities', 'habits',
+        'Work', 'Personal', 'Ideas', 'Health', 'Fitness', 'Nutrition', 'Sleep', 'Mood', 'Energy', 'Focus', 'Creativity'
+      ];
+      const allTags = Array.from(new Set([...enabledTags, ...customTags, ...defaultTags]));
+      setAvailableTags(allTags);
+    } catch (error) {
+      console.error('Error loading tags:', error);
+      setAvailableTags([
+        'vitals', 'medicines', 'events', 'activities', 'habits',
+        'Work', 'Personal', 'Ideas', 'Health', 'Fitness', 'Nutrition', 'Sleep', 'Mood', 'Energy', 'Focus', 'Creativity'
+      ]);
+    }
+  };
+
+  const loadEnabledTags = async () => {
+    try {
+      const settings = await getSettings();
+      const enabledTags = settings.enabledTags || [];
+      setEnabledTags(enabledTags);
+    } catch (error) {
+      console.error('Error loading enabled tags:', error);
+      setEnabledTags([]);
+    }
+  };
+
+  const saveCustomTag = async (tag: string) => {
+    try {
+      const currentSettings = await getSettings();
+      const customTags = currentSettings.customTags || [];
+      if (!customTags.includes(tag)) {
+        const updatedSettings = {
+          ...currentSettings,
+          customTags: [...customTags, tag]
+        };
+        await saveSettings(updatedSettings);
+      }
+    } catch (error) {
+      console.error('Error saving custom tag:', error);
+    }
+  };
+
+  const handleTagToggle = (tag: string) => {
+    if (selectedTags.includes(tag)) {
+      onTagsChange(selectedTags.filter(t => t !== tag));
+    } else {
+      onTagsChange([...selectedTags, tag]);
+    }
+  };
+
+  const handleAddNewTag = () => {
+    const newTag = newTagInput.trim();
+    if (newTag && !availableTags.includes(newTag)) {
+      setAvailableTags(prev => [...prev, newTag]);
+      saveCustomTag(newTag);
+      onTagsChange([...selectedTags, newTag]);
+      setNewTagInput('');
+    }
+  };
+
+  const renderTagItem = ({ item }: { item: string }) => {
+    const isSelected = selectedTags.includes(item);
+    const isEnabled = enabledTags.includes(item);
+    const permanentTagIcons: { [key: string]: string } = {
+      'vitals': '❤️',
+      'medicines': '💊',
+      'events': '📅',
+      'activities': '🏃',
+      'habits': '🎯',
+      'Work': '💼',
+      'Personal': '🏠',
+      'Ideas': '💡',
+      'Health': '🏥',
+      'Fitness': '💪',
+      'Nutrition': '🥗',
+      'Sleep': '😴',
+      'Mood': '😊',
+      'Energy': '⚡',
+      'Focus': '🎯',
+      'Creativity': '🎨'
+    };
+
+    const icon = permanentTagIcons[item] || '🏷️';
+
+    return (
+      <TouchableOpacity
+        style={[styles.tagSelectorItem, isSelected && styles.tagSelectorItemSelected, !isEnabled && styles.tagSelectorItemDisabled]}
+        onPress={() => handleTagToggle(item)}
+        disabled={!isEnabled}
+      >
+        <Text style={[styles.tagSelectorItemText, isSelected && styles.tagSelectorItemTextSelected, !isEnabled && styles.tagSelectorItemTextDisabled]}>
+          {icon} {item}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent={true}>
+      <View style={styles.tagSelectorModalOverlay}>
+        <View style={styles.tagSelectorModalContent}>
+          <Text style={styles.tagSelectorModalTitle}>Select Tags</Text>
+
+          <FlatList
+            data={availableTags}
+            renderItem={renderTagItem}
+            keyExtractor={(item) => item}
+            numColumns={2}
+            contentContainerStyle={styles.tagSelectorList}
+          />
+
+          <View style={styles.addNewTagContainer}>
+            <TextInput
+              style={styles.addNewTagInput}
+              placeholder="Add new tag..."
+              placeholderTextColor="#9ca3af"
+              value={newTagInput}
+              onChangeText={setNewTagInput}
+              onSubmitEditing={handleAddNewTag}
+            />
+            <TouchableOpacity
+              style={styles.addNewTagButton}
+              onPress={handleAddNewTag}
+            >
+              <Text style={styles.addNewTagButtonText}>+</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.tagSelectorModalButtons}>
+            <TouchableOpacity
+              style={styles.tagSelectorModalCancelButton}
+              onPress={onClose}
+            >
+              <Text style={styles.tagSelectorModalCancelText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// Location Modal Component
+const LocationModal: React.FC<{
+  visible: boolean;
+  onClose: () => void;
+  onNext: (includeLocation: boolean) => void;
+}> = ({ visible, onClose, onNext }) => {
   const [includeLocation, setIncludeLocation] = useState(false);
 
-  const handleSave = () => {
-    // TODO: Implement actual save logic with location and tags
-    onSave();
+  const handleNext = () => {
+    onNext(includeLocation);
     onClose();
   };
 
@@ -400,15 +668,10 @@ const SaveNoteModal: React.FC<{
     <Modal visible={visible} animationType="slide" transparent={true}>
       <View style={styles.modalOverlay}>
         <View style={styles.saveModalContent}>
-          <Text style={styles.saveModalTitle}>Save Note</Text>
-
-          <TextInput
-            style={styles.saveModalInput}
-            placeholder="Note title (optional)"
-            placeholderTextColor="#9ca3af"
-            value={noteTitle}
-            onChangeText={setNoteTitle}
-          />
+          <Text style={styles.saveModalTitle}>Add Location?</Text>
+          <Text style={styles.gpsModalText}>
+            Would you like to include your current location with this note?
+          </Text>
 
           <View style={styles.locationSection}>
             <TouchableOpacity
@@ -420,50 +683,18 @@ const SaveNoteModal: React.FC<{
             </TouchableOpacity>
           </View>
 
-          <View style={styles.tagsSection}>
-            <Text style={styles.tagsLabel}>Tags:</Text>
-            <TextInput
-              style={styles.tagInput}
-              placeholder="Add tags (comma separated)"
-              placeholderTextColor="#9ca3af"
-              value={modalTagInput}
-              onChangeText={setModalTagInput}
-              onSubmitEditing={() => {
-                if (modalTagInput.trim()) {
-                  const newTags = modalTagInput.split(',').map(tag => tag.trim()).filter(tag => tag);
-                  setNoteTags([...noteTags, ...newTags]);
-                  setModalTagInput('');
-                }
-              }}
-            />
-            {noteTags.length > 0 && (
-              <View style={styles.modalTagsContainer}>
-                {noteTags.map((tag, index) => (
-                  <View key={index} style={styles.modalTagChip}>
-                    <Text style={styles.modalTagText}>#{tag}</Text>
-                    <TouchableOpacity
-                      onPress={() => setNoteTags(noteTags.filter((_, i) => i !== index))}
-                    >
-                      <Text style={styles.modalRemoveTagText}>×</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-
           <View style={styles.saveModalButtons}>
             <TouchableOpacity
               style={styles.saveModalCancelButton}
-              onPress={onClose}
+              onPress={() => onNext(false)}
             >
-              <Text style={styles.saveModalCancelText}>Cancel</Text>
+              <Text style={styles.saveModalCancelText}>Skip</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.saveModalSaveButton}
-              onPress={handleSave}
+              onPress={handleNext}
             >
-              <Text style={styles.saveModalSaveText}>Save Note</Text>
+              <Text style={styles.saveModalSaveText}>Next</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -471,6 +702,7 @@ const SaveNoteModal: React.FC<{
     </Modal>
   );
 };
+
 
 const styles = {
   tabsView: {
@@ -639,6 +871,20 @@ const styles = {
   addLanguageButtonText: {
     color: '#000',
     fontSize: 20,
+    fontWeight: 'bold' as const,
+  },
+  quickSelectButton: {
+    backgroundColor: '#f59e0b',
+    borderRadius: 20,
+    width: 100,
+    height: 40,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    marginLeft: 10,
+  },
+  quickSelectButtonText: {
+    color: '#000',
+    fontSize: 12,
     fontWeight: 'bold' as const,
   },
   languageDropdownList: {
@@ -957,6 +1203,138 @@ const styles = {
   },
   gpsModalButtonTextPrimary: {
     color: '#000',
+  },
+  tagSelectorModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
+  tagSelectorModalContent: {
+    backgroundColor: '#f59e0b',
+    borderRadius: 12,
+    padding: 20,
+    width: '90%' as const,
+    maxWidth: 400,
+    maxHeight: '80%' as const,
+  },
+  tagSelectorModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold' as const,
+    color: '#fff',
+    textAlign: 'center' as const,
+    marginBottom: 20,
+  },
+  tagSelectorList: {
+    paddingBottom: 10,
+  },
+  tagSelectorItem: {
+    flex: 1,
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+    margin: 4,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    minHeight: 50,
+  },
+  tagSelectorItemSelected: {
+    backgroundColor: '#f59e0b',
+  },
+  tagSelectorItemText: {
+    color: '#d1d5db',
+    fontSize: 14,
+    textAlign: 'center' as const,
+  },
+  tagSelectorItemTextSelected: {
+    color: '#000',
+    fontWeight: 'bold' as const,
+  },
+  addNewTagContainer: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  addNewTagInput: {
+    flex: 1,
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+    color: '#fff',
+    fontSize: 16,
+    marginRight: 10,
+  },
+  addNewTagButton: {
+    backgroundColor: '#f59e0b',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
+  addNewTagButtonText: {
+    color: '#000',
+    fontSize: 20,
+    fontWeight: 'bold' as const,
+  },
+  tagSelectorModalButtons: {
+    flexDirection: 'row' as const,
+    justifyContent: 'center' as const,
+  },
+  tagSelectorModalCancelButton: {
+    backgroundColor: '#6b7280',
+    padding: 15,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center' as const,
+  },
+  tagSelectorModalCancelText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+  },
+  tagSelectorButton: {
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+  },
+  tagSelectorButtonText: {
+    color: '#f59e0b',
+    fontSize: 16,
+  },
+  tagSelectorButtonArrow: {
+    color: '#f59e0b',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+  },
+  selectedTagsContainer: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    marginTop: 10,
+  },
+  selectedTagChip: {
+    backgroundColor: '#f59e0b',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    margin: 4,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+  },
+  selectedTagText: {
+    color: '#000',
+    fontSize: 12,
+    fontWeight: 'bold' as const,
+  },
+  selectedTagRemoveText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+    marginLeft: 6,
   },
 };
 

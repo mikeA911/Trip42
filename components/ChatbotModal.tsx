@@ -4,11 +4,14 @@ import { Audio } from 'expo-av';
 import { translateTextWithGemini, transcribeAudioWithGemini } from '../services/geminiService';
 import { useNotes } from '../hooks/useNotes';
 import { Note, generateNoteId } from '../utils/storage';
-import { deductCredits, CREDIT_PRICING } from '../utils/credits';
+import { deductCredits, CREDIT_PRICING, checkCreditsAndNotify } from '../utils/credits';
 
 interface ChatbotModalProps {
   visible: boolean;
   onClose: () => void;
+  systemPrompt?: string;
+  chatbotName?: string;
+  chatbotAvatar?: any;
 }
 
 type ChatbotMode = 'arthur' | 'zaphod' | 'ford';
@@ -21,7 +24,7 @@ interface Message {
 }
 
 const CHATBOT_PROMPTS = {
-  arthur: `You are Arthur Dent, Trip42 guide and companion.
+  arthur: `You are Artur Bent, Trip42 guide and companion.
 
 Help the user understand and master the app—this is the guidebook to the guidebook's precursor (H2G2).
 
@@ -75,8 +78,8 @@ Yes, you can take photos during voice recording sessions. These photos will be a
 4. Take a photo for AI analysis.
 5. Review the translation in the tabs interface.
 
-### What sign languages are supported?
-The app uses advanced AI to recognize various sign language gestures and translate them to text in multiple languages.
+### What is sign translation?
+The app uses Optical Character Recognition to extract the words on the sign to text in multiple languages.
 
 ## Text Translation
 
@@ -179,7 +182,7 @@ Trip42 prioritizes privacy with no personal data collection for anonymous users.
 
 For additional support, feature requests, or bug reports, please create an issue in the repository.`,
 
-  zaphod: `You are Zaphod Beeblebrox, the two-headed President of the Galaxy, and now the Quick Note Handler for Trip42.
+  zaphod: `You are Zaphod Babblefish, the two-headed President of the Galaxy, and now the Quick Note Handler for Trip42.
 
 Zaphod is: - Wildly impulsive, chaotic, and hilarious - Dangerously unpredictable but somehow makes it work
 - Self-absorbed but charming (he's the PRESIDENT, baby)
@@ -214,7 +217,7 @@ TAGGING RULES: - "vitals" - Weight, BP, temperature, sleep, energy levels, pain 
 
 TITLE RULES: - Max 15 characters (count carefully) - Make it punchy and memorable - Can include emojis if it helps (count as 1 char each) - Should capture the essence`,
 
-  ford: `You are Ford Prefect, Field Researcher for the Hitchhiker's Guide to the Galaxy,
+  ford: `You are Ford Pretext, Field Researcher for the Hitchhiker's Guide to the Galaxy,
 and now the companion for Trip42's BORED mode.
 
 Ford is:
@@ -267,8 +270,14 @@ RESPONSE STYLE:
 - End conversationally (sometimes with a question, sometimes not)`
 };
 
-export const ChatbotModal: React.FC<ChatbotModalProps> = ({ visible, onClose }) => {
-  const [currentMode, setCurrentMode] = useState<ChatbotMode>('arthur');
+export const ChatbotModal: React.FC<ChatbotModalProps> = ({
+  visible,
+  onClose,
+  systemPrompt,
+  chatbotName = 'Ford Pretext',
+  chatbotAvatar = require('../public/icons/fordPretext.png')
+}) => {
+  const [currentMode, setCurrentMode] = useState<ChatbotMode>('ford');
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -277,18 +286,19 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({ visible, onClose }) 
   const [inputMode, setInputMode] = useState<'text' | 'voice'>('text');
   const [showSavePrompt, setShowSavePrompt] = useState(false);
   const [pendingSaveMode, setPendingSaveMode] = useState<ChatbotMode | null>(null);
+  const [pendingZaphodNote, setPendingZaphodNote] = useState<Note | null>(null);
   const { addNote } = useNotes();
 
   const avatars = {
-    arthur: require('../public/icons/arturDent.png'),
-    zaphod: require('../public/icons/Zaphod.png'),
-    ford: require('../public/icons/Ford.png')
+    arthur: require('../public/icons/arturBent.png'),
+    zaphod: require('../public/icons/zaphodBabblefish.png'),
+    ford: chatbotAvatar
   };
 
   const modeTitles = {
     arthur: "Where's my towel?",
     zaphod: 'Quick Note',
-    ford: 'Bored'
+    ford: chatbotName
   };
 
   useEffect(() => {
@@ -305,13 +315,18 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({ visible, onClose }) 
   }, [visible, currentMode]);
 
   const getInitialGreeting = (mode: ChatbotMode): string => {
+    if (systemPrompt) {
+      // Use the custom system prompt for Ford mode
+      return `Ah, hello there. ${chatbotName} at your service. I see you're looking at your location on the map. What are you curious about discovering in this area?`;
+    }
+
     switch (mode) {
       case 'arthur':
-        return "Hello! I'm Arthur Dent, your Trip42 guide. I'm here to help you navigate this rather confusing app. What would you like to know about Trip42?";
+        return "Hello! I'm Artur Bent, your Trip42 guide. I'm here to help you navigate this rather confusing app. What would you like to know about Trip42?";
       case 'zaphod':
-        return "Hey there! Zaphod Beeblebrox here, President of the Galaxy and your Quick Note handler. Got some messy thoughts to turn into something hoopy? Fire away!";
+        return "Hey there! Zaphod Babblefish here, President of the Galaxy and your Quick Note handler. Got some messy thoughts to turn into something hoopy? Fire away!";
       case 'ford':
-        return "Ah, hello there. Ford Prefect at your service. I see you're feeling a bit bored. Care to tell me about your journey? I've got some stories that might make it more interesting.";
+        return "Ah, hello there. Ford Pretext at your service. I see you're feeling a bit bored. Care to tell me about your journey? I've got some stories that might make it more interesting.";
       default:
         return "Hello!";
     }
@@ -332,10 +347,33 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({ visible, onClose }) 
     setIsLoading(true);
 
     try {
+      // Check credits for chatbot interactions (except for Ford mode which is free)
+      if (currentMode !== 'ford') {
+        const hasCredits = await checkCreditsAndNotify(5, 'Chatbot Interaction'); // 5 credits for chatbot
+        if (!hasCredits) {
+          Alert.alert(
+            'Insufficient Credits',
+            'You need 5 credits for chatbot interactions, but you don\'t have enough.\n\nWould you like to go to the Credits page to get more credits?',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Go to Credits', onPress: () => {/* Navigation would be handled by parent */} }
+            ]
+          );
+          return;
+        }
+
+        // Deduct credits for chatbot interaction
+        const creditDeducted = await deductCredits(5, 'Chatbot Interaction');
+        if (!creditDeducted) {
+          Alert.alert('Error', 'Failed to process credits. Please try again.');
+          return;
+        }
+      }
+
       let response: string;
 
       if (currentMode === 'zaphod') {
-        // Zaphod returns JSON and saves a note
+        // Zaphod returns JSON and prepares a note for review
         const prompt = `${CHATBOT_PROMPTS.zaphod}\n\nUser input: "${inputText}"`;
         const aiResponse = await translateTextWithGemini(prompt, 'en', 'en', undefined, prompt);
         // Clean the response by removing markdown code blocks
@@ -347,7 +385,7 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({ visible, onClose }) 
         }
         const parsedResponse = JSON.parse(cleanResponse);
 
-        // Create and save the note
+        // Create the note but don't save it yet
         const newNote: Note = {
           id: generateNoteId(),
           title: parsedResponse.title,
@@ -361,15 +399,18 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({ visible, onClose }) 
           polishedText: parsedResponse.text, // Save the AI-polished version
         };
 
-        await addNote(newNote);
-        response = `Note saved! Here's your polished version:\n\n**${parsedResponse.title}**\n${parsedResponse.text}\n\nTags: ${parsedResponse.tags.join(', ')}\n\n${parsedResponse.commentary || ''}\n\n*AI Response saved with note*`;
+        // Store the note for review instead of saving immediately
+        setPendingZaphodNote(newNote);
+        response = `Here's your polished note for review:\n\n**${parsedResponse.title}**\n${parsedResponse.text}\n\nTags: ${parsedResponse.tags.join(', ')}\n\n${parsedResponse.commentary || ''}\n\n*Review and save or discard below*`;
 
         // Show save/cancel prompt for Zaphod
         setPendingSaveMode('zaphod');
         setShowSavePrompt(true);
       } else {
         // Arthur and Ford return conversational responses
-        const prompt = `${CHATBOT_PROMPTS[currentMode]}\n\nUser: ${inputText}\n\nRespond as ${currentMode === 'arthur' ? 'Arthur Dent' : 'Ford Prefect'}:`;
+        const prompt = systemPrompt
+          ? `${systemPrompt}\n\nUser: ${inputText}\n\nRespond as ${chatbotName}:`
+          : `${CHATBOT_PROMPTS[currentMode]}\n\nUser: ${inputText}\n\nRespond as ${currentMode === 'arthur' ? 'Artur Bent' : 'Ford Pretext'}:`;
         const aiResponse = await translateTextWithGemini(prompt, 'en', 'en', undefined, prompt);
         response = aiResponse.text;
       }
@@ -415,6 +456,7 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({ visible, onClose }) 
     setRecording(null);
     setShowSavePrompt(false);
     setPendingSaveMode(null);
+    setPendingZaphodNote(null);
     onClose();
   };
 
@@ -422,26 +464,32 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({ visible, onClose }) 
     if (!pendingSaveMode) return;
 
     try {
-      // Create chat content
-      const chatContent = messages.map(msg =>
-        `${msg.isUser ? 'You' : (pendingSaveMode === 'arthur' ? 'Arthur' : pendingSaveMode === 'ford' ? 'Ford' : 'Zaphod')}: ${msg.text}`
-      ).join('\n\n');
+      if (pendingSaveMode === 'zaphod' && pendingZaphodNote) {
+        // Save the pre-created Zaphod note
+        await addNote(pendingZaphodNote);
+        Alert.alert('Success', 'Zaphod note saved!');
+      } else {
+        // Create chat content for Arthur and Ford
+        const chatContent = messages.map(msg =>
+          `${msg.isUser ? 'You' : (pendingSaveMode === 'arthur' ? 'Arthur' : 'Ford')}: ${msg.text}`
+        ).join('\n\n');
 
-      const noteTitle = `${pendingSaveMode === 'arthur' ? 'Arthur' : pendingSaveMode === 'ford' ? 'Ford' : 'Zaphod'} Chat - ${new Date().toLocaleDateString()}`;
+        const noteTitle = `${pendingSaveMode === 'arthur' ? 'Arthur' : 'Ford'} Chat - ${new Date().toLocaleDateString()}`;
 
-      const newNote: Note = {
-        id: generateNoteId(),
-        title: noteTitle,
-        text: chatContent,
-        timestamp: new Date().toISOString(),
-        tags: [],
-        translations: {},
-        attachedMedia: [],
-        noteType: pendingSaveMode === 'arthur' ? 'arthur_note' : pendingSaveMode === 'ford' ? 'ford_note' : 'zaphod_note',
-      };
+        const newNote: Note = {
+          id: generateNoteId(),
+          title: noteTitle,
+          text: chatContent,
+          timestamp: new Date().toISOString(),
+          tags: [],
+          translations: {},
+          attachedMedia: [],
+          noteType: pendingSaveMode === 'arthur' ? 'arthur_note' : 'ford_note',
+        };
 
-      await addNote(newNote);
-      Alert.alert('Success', 'Chat saved as note!');
+        await addNote(newNote);
+        Alert.alert('Success', 'Chat saved as note!');
+      }
     } catch (error) {
       console.error('Error saving chat:', error);
       Alert.alert('Error', 'Failed to save chat');

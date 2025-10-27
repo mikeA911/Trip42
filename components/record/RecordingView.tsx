@@ -88,12 +88,12 @@ const RecordingView: React.FC<RecordingViewProps> = ({
 
   const handleStopRecording = async () => {
     if (onStopRecording) {
-      console.log('DEBUG: Stop recording called');
-      await onStopRecording();
-      console.log('DEBUG: Setting status to stopped');
+      console.log('DEBUG: Stop recording called - setting status to stopped');
       setRecordingStatus('stopped');
-      setShowSaveOptions(true);
-      console.log('DEBUG: Save options should now show');
+      console.log('DEBUG: Calling onStopRecording');
+      await onStopRecording();
+      console.log('DEBUG: onStopRecording completed - parent should handle navigation');
+      // Don't show save options here - parent handles navigation to tabs
     }
   };
 
@@ -164,8 +164,10 @@ const RecordingView: React.FC<RecordingViewProps> = ({
         <TouchableOpacity
           style={[styles.recordButton, styles.recordButtonReady]}
           onPress={() => {
+            console.log('DEBUG: Start recording button pressed');
             // Start recording immediately when pressing the microphone button
             setRecordingStatus('recording');
+            console.log('DEBUG: Calling onStartRecording');
             if (onStartRecording) onStartRecording();
           }}
         >
@@ -207,10 +209,10 @@ const RecordingView: React.FC<RecordingViewProps> = ({
             <TouchableOpacity
               style={[styles.saveButton, styles.saveButtonPrimary]}
               onPress={() => {
-                // This will trigger the transcription and save process
-                // For now, just go back to tabs view
+                // Reset the recording view state and let the parent handle the save process
                 setRecordingStatus('ready');
                 setShowSaveOptions(false);
+                // The parent component (RecordTranslate) will handle the transcription and navigation
               }}
             >
               <Text style={styles.saveButtonText}>💾 Save Note</Text>
@@ -226,32 +228,6 @@ const RecordingView: React.FC<RecordingViewProps> = ({
               <Text style={styles.saveButtonTextSecondary}>🔄 Start Over</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      )}
-
-      {/* Recording state - three control buttons */}
-      {recordingStatus === 'recording' && (
-        <View style={styles.recordingControls}>
-          <TouchableOpacity
-            style={[styles.controlButton, styles.pauseButton]}
-            onPress={handlePauseRecording}
-          >
-            <Text style={styles.controlButtonText}>⏸️ Pause</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.controlButton, styles.stopButton]}
-            onPress={handleStopRecording}
-          >
-            <Text style={styles.controlButtonText}>⏹️ Stop</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.controlButton, styles.cameraButton]}
-            onPress={handleTakePhoto}
-          >
-            <Text style={styles.controlButtonText}>📷 Photo</Text>
-          </TouchableOpacity>
         </View>
       )}
 

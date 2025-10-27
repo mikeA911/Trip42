@@ -40,7 +40,7 @@ const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 16;
 
 const createEmptyBoard = () => {
-  return Array(BOARD_HEIGHT).fill().map(() => Array(BOARD_WIDTH).fill(0));
+  return Array(BOARD_HEIGHT).fill(null).map(() => Array(BOARD_WIDTH).fill(0));
 };
 
 const TetrisGame = ({
@@ -276,7 +276,7 @@ const TetrisGame = ({
 
     const rows = matrix.length;
     const cols = matrix[0].length;
-    const rotated = Array(cols).fill().map(() => Array(rows).fill(0));
+    const rotated = Array(cols).fill(null).map(() => Array(rows).fill(0));
 
     for (let i = 0; i < rows; i++) {
       for (let j = 0; j < cols; j++) {
@@ -556,12 +556,17 @@ const TetrisGame = ({
     }
 
     return displayBoard.map((row, rowIndex) => (
-      <View key={rowIndex} style={sharedStyles.boardRow}>
+      <View key={rowIndex} style={{ flexDirection: 'row' }}>
         {row.map((cell, colIndex) => (
           <View
             key={colIndex}
             style={[
-              sharedStyles.boardCell,
+              {
+                width: 20,
+                height: 20,
+                borderWidth: 1,
+                borderColor: '#374151'
+              },
               { backgroundColor: cell || '#1f2937' }
             ]}
           />
@@ -588,11 +593,11 @@ const TetrisGame = ({
       onGestureEvent={onGestureEvent}
       onHandlerStateChange={onHandlerStateChange}
     >
-      <View style={sharedStyles.fullScreenContainer}>
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
         {/* Header with Menu, Times, and Next Piece */}
-        <View style={sharedStyles.headerWithMenu}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', padding: 15, backgroundColor: '#1f2937', paddingTop: 50 }}>
           <TouchableOpacity
-            style={sharedStyles.menuButton}
+            style={{ padding: 8 }}
             onPress={() => {
               const options = [];
               if (!gameOver) {
@@ -608,11 +613,11 @@ const TetrisGame = ({
               options.push({
                 text: 'Exit',
                 onPress: handleExit,
-                style: 'destructive'
+                style: 'destructive' as const
               });
               options.push({
                 text: 'Cancel',
-                style: 'cancel'
+                style: 'cancel' as const
               });
 
               Alert.alert(
@@ -622,15 +627,15 @@ const TetrisGame = ({
               );
             }}
           >
-            <Text style={sharedStyles.menuButtonText}>☰ Menu</Text>
+            <Text style={{ color: '#f59e0b', fontSize: 16, fontWeight: 'bold' }}>☰ Menu</Text>
           </TouchableOpacity>
 
-          <View style={sharedStyles.headerCenter}>
-            <View style={sharedStyles.headerTimes}>
-              <Text style={sharedStyles.headerTimeText}>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontSize: 14 }}>
                 Elapsed: {formatTime(gameTime)}
               </Text>
-              <Text style={sharedStyles.headerTimeText}>
+              <Text style={{ color: '#fff', fontSize: 14 }}>
                 Current: {formatCurrentTime()}
               </Text>
             </View>
@@ -638,16 +643,16 @@ const TetrisGame = ({
 
           {/* Next Piece in Header */}
           {nextPiece && nextPiece.shape && (
-            <View style={sharedStyles.headerNextPiece}>
-              <Text style={sharedStyles.headerNextLabel}>Next</Text>
-              <View style={sharedStyles.headerNextShape}>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontSize: 12 }}>Next</Text>
+              <View style={{ flexDirection: 'row' }}>
                 {nextPiece.shape.map((row: number[], rowIndex: number) => (
-                  <View key={rowIndex} style={sharedStyles.headerNextRow}>
+                  <View key={rowIndex} style={{ flexDirection: 'column' }}>
                     {row.map((cell: number, colIndex: number) => (
                       <View
                         key={colIndex}
                         style={[
-                          sharedStyles.headerNextCell,
+                          { width: 8, height: 8, borderWidth: 1, borderColor: '#374151' },
                           { backgroundColor: cell ? nextPiece.color : 'transparent' }
                         ]}
                       />
@@ -660,30 +665,30 @@ const TetrisGame = ({
         </View>
 
         {/* Main Game Area */}
-        <View style={sharedStyles.gameArea}>
+        <View style={{ flex: 1, padding: 20 }}>
           {/* Game Info */}
-          <View style={sharedStyles.gameInfo}>
-            <View style={sharedStyles.infoItem}>
-              <Text style={sharedStyles.infoLabel}>Score</Text>
-              <Text style={sharedStyles.infoValue}>{score}</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 20 }}>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontSize: 14 }}>Score</Text>
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{score}</Text>
             </View>
-            <View style={sharedStyles.infoItem}>
-              <Text style={sharedStyles.infoLabel}>High Score</Text>
-              <Text style={sharedStyles.infoValue}>{highScore}</Text>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontSize: 14 }}>High Score</Text>
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{highScore}</Text>
             </View>
-            <View style={sharedStyles.infoItem}>
-              <Text style={sharedStyles.infoLabel}>Level</Text>
-              <Text style={sharedStyles.infoValue}>{level}</Text>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontSize: 14 }}>Level</Text>
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{level}</Text>
             </View>
-            <View style={sharedStyles.infoItem}>
-              <Text style={sharedStyles.infoLabel}>Lines</Text>
-              <Text style={sharedStyles.infoValue}>{lines}</Text>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontSize: 14 }}>Lines</Text>
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{lines}</Text>
             </View>
           </View>
 
           {/* Game Board - Full Width */}
-          <View style={sharedStyles.boardContainer}>
-            <View style={sharedStyles.board}>
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ backgroundColor: '#1f2937', padding: 10, borderRadius: 10 }}>
               {renderBoard()}
             </View>
           </View>
@@ -691,49 +696,51 @@ const TetrisGame = ({
         </View>
 
         {/* Footer Controls */}
-        <View style={sharedStyles.footerControls}>
-          <TouchableOpacity style={sharedStyles.controlButton} onPress={movePieceLeft}>
-            <Text style={sharedStyles.controlButtonText}>←</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-around', padding: 20, backgroundColor: '#1f2937' }}>
+          <TouchableOpacity style={{ backgroundColor: '#374151', borderRadius: 10, width: 50, height: 50, justifyContent: 'center', alignItems: 'center' }} onPress={movePieceLeft}>
+            <Text style={{ color: '#fff', fontSize: 24 }}>←</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={sharedStyles.controlButton} onPress={rotatePiece}>
-            <Text style={sharedStyles.controlButtonText}>↻</Text>
+          <TouchableOpacity style={{ backgroundColor: '#374151', borderRadius: 10, width: 50, height: 50, justifyContent: 'center', alignItems: 'center' }} onPress={rotatePiece}>
+            <Text style={{ color: '#fff', fontSize: 24 }}>↻</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={sharedStyles.controlButton} onPress={movePieceRight}>
-            <Text style={sharedStyles.controlButtonText}>→</Text>
+          <TouchableOpacity style={{ backgroundColor: '#374151', borderRadius: 10, width: 50, height: 50, justifyContent: 'center', alignItems: 'center' }} onPress={movePieceRight}>
+            <Text style={{ color: '#fff', fontSize: 24 }}>→</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={sharedStyles.dropButton} onPress={dropPiece}>
-            <Text style={sharedStyles.dropButtonText}>↓</Text>
+          <TouchableOpacity style={{ backgroundColor: '#f59e0b', borderRadius: 10, width: 50, height: 50, justifyContent: 'center', alignItems: 'center' }} onPress={dropPiece}>
+            <Text style={{ color: '#000', fontSize: 24 }}>↓</Text>
           </TouchableOpacity>
         </View>
 
         {/* Game Status Overlays */}
         {gameOver && (
-          <View style={sharedStyles.gameOverContainer}>
-            <Text style={sharedStyles.gameOverText}>Game Over!</Text>
-            <Text style={sharedStyles.finalScoreText}>Final Score: {score}</Text>
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.8)', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ backgroundColor: '#1f2937', borderRadius: 12, padding: 20, alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold', marginBottom: 10 }}>Game Over!</Text>
+              <Text style={{ color: '#f59e0b', fontSize: 18, marginBottom: 20 }}>Final Score: {score}</Text>
 
-            {/* Game Over Buttons */}
-            <View style={sharedStyles.gameOverButtons}>
-              <TouchableOpacity
-                style={sharedStyles.gameOverButton}
-                onPress={initializeGame}
-              >
-                <Text style={sharedStyles.gameOverButtonText}>New Game</Text>
-              </TouchableOpacity>
+              {/* Game Over Buttons */}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  style={{ backgroundColor: '#f59e0b', borderRadius: 8, paddingHorizontal: 20, paddingVertical: 12 }}
+                  onPress={initializeGame}
+                >
+                  <Text style={{ color: '#000', fontSize: 16, fontWeight: 'bold' }}>New Game</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[sharedStyles.gameOverButton, sharedStyles.exitButton]}
-                onPress={handleExit}
-              >
-                <Text style={sharedStyles.gameOverButtonText}>Exit</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ backgroundColor: '#6b7280', borderRadius: 8, paddingHorizontal: 20, paddingVertical: 12 }}
+                  onPress={handleExit}
+                >
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Exit</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         )}
 
         {isPaused && !gameOver && (
-          <View style={sharedStyles.pauseContainer}>
-            <Text style={sharedStyles.pauseText}>Paused</Text>
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.8)', justifyContent: 'center', alignItems: 'center' }}>
+            <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold' }}>Paused</Text>
           </View>
         )}
       </View>

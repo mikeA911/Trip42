@@ -24,7 +24,7 @@ const stylesObject = {
     fontSize: 16,
     textAlign: 'center',
     fontStyle: 'italic',
-    fontWeight: Platform.OS === 'web' ? 'bold' : '700',
+    fontWeight: '700' as const,
   },
   logoContainer: {
     width: 200,
@@ -57,7 +57,7 @@ const stylesObject = {
   spinButtonText: {
     color: '#ffff00',
     fontSize: 16,
-    fontWeight: Platform.OS === 'web' ? 'bold' : '700',
+    fontWeight: '700' as const,
   },
   dateTimeContainer: {
     position: 'absolute',
@@ -71,14 +71,14 @@ const stylesObject = {
   dateText: {
     color: '#9ca3af',
     fontSize: 10,
-    fontWeight: '400',
+    fontWeight: '400' as const,
     textAlign: 'center',
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   clockText: {
     color: '#9ca3af',
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '500' as const,
     textAlign: 'center',
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
@@ -94,7 +94,7 @@ const stylesObject = {
   versionText: {
     color: '#9ca3af',
     fontSize: 10,
-    fontWeight: '400',
+    fontWeight: '400' as const,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   // Calendar Modal Styles
@@ -109,7 +109,7 @@ const stylesObject = {
   calendarTitle: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     textAlign: 'center',
     marginBottom: 15,
   },
@@ -130,7 +130,7 @@ const stylesObject = {
   navButtonText: {
     color: '#000',
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
   },
   calendarHeader: {
     flexDirection: 'row',
@@ -140,7 +140,7 @@ const stylesObject = {
   calendarHeaderText: {
     color: '#f59e0b',
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     width: 35,
     textAlign: 'center',
   },
@@ -164,11 +164,11 @@ const stylesObject = {
   calendarDayText: {
     color: '#9ca3af',
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '500' as const,
   },
   calendarDayTextSelected: {
     color: '#000',
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
   },
   calendarCloseButton: {
     backgroundColor: '#6b7280',
@@ -179,7 +179,7 @@ const stylesObject = {
   calendarCloseButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
   },
   calendarDayWithNotes: {
     backgroundColor: '#374151',
@@ -188,7 +188,7 @@ const stylesObject = {
   },
   calendarDayTextWithNotes: {
     color: '#f59e0b',
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
   },
   noteIndicator: {
     position: 'absolute',
@@ -338,7 +338,7 @@ const stylesObject = {
   locationTitle: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     marginBottom: 5,
   },
   locationText: {
@@ -349,7 +349,7 @@ const stylesObject = {
     color: '#fff',
     fontSize: 14,
     marginTop: 5,
-    fontStyle: 'italic',
+    fontStyle: 'italic' as const,
   },
   searchSection: {
     marginBottom: 20,
@@ -366,12 +366,12 @@ const stylesObject = {
     backgroundColor: '#f59e0b',
     borderRadius: 8,
     padding: 12,
-    alignItems: 'center',
+    alignItems: 'center' as const,
   },
   searchButtonText: {
     color: '#000',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
   },
   placesSection: {
     marginBottom: 20,
@@ -381,16 +381,16 @@ const stylesObject = {
     borderRadius: 10,
     padding: 15,
     marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
   },
   placeIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: '#374151',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
     marginRight: 15,
   },
   placeIconText: {
@@ -402,7 +402,7 @@ const stylesObject = {
   placeName: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     marginBottom: 5,
   },
   placeDetails: {
@@ -411,8 +411,8 @@ const stylesObject = {
     marginBottom: 3,
   },
   placeDetailsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     marginBottom: 4,
   },
   placeRating: {
@@ -432,7 +432,7 @@ const stylesObject = {
   },
   placeStatus: {
     fontSize: 11,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     marginTop: 2,
   },
   placeOpen: {
@@ -441,12 +441,17 @@ const stylesObject = {
   placeClosed: {
     color: '#ef4444',
   },
+  placeAddress: {
+    color: '#9ca3af',
+    fontSize: 12,
+    marginTop: 2,
+  },
   quickSearchSection: {
     marginBottom: 20,
   },
   quickButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
   },
   quickButton: {
     backgroundColor: '#374151',
@@ -465,16 +470,16 @@ const stylesObject = {
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginTop: 10,
-    alignSelf: 'flex-start',
+    alignSelf: 'flex-start' as const,
   },
   viewMapButtonText: {
     color: '#000',
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
   },
   placeActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
     marginTop: 10,
   },
   directionsButton: {
@@ -487,15 +492,15 @@ const stylesObject = {
   directionsButtonText: {
     color: '#fff',
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
   },
   mapModalContainer: {
     flex: 1,
     backgroundColor: '#000',
   },
   mapModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     padding: 15,
     backgroundColor: '#1f2937',
     paddingTop: 50, // Account for status bar
@@ -506,14 +511,14 @@ const stylesObject = {
   mapModalCloseButtonText: {
     color: '#f59e0b',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
   },
   mapModalTitle: {
     flex: 1,
     color: '#fff',
     fontSize: 18,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: 'bold' as const,
+    textAlign: 'center' as const,
     marginHorizontal: 10,
   },
   mapModalPlaceholder: {
@@ -523,8 +528,8 @@ const stylesObject = {
     flex: 1,
   },
   locationActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
     marginTop: 10,
   },
   saveMapButton: {
@@ -547,16 +552,30 @@ const stylesObject = {
   fullMapButtonText: {
     color: '#000',
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
   },
   mapContainer: {
     marginTop: 10,
     height: 200,
     borderRadius: 10,
-    overflow: 'hidden',
+    overflow: 'hidden' as const,
   },
   inlineMap: {
     flex: 1,
+  },
+  mapPlaceholder: {
+    flex: 1,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    backgroundColor: '#374151',
+    borderRadius: 10,
+    padding: 20,
+  },
+  mapPlaceholderText: {
+    color: '#9ca3af',
+    fontSize: 16,
+    textAlign: 'center' as const,
+    lineHeight: 24,
   },
   // Medicine Tool Styles
   disclaimerBox: {
@@ -866,10 +885,35 @@ const stylesObject = {
     borderBottomWidth: 1,
     borderBottomColor: '#374151',
   },
-  checkboxText: {
-    fontSize: 18,
-    color: '#f59e0b',
-    marginRight: 10,
+  languageFlagButton: {
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+    margin: 4,
+    alignItems: 'center' as const,
+    minWidth: 80,
+    maxWidth: 100,
+    flex: 1,
+  },
+  languageFlagButtonSelected: {
+    backgroundColor: '#f59e0b',
+  },
+  languageFlagText: {
+    fontSize: 24,
+    color: '#fff',
+    marginBottom: 4,
+  },
+  languageFlagTextSelected: {
+    color: '#000',
+  },
+  languageFlagLabel: {
+    fontSize: 12,
+    color: '#9ca3af',
+    textAlign: 'center' as const,
+  },
+  languageFlagLabelSelected: {
+    color: '#000',
+    fontWeight: 'bold' as const,
   },
   tagSelectorText: {
     color: '#fff',
@@ -932,6 +976,165 @@ const stylesObject = {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold' as const,
+  },
+  selectedLanguagesContainer: {
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  selectedLanguagesLabel: {
+    color: '#9ca3af',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  flagsContainer: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    marginTop: 5,
+  },
+  flagEmoji: {
+    fontSize: 24,
+    marginRight: 8,
+    marginBottom: 4,
+    color: '#fff',
+  },
+  moreFlagsText: {
+    color: '#6b7280',
+    fontSize: 14,
+    fontStyle: 'italic' as const,
+    alignSelf: 'center' as const,
+  },
+  tagsDropdownContainer: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+  },
+  enabledTagsContainer: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    marginLeft: 10,
+    flex: 1,
+  },
+  enabledTagIcon: {
+    fontSize: 16,
+    marginRight: 4,
+    color: '#fff',
+  },
+  enabledTagItem: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    backgroundColor: '#374151',
+    borderRadius: 15,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    margin: 2,
+  },
+  enabledTagDelete: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: 'bold' as const,
+    marginLeft: 4,
+  },
+  enabledTagsLabel: {
+    color: '#9ca3af',
+    fontSize: 14,
+    marginLeft: 10,
+    marginRight: 8,
+  },
+  enabledTagsList: {
+    marginTop: 10,
+  },
+  tagSelectorItemDisabled: {
+    backgroundColor: '#2d3748',
+    opacity: 0.6,
+  },
+  tagSelectorItemTextDisabled: {
+    color: '#6b7280',
+  },
+  tagOptionDisabled: {
+    backgroundColor: '#2d3748',
+    opacity: 0.6,
+  },
+  tagOptionTextDisabled: {
+    color: '#6b7280',
+  },
+  quickSelectLanguages: {
+    marginTop: 15,
+    marginBottom: 10,
+  },
+  quickSelectLabel: {
+    color: '#9ca3af',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  quickSelectButtons: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+  },
+  quickSelectLangButton: {
+    backgroundColor: '#f59e0b',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    margin: 4,
+  },
+  quickSelectLangButtonSelected: {
+    backgroundColor: '#000',
+  },
+  quickSelectLangText: {
+    fontSize: 20,
+    color: '#000',
+  },
+  quickSelectLangTextSelected: {
+    color: '#f59e0b',
+  },
+  languageSelectionContainer: {
+    marginTop: 15,
+    marginBottom: 10,
+  },
+  languageOptionsList: {
+    marginTop: 8,
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    justifyContent: 'flex-start' as const,
+  },
+  languageOptionRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  checkboxText: {
+    fontSize: 18,
+    color: '#f59e0b',
+    marginRight: 10,
+  },
+  languageOptionText: {
+    color: '#9ca3af',
+    fontSize: 16,
+    marginLeft: 12,
+  },
+  languageOptionTextSelected: {
+    color: '#f59e0b',
+    fontWeight: 'bold' as const,
+  },
+  addLanguageRow: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  addLanguageText: {
+    color: '#f59e0b',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+  },
+  summarySection: {
+    marginBottom: 20,
+  },
+  summaryText: {
+    color: '#fff',
+    fontSize: 16,
+    marginBottom: 8,
   },
 };
 

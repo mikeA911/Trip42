@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
+import { getPrompt } from '../prompts';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API;
+console.log('=== GEMINI SERVICE: GEMINI_API key loaded:', GEMINI_API_KEY ? 'YES' : 'NO');
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
 
 export interface TranslationResult {
@@ -19,14 +21,15 @@ export const translateTextWithGemini = async (
   targetLanguage: string,
   uiLanguage: string = 'en',
   onCancel?: (cancelFn: () => void) => void,
-  systemPrompt?: string
+  systemPrompt?: string,
+  theme: string = 'h2g2'
 ): Promise<TranslationResult> => {
   try {
     if (!text || text.trim() === '') {
       throw new Error('Text to translate is empty');
     }
 
-    const prompt = systemPrompt || `Translate the following text to ${targetLanguage}. Provide the translation and if applicable, include phonetic pronunciation in parentheses.
+    const prompt = systemPrompt || getPrompt(theme, 'translation')?.replace('{targetLanguage}', targetLanguage).replace('{text}', text) || `Translate the following text to ${targetLanguage}. Provide the translation and if applicable, include phonetic pronunciation in parentheses.
 
 Text: "${text}"
 
@@ -91,10 +94,11 @@ Please respond with just the translation, no additional explanations.`;
 export const translateSignWithGemini = async (
   base64Image: string,
   targetLanguage: string,
-  onCancel?: (cancelFn: () => void) => void
+  onCancel?: (cancelFn: () => void) => void,
+  theme: string = 'h2g2'
 ): Promise<{ title: string; translation: string }> => {
   try {
-    const prompt = `Analyze this image of a sign and translate any text you find to ${targetLanguage}. Provide a brief title for the sign and the translation.
+    const prompt = getPrompt(theme, 'signTranslation')?.replace('{targetLanguage}', targetLanguage) || `Analyze this image of a sign and translate any text you find to ${targetLanguage}. Provide a brief title for the sign and the translation.
 
 Please respond in this format:
 Title: [brief title]
@@ -167,7 +171,8 @@ Translation: [translated text]`;
 
 export const transcribeAudioWithGemini = async (
   audioUri: string,
-  onCancel?: (cancelFn: () => void) => void
+  onCancel?: (cancelFn: () => void) => void,
+  theme: string = 'h2g2'
 ): Promise<string> => {
   try {
     // Read audio file as base64
@@ -175,7 +180,7 @@ export const transcribeAudioWithGemini = async (
       encoding: 'base64',
     });
 
-    const prompt = 'Transcribe this audio recording. Provide only the transcription text, no additional explanations or formatting.';
+    const prompt = getPrompt(theme, 'transcription') || 'Transcribe this audio recording. Provide only the transcription text, no additional explanations or formatting.';
 
     const requestBody = {
       contents: [{
@@ -237,14 +242,15 @@ export const transcribeAudioWithGemini = async (
 
 export const polishNoteWithGemini = async (
   transcription: string,
-  onCancel?: (cancelFn: () => void) => void
+  onCancel?: (cancelFn: () => void) => void,
+  theme: string = 'h2g2'
 ): Promise<NotePolishResult> => {
   try {
     if (!transcription || transcription.trim() === '') {
       throw new Error('Transcription is empty');
     }
 
-    const prompt = `Please polish and improve this note, then give it a good title. Format your response as:
+    const prompt = getPrompt(theme, 'notePolishing')?.replace('{transcription}', transcription) || `Please polish and improve this note, then give it a good title. Format your response as:
 
 Title: [concise title]
 Note: [polished and improved version of the text]
@@ -311,7 +317,8 @@ Original note: "${transcription}"`;
 export const marvinCurrencyConversion = async (
   query: string,
   systemPrompt: string,
-  onCancel?: (cancelFn: () => void) => void
+  onCancel?: (cancelFn: () => void) => void,
+  theme: string = 'h2g2'
 ): Promise<string> => {
   console.log('DEBUG - marvinCurrencyConversion called with query:', query);
   console.log('DEBUG - systemPrompt length:', systemPrompt.length);
@@ -322,9 +329,10 @@ export const marvinCurrencyConversion = async (
     }
 
     console.log('DEBUG - Building request body...');
+    const finalPrompt = systemPrompt || getPrompt(theme, 'currencyConversion') || 'Please perform currency conversion calculations.';
     const requestBody = {
       contents: [{
-        parts: [{ text: `${systemPrompt}\n\n${query}` }]
+        parts: [{ text: `${finalPrompt}\n\n${query}` }]
       }],
       generationConfig: {
         temperature: 0.1,

@@ -6,13 +6,25 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_GEMINI_API": "AIzaSyC7s-bYoPtzIGSlxLznnHbCyNkY17J_eIk",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API": "AIzaSyDQ0HfpVsWTxox_IF0NKDlMSxhDM5IzUy4"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_GEMINI_API": "AIzaSyC7s-bYoPtzIGSlxLznnHbCyNkY17J_eIk",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API": "AIzaSyDQ0HfpVsWTxox_IF0NKDlMSxhDM5IzUy4"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_GEMINI_API": "AIzaSyC7s-bYoPtzIGSlxLznnHbCyNkY17J_eIk",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API": "AIzaSyDQ0HfpVsWTxox_IF0NKDlMSxhDM5IzUy4"
+      }
     },
     "production-apk": {
       "extends": "production",

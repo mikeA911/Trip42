@@ -15,6 +15,7 @@ export interface UserCredits {
   isAnonymous: boolean;
   monthlyRedeemed: number;
   lastReset: string;
+  redeemedVouchers?: string[]; // Track redeemed voucher codes
 }
 
 // Credit pricing constants
@@ -118,7 +119,8 @@ export const initializeCredits = async (): Promise<UserCredits> => {
       deviceId,
       isAnonymous: true,
       monthlyRedeemed: 0,
-      lastReset: new Date().toISOString()
+      lastReset: new Date().toISOString(),
+      redeemedVouchers: []
     };
 
     await AsyncStorage.setItem('userCredits', JSON.stringify(initialCredits));
@@ -139,7 +141,8 @@ export const initializeCredits = async (): Promise<UserCredits> => {
       deviceId: 'fallback-device',
       isAnonymous: true,
       monthlyRedeemed: 0,
-      lastReset: new Date().toISOString()
+      lastReset: new Date().toISOString(),
+      redeemedVouchers: []
     };
   }
 };
@@ -199,12 +202,35 @@ export const deductCredits = async (amount: number, description: string): Promis
   }
 };
 
+// Check if user has sufficient credits and show notification
+export const checkCreditsAndNotify = async (amount: number, description: string, onNavigateToCredits?: () => void): Promise<boolean> => {
+  try {
+    const currentCredits = await getCredits();
+
+    if (currentCredits.balance < amount) {
+      // Show alert with current balance and option to go to credits page
+      const message = `You need ${amount} credits for ${description}, but you only have ${currentCredits.balance} credits available.\n\nWould you like to go to the Credits page to get more credits?`;
+
+      // Since we're in a utility function, we'll return a special value to indicate insufficient credits
+      // The calling component should handle the UI alert and navigation
+      console.log(`Insufficient credits: need ${amount}, have ${currentCredits.balance}`);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('❌ Error checking credits:', error);
+    return false;
+  }
+};
+
 // Add credits (for voucher redemption)
 export const addCredits = async (amount: number, description: string): Promise<boolean> => {
   try {
     console.log(`Adding ${amount} credits for: ${description}`);
 
     const currentCredits = await getCredits();
+    console.log(`Current balance before adding: ${currentCredits.balance}`);
 
     const newBalance = currentCredits.balance + amount;
     const newHistoryEntry: CreditHistoryEntry = {
@@ -220,9 +246,25 @@ export const addCredits = async (amount: number, description: string): Promise<b
       history: [newHistoryEntry, ...currentCredits.history]
     };
 
+    console.log(`Saving credits with new balance: ${newBalance}`);
     await AsyncStorage.setItem('userCredits', JSON.stringify(updatedCredits));
-    console.log(`Credits added successfully. New balance: ${newBalance}`);
-    return true;
+
+    // Force immediate persistence by reading back
+    const persistedData = await AsyncStorage.getItem('userCredits');
+    if (persistedData) {
+      const persistedCredits = JSON.parse(persistedData);
+      console.log(`Credits persisted successfully. Balance: ${persistedCredits.balance}`);
+      if (persistedCredits.balance === newBalance) {
+        console.log(`Credits added successfully. New balance: ${newBalance}`);
+        return true;
+      } else {
+        console.error(`❌ Persistence failed: expected ${newBalance}, got ${persistedCredits.balance}`);
+        return false;
+      }
+    } else {
+      console.error('❌ Persistence failed: could not read back data');
+      return false;
+    }
 
   } catch (error) {
     console.error('❌ Error adding credits:', error);
@@ -256,7 +298,9 @@ export const redeemVoucher = async (voucherCode: string): Promise<{ success: boo
     console.log('🎫 Attempting to redeem voucher:', voucherCode.toUpperCase());
 
     let currentCredits = await getCredits();
+    console.log('🎫 Current user state - isAnonymous:', currentCredits.isAnonymous, 'deviceId:', currentCredits.deviceId);
     currentCredits = await checkAndResetMonthlyLimit(currentCredits);
+    console.log('🎫 After getting credits - isAnonymous:', currentCredits.isAnonymous, 'deviceId:', currentCredits.deviceId);
 
     // Special hidden vouchers for testing
     const testVouchers: Record<string, number> = {
@@ -270,21 +314,20 @@ export const redeemVoucher = async (voucherCode: string): Promise<{ success: boo
     if (voucherKey in testVouchers) {
       const creditsToAdd = testVouchers[voucherKey];
 
-      // Check monthly limit
-      if (currentCredits.monthlyRedeemed + creditsToAdd > 2000) {
-        console.log('🎫 Monthly limit exceeded for test voucher');
-        return { success: false, error: 'Monthly voucher redemption limit exceeded (2000 credits)' };
+      // Check if voucher has already been redeemed by this device (only for regular vouchers, not test vouchers)
+      if (!testVouchers.hasOwnProperty(voucherKey)) {
+        const redeemedVouchers = currentCredits.redeemedVouchers || [];
+        if (redeemedVouchers.includes(voucherKey)) {
+          console.log(`🎫 Voucher ${voucherKey} already redeemed by this device`);
+          return { success: false, error: 'This voucher has already been redeemed' };
+        }
       }
 
       console.log(`🎫 Special test voucher detected: ${voucherKey}`);
+      console.log(`🎫 Credits BEFORE adding: ${currentCredits.balance}`);
+
       const added = await addCredits(creditsToAdd, `Test Voucher: ${voucherKey}`);
       if (added) {
-        // Update monthly redeemed
-        const updatedCredits = {
-          ...currentCredits,
-          monthlyRedeemed: currentCredits.monthlyRedeemed + creditsToAdd
-        };
-        await AsyncStorage.setItem('userCredits', JSON.stringify(updatedCredits));
         console.log(`🎫 Test voucher redeemed successfully: ${creditsToAdd} credits`);
         return { success: true, creditsRedeemed: creditsToAdd };
       } else {
@@ -293,6 +336,8 @@ export const redeemVoucher = async (voucherCode: string): Promise<{ success: boo
     }
 
     // Call the Supabase edge function for regular vouchers
+    console.log('🎫 Calling Supabase edge function for voucher redemption');
+    console.log('🎫 Sending deviceId:', currentCredits.deviceId, 'isAnonymous:', currentCredits.isAnonymous);
     const response = await fetch('https://ofialssoolmzckjjngst.supabase.co/functions/v1/redeem-voucher', {
       method: 'POST',
       headers: {
@@ -307,6 +352,7 @@ export const redeemVoucher = async (voucherCode: string): Promise<{ success: boo
     });
 
     const data = await response.json();
+    console.log('🎫 Supabase response:', { status: response.status, ok: response.ok, data });
 
     if (!response.ok) {
       console.error('🎫 Voucher redemption failed:', data);
@@ -315,10 +361,10 @@ export const redeemVoucher = async (voucherCode: string): Promise<{ success: boo
 
     if (data.success) {
       // Check monthly limit for regular vouchers too
-      if (currentCredits.monthlyRedeemed + data.creditsRedeemed > 2000) {
-        console.log('🎫 Monthly limit exceeded for regular voucher');
-        return { success: false, error: 'Monthly voucher redemption limit exceeded (2000 credits)' };
-      }
+      // if (currentCredits.monthlyRedeemed + data.creditsRedeemed > 2000) {
+      //   console.log('🎫 Monthly limit exceeded for regular voucher');
+      //   return { success: false, error: 'Monthly voucher redemption limit exceeded (2000 credits)' };
+      // }
 
       // Add credits locally
       const added = await addCredits(data.creditsRedeemed, `Voucher redemption: ${voucherCode.toUpperCase()}`);

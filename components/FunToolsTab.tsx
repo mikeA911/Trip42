@@ -52,10 +52,10 @@ const FunToolsTab: React.FC<FunToolsTabProps> = ({ onNavigateToTool, onNavigateT
   return (
     <ScrollView style={styles.tabContent}>
       <TouchableOpacity style={styles.avatarContainer} onPress={() => setShowModal(true)}>
-        <Image source={require('../public/icons/Ford.png')} style={styles.avatar} />
+        <Image source={require('../public/icons/fordPretext.png')} style={styles.avatar} />
       </TouchableOpacity>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Ford Prefect's Guide</Text>
+        <Text style={styles.sectionTitle}>Ford Pretext's Guide</Text>
         <Text style={styles.sectionDescription}>
           Right Then
         </Text>
@@ -103,7 +103,7 @@ const FunToolsTab: React.FC<FunToolsTabProps> = ({ onNavigateToTool, onNavigateT
                 technically not a friend. I'm an AI. But I'm excellent at remembering things."{"\n\n"}
 
                 3. <Text style={styles.linkText} onPress={() => { setShowModal(false); onNavigateToScreen('fun'); }}>QUICK NOTES with Zaphod</Text>{"\n"}
-                "You know Zaphod Beeblebrox? Two-headed, dangerously impulsive, President of{"\n"}
+                "You know Zaphod Babblefish? Two-headed, dangerously impulsive, President of{"\n"}
                 the Galaxy? Now he's your Quick Note handler. Sometimes you're exhausted and{"\n"}
                 you just type 'ran 5k, bp meds, had coffee' because you haven't the energy{"\n"}
                 for proper sentences.{"\n\n"}
