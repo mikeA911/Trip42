@@ -47,6 +47,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const spinValue = useRef(new Animated.Value(0)).current;
   const pulsateValue = useRef(new Animated.Value(1)).current;
   const verticalSpinValue = useRef(new Animated.Value(0)).current;
+  const dotMoveX = useRef(new Animated.Value(0)).current;
+  const dotMoveY = useRef(new Animated.Value(0)).current;
 
   // Update time every second
   useEffect(() => {
@@ -76,6 +78,76 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     pulsateAnimation.start();
 
     return () => pulsateAnimation.stop();
+  }, []);
+
+  // Very slow movement across screen for the red dot
+  useEffect(() => {
+    const safeWidth = width - 80;
+    const safeHeight = height - 100;
+    
+    const moveAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(dotMoveX, {
+            toValue: safeWidth * 0.8,
+            duration: 20000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: false,
+          }),
+          Animated.timing(dotMoveY, {
+            toValue: safeHeight * 0.3,
+            duration: 20000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: false,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(dotMoveX, {
+            toValue: safeWidth * 0.2,
+            duration: 20000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: false,
+          }),
+          Animated.timing(dotMoveY, {
+            toValue: safeHeight * 0.7,
+            duration: 20000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: false,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(dotMoveX, {
+            toValue: safeWidth * 0.6,
+            duration: 20000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: false,
+          }),
+          Animated.timing(dotMoveY, {
+            toValue: safeHeight * 0.1,
+            duration: 20000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: false,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(dotMoveX, {
+            toValue: 0,
+            duration: 20000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: false,
+          }),
+          Animated.timing(dotMoveY, {
+            toValue: 0,
+            duration: 20000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: false,
+          }),
+        ]),
+      ])
+    );
+    moveAnimation.start();
+
+    return () => moveAnimation.stop();
   }, []);
 
 
@@ -268,6 +340,51 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     return days;
   };
 
+  const getWeeklyCalendarData = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+
+    // Calculate how many weeks we need to show
+    const totalCells = startingDayOfWeek + daysInMonth;
+    const totalWeeks = Math.ceil(totalCells / 7);
+
+    const weeks = [];
+
+    for (let weekIndex = 0; weekIndex < totalWeeks; weekIndex++) {
+      const week = [];
+
+      for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+        const dayNumber = weekIndex * 7 + dayIndex - startingDayOfWeek + 1;
+
+        if (dayNumber >= 1 && dayNumber <= daysInMonth) {
+          week.push({
+            day: dayNumber,
+            month: month,
+            year: year
+          });
+        } else {
+          week.push(null);
+        }
+      }
+
+      weeks.push(week);
+    }
+
+    return weeks;
+  };
+
+  const getNotesForDate = (year: number, month: number, day: number) => {
+    const dateString = new Date(year, month, day).toDateString();
+    return savedNotes.filter(note => {
+      const noteDate = new Date(note.timestamp);
+      return noteDate.toDateString() === dateString;
+    });
+  };
+
   const onGestureEvent = (event: PanGestureHandlerGestureEvent) => {
     // Handle ongoing gesture
   };
@@ -290,15 +407,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Pulsating Red Dot */}
       <Animated.View
-        style={[styles.movingDot, {
-          left: 20,
-          top: 50,
-          transform: [{
-            scale: pulsateValue
-          }]
-        }]}
+        style={[
+          styles.movingDot,
+          {
+            left: Animated.add(20, dotMoveX),
+            top: Animated.add(50, dotMoveY),
+            transform: [{ scale: pulsateValue }]
+          },
+        ]}
       >
         <TouchableOpacity
           style={styles.dotTouchable}
@@ -308,7 +425,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Date and Clock in top right corner - clickable */}
       <TouchableOpacity
         style={styles.dateTimeContainer}
         onPress={() => setShowCalendar(true)}
@@ -321,18 +437,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </Text>
       </TouchableOpacity>
 
-      {/* Version in bottom right corner */}
       <TouchableOpacity
         style={styles.versionContainer}
         onPress={() => Platform.OS === 'web' && setShowPwaInfoModal(true)}
       >
-        <Text style={styles.versionText}>v0.4</Text>
+        <Text style={styles.versionText}>v0.5</Text>
         {Platform.OS === 'web' && (
-          <Text style={styles.pwaIndicatorText}>PWA-01</Text>
+          <Text style={styles.pwaIndicatorText}>PWA v0.2</Text>
         )}
       </TouchableOpacity>
 
-      {/* Spinning Logo */}
       <PanGestureHandler
         onGestureEvent={onGestureEvent}
         onHandlerStateChange={onHandlerStateChange}
@@ -363,14 +477,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </View>
       </PanGestureHandler>
 
-      {/* Quote Display */}
       {currentQuote && (
         <View style={styles.quoteContainer}>
           <Text style={styles.quoteText}>"{currentQuote}"</Text>
         </View>
       )}
 
-      {/* Calendar Modal */}
       <Modal
         visible={showCalendar}
         transparent={true}
@@ -383,7 +495,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {calendarDate.toLocaleDateString([], { month: 'long', year: 'numeric' })}
             </Text>
 
-            {/* Month Navigation */}
             <View style={styles.calendarNavigation}>
               <TouchableOpacity
                 style={styles.navButton}
@@ -399,48 +510,63 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </TouchableOpacity>
             </View>
 
-            {/* Day Headers */}
-            <View style={styles.calendarHeader}>
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <Text key={day} style={styles.calendarHeaderText}>{day}</Text>
+            <ScrollView style={styles.calendarScrollView}>
+              {getWeeklyCalendarData(calendarDate).map((week, weekIndex) => (
+                <View key={weekIndex} style={styles.weekContainer}>
+                  {week.map((dayData, dayIndex) => {
+                    const dayName = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][dayIndex];
+                    const hasNotes = dayData && hasNotesForDate(dayData.year, dayData.month, dayData.day);
+                    const isSelected = dayData &&
+                      dayData.day === currentTime.getDate() &&
+                      dayData.month === currentTime.getMonth() &&
+                      dayData.year === currentTime.getFullYear();
+
+                    const notesForDay = dayData ? getNotesForDate(dayData.year, dayData.month, dayData.day) : [];
+
+                    return (
+                      <View key={dayIndex} style={styles.dayRow}>
+                        <View style={styles.dayNameContainer}>
+                          <Text style={styles.dayNameText}>{dayName}</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[
+                            styles.dayDateContainer,
+                            ...(isSelected ? [styles.dayDateSelected] : []),
+                            ...(hasNotes && !isSelected ? [styles.dayDateWithNotes] : [])
+                          ]}
+                          onPress={() => dayData && selectDate(dayData.day)}
+                          disabled={!dayData}
+                        >
+                          <Text style={[
+                            styles.dayDateText,
+                            ...(isSelected ? [styles.dayDateTextSelected] : []),
+                            ...(hasNotes && !isSelected ? [styles.dayDateTextWithNotes] : [])
+                          ]}>
+                            {dayData ? dayData.day : ''}
+                          </Text>
+                        </TouchableOpacity>
+                        <View style={styles.dayNotesContainer}>
+                          {notesForDay.length > 0 ? (
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.notesScrollView}>
+                              {notesForDay.map((note, noteIndex) => (
+                                <View key={noteIndex} style={styles.notePreview}>
+                                  <Text style={styles.notePreviewText} numberOfLines={1}>
+                                    {note.title || 'Untitled'}
+                                  </Text>
+                                </View>
+                              ))}
+                            </ScrollView>
+                          ) : (
+                            <Text style={styles.noNotesText}>No notes</Text>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
               ))}
-            </View>
+            </ScrollView>
 
-            {/* Calendar Grid */}
-            <View style={styles.calendarGrid}>
-              {getDaysInMonth(calendarDate).map((day, index) => {
-                const hasNotes = day && hasNotesForDate(calendarDate.getFullYear(), calendarDate.getMonth(), day);
-                const isSelected = day === currentTime.getDate() &&
-                  calendarDate.getMonth() === currentTime.getMonth() &&
-                  calendarDate.getFullYear() === currentTime.getFullYear();
-
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.calendarDay,
-                      ...(isSelected ? [styles.calendarDaySelected] : []),
-                      ...(hasNotes && !isSelected ? [styles.calendarDayWithNotes] : [])
-                    ]}
-                    onPress={() => day && selectDate(day)}
-                    disabled={!day}
-                  >
-                    <Text style={[
-                      styles.calendarDayText,
-                      ...(isSelected ? [styles.calendarDayTextSelected] : []),
-                      ...(hasNotes && !isSelected ? [styles.calendarDayTextWithNotes] : [])
-                    ]}>
-                      {day || ''}
-                    </Text>
-                    {hasNotes && !isSelected && (
-                      <View style={styles.noteIndicator} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* Close Button */}
             <TouchableOpacity
               style={styles.calendarCloseButton}
               onPress={() => setShowCalendar(false)}
@@ -451,13 +577,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </View>
       </Modal>
 
-      {/* Chatbot Modal */}
       <ChatbotModal
         visible={showChatbot}
         onClose={() => setShowChatbot(false)}
       />
 
-      {/* Note Creation Modal */}
       <Modal
         visible={showNoteModal}
         transparent={true}
@@ -510,7 +634,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </View>
       </Modal>
 
-      {/* PWA Info Modal */}
       <Modal
         visible={showPwaInfoModal}
         transparent={true}
@@ -741,9 +864,6 @@ const styles = StyleSheet.create({
     width: 40,
     textAlign: 'center',
   },
-  calendarScrollView: {
-    maxHeight: 300,
-  },
   calendarGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -751,12 +871,79 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     width: 7 * 40, // 7 columns * (36 width + 4 margin) = 280px
   },
-  calendarMonth: {
+  calendarScrollView: {
+    maxHeight: height * 0.5,
+    marginTop: 10,
+  },
+  weekContainer: {
+    marginBottom: 5,
+  },
+  dayRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#374151',
+  },
+  dayNameContainer: {
+    width: 100,
     alignItems: 'flex-start',
-    width: 7 * 44, // Ensure exactly 7 columns
+  },
+  dayNameText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  dayDateContainer: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
+    marginHorizontal: 10,
+  },
+  dayDateSelected: {
+    backgroundColor: '#f59e0b',
+  },
+  dayDateWithNotes: {
+    backgroundColor: '#10b981',
+  },
+  dayDateText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  dayDateTextSelected: {
+    color: '#000',
+  },
+  dayDateTextWithNotes: {
+    color: '#fff',
+  },
+  dayNotesContainer: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  notesScrollView: {
+    flexDirection: 'row',
+  },
+  notePreview: {
+    backgroundColor: '#374151',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 6,
+    maxWidth: 120,
+  },
+  notePreviewText: {
+    color: '#f59e0b',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  noNotesText: {
+    color: '#6b7280',
+    fontSize: 12,
+    fontStyle: 'italic',
   },
   calendarDay: {
     width: 36,
