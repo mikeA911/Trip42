@@ -7,6 +7,7 @@ interface RecordingViewProps {
   recordingText: string;
   isRecording: boolean;
   isTranscribing: boolean;
+  isProcessingRecording?: boolean;
   onStopRecording: () => void;
   onStartRecording: () => void;
   onPauseRecording: () => void;
@@ -20,6 +21,7 @@ const RecordingView: React.FC<RecordingViewProps> = ({
   recordingText,
   isRecording,
   isTranscribing,
+  isProcessingRecording = false,
   onStopRecording,
   onStartRecording,
   onPauseRecording,
@@ -88,11 +90,11 @@ const RecordingView: React.FC<RecordingViewProps> = ({
 
   const handleStopRecording = async () => {
     if (onStopRecording) {
-      console.log('DEBUG: Stop recording called - setting status to stopped');
+      console.log('DEBUG: Stop recording called in RecordingView - setting status to stopped');
       setRecordingStatus('stopped');
-      console.log('DEBUG: Calling onStopRecording');
+      console.log('DEBUG: Calling onStopRecording from RecordingView');
       await onStopRecording();
-      console.log('DEBUG: onStopRecording completed - parent should handle navigation');
+      console.log('DEBUG: onStopRecording completed in RecordingView - parent should handle navigation');
       // Don't show save options here - parent handles navigation to tabs
     }
   };
@@ -155,7 +157,9 @@ const RecordingView: React.FC<RecordingViewProps> = ({
           {recordingStatus === 'ready' && 'Tap the red button to start recording'}
           {recordingStatus === 'recording' && 'Recording in progress...'}
           {recordingStatus === 'paused' && 'Recording paused - tap red button to resume'}
-          {isTranscribing && 'Transcribing...'}
+          {recordingStatus === 'stopped' && !isTranscribing && !isProcessingRecording && 'Processing recording...'}
+          {isTranscribing && 'Transcribing audio...'}
+          {isProcessingRecording && !isTranscribing && 'Polishing transcription...'}
         </Text>
       </View>
 

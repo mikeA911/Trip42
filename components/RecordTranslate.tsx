@@ -79,6 +79,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
   const [multipleTranslations, setMultipleTranslations] = useState<{ [key: string]: { text: string; phonetic?: string } }>({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingMessage, setProcessingMessage] = useState('');
+  const [isProcessingRecording, setIsProcessingRecording] = useState(false);
 
   // Other states
   const [tags, setTags] = useState<string[]>([]);
@@ -287,40 +288,67 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       if (uri) {
         console.log('DEBUG: Starting transcription');
         setIsTranscribing(true);
-        // Transcribe the audio
-        const transcribedText = await transcribeAudioWithGemini(uri);
-        console.log('DEBUG: Transcription completed:', transcribedText);
+        setIsProcessingRecording(true);
+        setProcessingMessage('Transcribing audio...');
 
-        // Polish the transcription
-        console.log('DEBUG: Starting polish');
-        const polished = await polishNoteWithGemini(transcribedText);
-        console.log('DEBUG: Polish completed:', polished.polishedNote);
+        try {
+          // Transcribe the audio
+          const transcribedText = await transcribeAudioWithGemini(uri);
+          console.log('DEBUG: Transcription completed:', transcribedText);
 
-        console.log('DEBUG: Setting recording current note');
-        setRecordingCurrentNote({
-          rawTranscription: transcribedText,
-          polishedNote: polished.polishedNote,
-          signImageUrl: undefined,
-          audioUri: uri
-        });
+          if (!transcribedText || transcribedText.trim() === '') {
+            throw new Error('Transcription returned empty result');
+          }
 
-        // Add the audio URI to attached media
-        console.log('DEBUG: Adding audio URI to attached media');
-        setAttachedMedia(prev => [...prev, uri]);
+          setProcessingMessage('Polishing transcription...');
 
-        console.log('DEBUG: Setting view mode to tabs');
-        setRecordingViewMode('tabs');
-        setActiveRecordingTab('polished');
-        console.log('DEBUG: Navigation to tabs completed');
+          // Polish the transcription
+          console.log('DEBUG: Starting polish');
+          const polished = await polishNoteWithGemini(transcribedText);
+          console.log('DEBUG: Polish completed:', polished.polishedNote);
+
+          if (!polished.polishedNote || polished.polishedNote.trim() === '') {
+            throw new Error('Polishing returned empty result');
+          }
+
+          console.log('DEBUG: Setting recording current note');
+          setRecordingCurrentNote({
+            rawTranscription: transcribedText,
+            polishedNote: polished.polishedNote,
+            signImageUrl: undefined,
+            audioUri: uri
+          });
+
+          // Add the audio URI to attached media
+          console.log('DEBUG: Adding audio URI to attached media');
+          setAttachedMedia(prev => [...prev, uri]);
+
+          console.log('DEBUG: Setting view mode to tabs');
+          setRecordingViewMode('tabs');
+          setActiveRecordingTab('polished');
+          console.log('DEBUG: Navigation to tabs completed');
+
+          Alert.alert('Success', 'Recording processed successfully!');
+        } catch (processingError) {
+          console.error('DEBUG: Processing error:', processingError);
+          Alert.alert('Processing Error', `Failed to process recording: ${processingError instanceof Error ? processingError.message : 'Unknown error'}`);
+          // Reset to recording view so user can try again
+          setRecordingViewMode('recording');
+        }
       } else {
         console.log('DEBUG: No URI received from recording');
+        Alert.alert('Error', 'No recording data found');
+        setRecordingViewMode('recording');
       }
     } catch (error) {
       console.error('Failed to stop recording:', error);
-      Alert.alert('Error', 'Failed to process recording');
+      Alert.alert('Error', 'Failed to stop recording');
+      setRecordingViewMode('recording');
     } finally {
       console.log('DEBUG: Finally block - setting isTranscribing to false');
       setIsTranscribing(false);
+      setIsProcessingRecording(false);
+      setProcessingMessage('');
       setRecording(null);
       recordingRef.current = null;
     }
@@ -557,6 +585,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           recordingText={recordingCurrentNote.rawTranscription}
           isRecording={isRecording}
           isTranscribing={isTranscribing}
+          isProcessingRecording={isProcessingRecording}
           onStopRecording={handleStopRecording}
           onStartRecording={handleVoiceRecording}
           onPauseRecording={handlePauseRecording}

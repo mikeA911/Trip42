@@ -22,6 +22,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import { supabase, uploadImageForSharing } from '../supabase';
+import { polishNoteWithGemini } from '../services/geminiService';
 
 interface ManageNotesModalProps {
   visible: boolean;
@@ -64,6 +65,9 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   const [showTagSelectorModal, setShowTagSelectorModal] = useState(false);
   const [selectedTagsForNote, setSelectedTagsForNote] = useState<string[]>([]);
   const [showMoreOptionsModal, setShowMoreOptionsModal] = useState(false);
+  const [showEditPolishedTextModal, setShowEditPolishedTextModal] = useState(false);
+  const [editingPolishedText, setEditingPolishedText] = useState('');
+  const [isCreatingPolishedNote, setIsCreatingPolishedNote] = useState(false);
   // Always sort by date newest first
   const sortOptions = { field: 'date' as const, direction: 'desc' as const };
   const [searchText, setSearchText] = useState('');
@@ -800,6 +804,55 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
     );
   };
 
+  const handleEditPolishedText = () => {
+    if (!selectedNote) return;
+    setEditingPolishedText(selectedNote.polishedText || '');
+    setShowEditPolishedTextModal(true);
+  };
+
+  const handleSavePolishedText = async () => {
+    if (!selectedNote) return;
+
+    try {
+      const updatedNote = {
+        ...selectedNote,
+        polishedText: editingPolishedText.trim()
+      };
+      await editNote(updatedNote);
+      setSelectedNote(updatedNote);
+      setShowEditPolishedTextModal(false);
+      refreshNotes();
+      Alert.alert('Success', 'Polished text updated!');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update polished text');
+    }
+  };
+
+  const handleCreatePolishedNote = async () => {
+    if (!selectedNote) return;
+
+    setIsCreatingPolishedNote(true);
+    try {
+      const sourceText = selectedNote.originalText || selectedNote.text;
+      const result = await polishNoteWithGemini(sourceText);
+
+      const updatedNote = {
+        ...selectedNote,
+        polishedText: result.polishedNote,
+        title: result.title // Optionally update title if it's better
+      };
+
+      await editNote(updatedNote);
+      setSelectedNote(updatedNote);
+      refreshNotes();
+      Alert.alert('Success', 'Polished note created!');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to create polished note');
+    } finally {
+      setIsCreatingPolishedNote(false);
+    }
+  };
+
   const getTypeIcon = (type: Note['noteType']) => {
     switch (type) {
       case 'voice_recording': return '🎙️';
@@ -905,15 +958,41 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
                 </View>
               )}
 
-              {/* Polished Text if different */}
-              {selectedNote.polishedText && selectedNote.polishedText !== selectedNote.text && (
-                <View style={styles.section}>
+              {/* Polished Text Section */}
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
                   <Text style={styles.sectionTitle}>Polished:</Text>
-                  <TouchableOpacity onLongPress={() => handleCopyText(selectedNote.polishedText!, 'Polished text')}>
+                  <View style={styles.polishedActions}>
+                    {selectedNote.polishedText && selectedNote.polishedText !== selectedNote.text && (
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={handleEditPolishedText}
+                      >
+                        <Text style={styles.editButtonText}>✏️ Edit</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={[styles.createPolishedButton, isCreatingPolishedNote && styles.disabledButton]}
+                      onPress={handleCreatePolishedNote}
+                      disabled={isCreatingPolishedNote}
+                    >
+                      <Text style={[styles.createPolishedButtonText, isCreatingPolishedNote && styles.disabledText]}>
+                        {isCreatingPolishedNote ? '🤖 Creating...' : selectedNote.polishedText ? '🔄 Recreate' : '✨ Create'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                {selectedNote.polishedText && selectedNote.polishedText !== selectedNote.text ? (
+                  <TouchableOpacity onPress={() => {
+                    setEditingPolishedText(selectedNote.polishedText || '');
+                    setShowEditPolishedTextModal(true);
+                  }}>
                     <Text style={styles.polishedText} selectable={true}>{selectedNote.polishedText}</Text>
                   </TouchableOpacity>
-                </View>
-              )}
+                ) : (
+                  <Text style={styles.noPolishedText}>No polished version available. Create one above.</Text>
+                )}
+              </View>
 
               {/* Translations */}
               {selectedNote.translations && Object.keys(selectedNote.translations).length > 0 && (
@@ -956,7 +1035,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
                             style={styles.saveMediaButton}
                             onPress={() => handleSaveMediaFromNote(mediaUri)}
                           >
-                            <Text style={styles.saveMediaText}>💾 Save</Text>
+                            <Text style={styles.saveMediaText}>💾 Save to local file</Text>
                           </TouchableOpacity>
                         </View>
                       )}
@@ -1257,6 +1336,42 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             </View>
           </View>
         </Modal>
+
+        {/* Edit Polished Text Modal - Using Alert for better modal stacking */}
+        {showEditPolishedTextModal && (
+          <Modal visible={true} animationType="fade" transparent={true} presentationStyle="overFullScreen">
+            <View style={styles.editModalOverlay}>
+              <View style={styles.editModalContent}>
+                <Text style={styles.editModalTitle}>Edit Polished Text</Text>
+
+                <TextInput
+                  style={styles.editTextInput}
+                  multiline={true}
+                  value={editingPolishedText}
+                  onChangeText={setEditingPolishedText}
+                  placeholder="Enter polished text..."
+                  placeholderTextColor="#9ca3af"
+                  autoFocus={true}
+                />
+
+                <View style={styles.editModalButtons}>
+                  <TouchableOpacity
+                    style={styles.editModalCancelButton}
+                    onPress={() => setShowEditPolishedTextModal(false)}
+                  >
+                    <Text style={styles.editModalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.editModalSaveButton}
+                    onPress={handleSavePolishedText}
+                  >
+                    <Text style={styles.editModalSaveText}>Save</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+        )}
 
         {/* Tag Selector Modal - Rendered at the end to ensure it's on top */}
         <TagSelectorModal
@@ -1572,6 +1687,11 @@ const styles = {
     fontSize: 14,
     fontWeight: 'bold' as const,
   },
+  saveMediaToLocalText: {
+    color: '#f59e0b',
+    fontSize: 14,
+    fontWeight: 'bold' as const,
+  },
   tagsSection: {
     marginBottom: 20,
   },
@@ -1694,6 +1814,34 @@ const styles = {
   section: {
     marginBottom: 20,
   },
+  sectionHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: 10,
+  },
+  editButton: {
+    backgroundColor: '#374151',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  editButtonText: {
+    color: '#f59e0b',
+    fontSize: 14,
+    fontWeight: 'bold' as const,
+  },
+  createPolishedButton: {
+    backgroundColor: '#f59e0b',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center' as const,
+  },
+  createPolishedButtonText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+  },
   originalText: {
     color: '#9ca3af',
     fontSize: 14,
@@ -1704,6 +1852,18 @@ const styles = {
     color: '#fff',
     fontSize: 16,
     lineHeight: 24,
+  },
+  polishedActions: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+  },
+  noPolishedText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontStyle: 'italic' as const,
+    textAlign: 'center' as const,
+    padding: 20,
   },
   translationItem: {
     marginBottom: 10,
@@ -1970,6 +2130,72 @@ const styles = {
   },
   disabledText: {
     color: '#6b7280',
+  },
+  editModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
+  editModalContent: {
+    backgroundColor: '#1f2937',
+    borderRadius: 12,
+    padding: 20,
+    width: '90%' as const,
+    maxWidth: 400,
+    maxHeight: '80%' as const,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+  },
+  editModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold' as const,
+    color: '#f59e0b',
+    textAlign: 'center' as const,
+    marginBottom: 20,
+  },
+  editTextInput: {
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+    color: '#fff',
+    fontSize: 16,
+    minHeight: 120,
+    textAlignVertical: 'top' as const,
+    marginBottom: 20,
+  },
+  editModalButtons: {
+    flexDirection: 'row' as const,
+    justifyContent: 'center' as const,
+  },
+  editModalCancelButton: {
+    backgroundColor: '#6b7280',
+    padding: 15,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center' as const,
+    marginRight: 10,
+  },
+  editModalCancelText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+  },
+  editModalSaveButton: {
+    backgroundColor: '#10b981',
+    padding: 15,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center' as const,
+    marginLeft: 10,
+  },
+  editModalSaveText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
   },
   moreOptionsModalOverlay: {
     flex: 1,

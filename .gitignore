@@ -43,3 +43,4 @@ yarn-error.*
 /android
 /oldSource
 "Trip42/" 
+.vercel

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 import { getPrompt } from '../prompts';
 
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API;
@@ -175,10 +176,32 @@ export const transcribeAudioWithGemini = async (
   theme: string = 'h2g2'
 ): Promise<string> => {
   try {
-    // Read audio file as base64
-    const audioBase64 = await FileSystem.readAsStringAsync(audioUri, {
-      encoding: 'base64',
-    });
+    let audioBase64: string;
+
+    // Handle web vs native platforms differently
+    if (Platform.OS === 'web') {
+      console.log('DEBUG: Using web audio processing');
+      // For web, fetch the blob and convert to base64
+      const response = await fetch(audioUri);
+      const blob = await response.blob();
+      audioBase64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          // Remove the data URL prefix if present
+          const base64 = result.split(',')[1] || result;
+          resolve(base64);
+        };
+        reader.onerror = () => reject(new Error('FileReader failed'));
+        reader.readAsDataURL(blob);
+      });
+    } else {
+      console.log('DEBUG: Using native audio processing');
+      // Read audio file as base64 for native platforms
+      audioBase64 = await FileSystem.readAsStringAsync(audioUri, {
+        encoding: 'base64',
+      });
+    }
 
     const prompt = getPrompt(theme, 'transcription') || 'Transcribe this audio recording. Provide only the transcription text, no additional explanations or formatting.';
 
