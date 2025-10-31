@@ -54,6 +54,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const spinValue = useRef(new Animated.Value(0)).current;
   const pulsateValue = useRef(new Animated.Value(1)).current;
   const verticalSpinValue = useRef(new Animated.Value(0)).current;
+  const wobbleValue = useRef(new Animated.Value(0)).current;
   const dotMoveX = useRef(new Animated.Value(0)).current;
   const dotMoveY = useRef(new Animated.Value(0)).current;
 
@@ -190,17 +191,66 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     setCurrentQuote(null);
     setSpinCount(prev => prev + 1);
 
-    // Top-like spin animation - fast rotation that slows down
-    const topSpinAnimation = Animated.timing(spinValue, {
-      toValue: 2160, // 6 full spins (more like a top)
-      duration: 2000, // Longer duration for top-like spin
-      easing: Easing.out(Easing.quad), // Quadratic easing for realistic slowdown
-      useNativeDriver: false,
-    });
+    // Top-like spin animation - fast rotation with wobble that slows down
+    const topSpinAnimation = Animated.parallel([
+      // Main spin rotation
+      Animated.timing(spinValue, {
+        toValue: 2160, // 6 full spins (more like a top)
+        duration: 2500, // Longer duration for top-like spin
+        easing: Easing.out(Easing.quad), // Quadratic easing for realistic slowdown
+        useNativeDriver: false,
+      }),
+      // Wobble effect like a real top
+      Animated.sequence([
+        Animated.timing(wobbleValue, {
+          toValue: 1,
+          duration: 200,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: false,
+        }),
+        Animated.timing(wobbleValue, {
+          toValue: -1,
+          duration: 400,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: false,
+        }),
+        Animated.timing(wobbleValue, {
+          toValue: 0.5,
+          duration: 300,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: false,
+        }),
+        Animated.timing(wobbleValue, {
+          toValue: -0.5,
+          duration: 400,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: false,
+        }),
+        Animated.timing(wobbleValue, {
+          toValue: 0.2,
+          duration: 300,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: false,
+        }),
+        Animated.timing(wobbleValue, {
+          toValue: -0.2,
+          duration: 400,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: false,
+        }),
+        Animated.timing(wobbleValue, {
+          toValue: 0,
+          duration: 500,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: false,
+        }),
+      ])
+    ]);
 
     topSpinAnimation.start(async () => {
       spinValue.setValue(0); // Reset for next spin
       verticalSpinValue.setValue(0); // Reset vertical spin
+      wobbleValue.setValue(0); // Reset wobble
       // Always default to trip42 icon
       let nextIndex = 0;
       if (isQuoteMode) {
@@ -531,12 +581,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 style={[
                   styles.logo,
                   {
-                    transform: [{
-                      rotate: spinValue.interpolate({
-                        inputRange: [0, 2160],
-                        outputRange: ['0deg', '2160deg']
-                      })
-                    }]
+                    transform: [
+                      {
+                        rotate: spinValue.interpolate({
+                          inputRange: [0, 2160],
+                          outputRange: ['0deg', '2160deg']
+                        })
+                      },
+                      {
+                        rotateX: wobbleValue.interpolate({
+                          inputRange: [-1, 1],
+                          outputRange: ['-15deg', '15deg']
+                        })
+                      },
+                      {
+                        rotateY: wobbleValue.interpolate({
+                          inputRange: [-1, 1],
+                          outputRange: ['-10deg', '10deg']
+                        })
+                      }
+                    ]
                   }
                 ]}
                 resizeMode="contain"
