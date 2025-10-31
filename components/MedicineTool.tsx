@@ -34,20 +34,13 @@ const MedicineTool: React.FC<MedicineToolProps> = ({ onBack }) => {
 
     setIsLoading(true);
     try {
-      console.log('Searching for medicine:', searchQuery);
 
       // Try RxNorm API first
       const baseUrl = 'https://rxnav.nlm.nih.gov/REST';
 
       try {
-        console.log('=== MEDICINE TOOL: Starting RxNorm API search ===');
-        console.log('Search query:', searchQuery);
-
         // First, get the RxCUI for the search term
-        console.log('=== MEDICINE TOOL: Fetching RxCUI ===');
         const rxcuiResponse = await fetch(`${baseUrl}/rxcui.json?name=${encodeURIComponent(searchQuery)}`);
-
-        console.log('=== MEDICINE TOOL: RxCUI response status:', rxcuiResponse.status);
 
         if (!rxcuiResponse.ok) {
           console.error('=== MEDICINE TOOL ERROR: RxCUI API failed ===');
@@ -57,14 +50,11 @@ const MedicineTool: React.FC<MedicineToolProps> = ({ onBack }) => {
         }
 
         const rxcuiData = await rxcuiResponse.json();
-        console.log('=== MEDICINE TOOL: RxCUI data:', rxcuiData);
 
         if (rxcuiData.idGroup?.rxnormId?.[0]) {
           const rxcui = rxcuiData.idGroup.rxnormId[0];
-          console.log('=== MEDICINE TOOL: Found RxCUI:', rxcui);
 
           // Get drug information using correct RxNorm endpoints
-          console.log('=== MEDICINE TOOL: Fetching drug information ===');
 
           // Try the correct RxNorm endpoints in order
           let drugData = null;
@@ -72,52 +62,40 @@ const MedicineTool: React.FC<MedicineToolProps> = ({ onBack }) => {
 
           // 1. Try /REST/rxcui/{rxcui}/related.json (correct endpoint)
           try {
-            console.log('=== MEDICINE TOOL: Trying related endpoint ===');
             const relatedResponse = await fetch(`${baseUrl}/rxcui/${rxcui}/related.json?tty=SCD+GPCK+BN+SBD`);
-            console.log('=== MEDICINE TOOL: Related response status:', relatedResponse.status);
 
             if (relatedResponse.ok) {
               drugData = await relatedResponse.json();
-              console.log('=== MEDICINE TOOL: Related data:', drugData);
               apiSuccess = true;
             }
           } catch (relatedError) {
-            console.warn('=== MEDICINE TOOL: Related endpoint failed ===');
+            // Related endpoint failed
           }
 
           // 2. If related fails, try /REST/drugs.json with correct parameters
           if (!apiSuccess) {
             try {
-              console.log('=== MEDICINE TOOL: Trying drugs endpoint ===');
               const drugsResponse = await fetch(`${baseUrl}/drugs.json?name=${encodeURIComponent(searchQuery)}`);
-              console.log('=== MEDICINE TOOL: Drugs response status:', drugsResponse.status);
 
               if (drugsResponse.ok) {
                 drugData = await drugsResponse.json();
-                console.log('=== MEDICINE TOOL: Drugs data:', drugData);
                 apiSuccess = true;
               }
             } catch (drugsError) {
-              console.warn('=== MEDICINE TOOL: Drugs endpoint failed ===');
+              // Drugs endpoint failed
             }
           }
 
           if (!apiSuccess) {
-            console.error('=== MEDICINE TOOL ERROR: All RxNorm endpoints failed ===');
             throw new Error('Unable to retrieve drug information from RxNorm API');
           }
 
           // Get drug properties
-          console.log('=== MEDICINE TOOL: Fetching properties ===');
           const propertiesResponse = await fetch(`${baseUrl}/rxcui/${rxcui}/properties.json`);
-          console.log('=== MEDICINE TOOL: Properties response status:', propertiesResponse.status);
 
           let propertiesData: any = { properties: [] };
           if (propertiesResponse.ok) {
             propertiesData = await propertiesResponse.json();
-            console.log('=== MEDICINE TOOL: Properties data:', propertiesData);
-          } else {
-            console.warn('=== MEDICINE TOOL: Properties API failed, using defaults ===');
           }
 
           // Process RxNorm results
@@ -129,7 +107,6 @@ const MedicineTool: React.FC<MedicineToolProps> = ({ onBack }) => {
 
           if (drugData.relatedGroup?.conceptGroup) {
             // related.json format
-            console.log('=== MEDICINE TOOL: Processing related.json format ===');
             const conceptGroups = drugData.relatedGroup.conceptGroup;
 
             conceptGroups.forEach((group: any) => {
@@ -157,7 +134,6 @@ const MedicineTool: React.FC<MedicineToolProps> = ({ onBack }) => {
             });
           } else if (drugData.drugGroup?.conceptGroup) {
             // drugs.json format
-            console.log('=== MEDICINE TOOL: Processing drugs.json format ===');
             const conceptGroups = drugData.drugGroup.conceptGroup;
 
             conceptGroups.forEach((group: any) => {
@@ -185,8 +161,6 @@ const MedicineTool: React.FC<MedicineToolProps> = ({ onBack }) => {
             });
           }
 
-          console.log('=== MEDICINE TOOL: Found', clinicalDrugs.length, 'clinical drugs and', brandNames.length, 'brand names ===');
-
           if (clinicalDrugs.length > 0) {
             clinicalDrugs.forEach((drug: any, index: number) => {
               processedResults.push({
@@ -204,33 +178,21 @@ const MedicineTool: React.FC<MedicineToolProps> = ({ onBack }) => {
           }
 
           if (processedResults.length > 0) {
-            console.log('=== MEDICINE TOOL: Successfully processed', processedResults.length, 'results from RxNorm ===');
             setSearchResults(processedResults);
             setIsLoading(false);
             return;
-          } else {
-            console.warn('=== MEDICINE TOOL: No results processed from RxNorm data ===');
           }
-        } else {
-          console.warn('=== MEDICINE TOOL: No RxCUI found for query ===');
         }
       } catch (rxnormError: any) {
-        console.error('=== MEDICINE TOOL ERROR: RxNorm API failed, using fallback ===');
-        console.error('Error details:', rxnormError);
-        console.error('Error message:', rxnormError.message);
-        console.error('Error stack:', rxnormError.stack);
+        // RxNorm API failed, using fallback
       }
 
       // Fallback: Try openFDA API
-      console.log('=== MEDICINE TOOL: RxNorm failed, trying openFDA API ===');
-
       try {
         const openFDAResponse = await fetch(`https://api.fda.gov/drug/label.json?search=brand_name:"${encodeURIComponent(searchQuery)}"&limit=5`);
-        console.log('=== MEDICINE TOOL: openFDA response status:', openFDAResponse.status);
 
         if (openFDAResponse.ok) {
           const openFDAData = await openFDAResponse.json();
-          console.log('=== MEDICINE TOOL: openFDA data:', openFDAData);
 
           if (openFDAData.results && openFDAData.results.length > 0) {
             const processedResults = openFDAData.results.map((result: any, index: number) => ({
@@ -245,17 +207,13 @@ const MedicineTool: React.FC<MedicineToolProps> = ({ onBack }) => {
               rxcui: `openfda-${Date.now()}`
             }));
 
-            console.log('=== MEDICINE TOOL: openFDA results processed:', processedResults.length);
             setSearchResults(processedResults);
             setIsLoading(false);
             return;
           }
         }
-
-        console.warn('=== MEDICINE TOOL: openFDA API failed or returned no results ===');
       } catch (openFDAError: any) {
-        console.error('=== MEDICINE TOOL ERROR: openFDA API failed ===');
-        console.error('Error:', openFDAError.message);
+        // openFDA API failed
       }
 
       // If both APIs fail, show explanation and open Google search
@@ -269,7 +227,6 @@ const MedicineTool: React.FC<MedicineToolProps> = ({ onBack }) => {
 
     } catch (error: any) {
       // Try openFDA as final fallback
-      console.log('=== MEDICINE TOOL: Attempting openFDA fallback ===');
       try {
         const openFDAResponse = await fetch(`https://api.fda.gov/drug/label.json?search=brand_name:"${encodeURIComponent(searchQuery)}"&limit=5`);
 
@@ -504,7 +461,6 @@ When the user exits - prompt user if they want to save the chat dialogue.  if ye
 
       setMarvinMessages(prev => [...prev, marvinMessage]);
     } catch (error) {
-      console.error('Marvin chat error:', error);
       Alert.alert('Error', 'Sorry, Marvin is having an existential crisis. Please try again.');
     } finally {
       setIsMarvinLoading(false);
@@ -551,7 +507,6 @@ When the user exits - prompt user if they want to save the chat dialogue.  if ye
       await addNote(newNote);
       Alert.alert('Success', 'Medicine consultation saved!');
     } catch (error) {
-      console.error('Error saving Marvin chat:', error);
       Alert.alert('Error', 'Failed to save consultation');
     }
 
@@ -620,7 +575,7 @@ When the user exits - prompt user if they want to save the chat dialogue.  if ye
 
             <View style={styles.disclaimerBox}>
               <Text style={styles.disclaimerText}>
-                ⚠️ <Text style={styles.disclaimerBold}>Medical Disclaimer:</Text> This tool provides drug information from the NIH RxNorm database for reference only. Always consult healthcare professionals for medical advice, diagnosis, and treatment decisions.
+                ⚠️ <Text style={styles.disclaimerBold}>Medical Disclaimer:</Text> This tool provides drug information from drugs.com for reference only. Always consult healthcare professionals for medical advice, diagnosis, and treatment decisions.
               </Text>
             </View>
 

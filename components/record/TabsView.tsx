@@ -99,9 +99,7 @@ const TabsView: React.FC<TabsViewProps> = ({
       try {
         const settings = await getSettings();
         setTargetLanguage(settings.uiLanguage || 'en');
-        console.log('DEBUG: Loaded target language from settings:', settings.uiLanguage);
       } catch (error) {
-        console.error('Error loading settings:', error);
         setTargetLanguage('en');
       }
     };
@@ -384,13 +382,9 @@ const TabsView: React.FC<TabsViewProps> = ({
                       const savedSettings = await AsyncStorage.getItem('userSettings');
                       if (savedSettings) {
                         const settings = JSON.parse(savedSettings);
-                        console.log('DEBUG TabsView: Loaded userSettings:', settings);
-                        console.log('DEBUG TabsView: enabledTags from userSettings:', settings.enabledTags);
                         const tags = settings.enabledTags || [];
-                        console.log('DEBUG TabsView: Setting enabledTags to:', tags);
                         setEnabledTags(tags);
                       } else {
-                        console.log('DEBUG TabsView: No userSettings found');
                         setEnabledTags([]);
                       }
                     } catch (error) {
@@ -420,7 +414,7 @@ const TabsView: React.FC<TabsViewProps> = ({
                   'Creativity': '🎨'
                 };
 
-                console.log('DEBUG: Rendering enabled tags:', enabledTags);
+                // Render enabled tags
 
                 if (enabledTags.length === 0) {
                   return (
@@ -432,14 +426,14 @@ const TabsView: React.FC<TabsViewProps> = ({
                   const isSelected = noteTags.includes(tag);
                   const icon = permanentTagIcons[tag] || '🏷️';
 
-                  console.log('DEBUG: Rendering tag:', tag, 'selected:', isSelected);
+                  // Render tag
 
                   return (
                     <TouchableOpacity
                       key={tag}
                       style={styles.checkboxContainer}
                       onPress={() => {
-                        console.log('DEBUG: Toggled tag:', tag);
+                        // Toggle tag
                         if (isSelected) {
                           setNoteTags(noteTags.filter(t => t !== tag));
                         } else {
@@ -498,7 +492,6 @@ const TagSelectorModal: React.FC<{
 
   useEffect(() => {
     if (visible) {
-      console.log('DEBUG: TagSelectorModal opened');
       loadAvailableTags();
       loadEnabledTags();
     }
@@ -516,7 +509,6 @@ const TagSelectorModal: React.FC<{
       const allTags = Array.from(new Set([...enabledTags, ...customTags, ...defaultTags]));
       setAvailableTags(allTags);
     } catch (error) {
-      console.error('Error loading tags:', error);
       setAvailableTags([
         'vitals', 'medicines', 'events', 'activities', 'habits',
         'Work', 'Personal', 'Ideas', 'Health', 'Fitness', 'Nutrition', 'Sleep', 'Mood', 'Energy', 'Focus', 'Creativity'
@@ -530,7 +522,6 @@ const TagSelectorModal: React.FC<{
       const enabledTags = settings.enabledTags || [];
       setEnabledTags(enabledTags);
     } catch (error) {
-      console.error('Error loading enabled tags:', error);
       setEnabledTags([]);
     }
   };
@@ -547,7 +538,7 @@ const TagSelectorModal: React.FC<{
         await saveSettings(updatedSettings);
       }
     } catch (error) {
-      console.error('Error saving custom tag:', error);
+      // Error saving custom tag
     }
   };
 

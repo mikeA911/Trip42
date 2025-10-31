@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, Alert, Linking } from 'react-native';
 import { getCredits, redeemVoucher, UserCredits, CreditHistoryEntry } from '../utils/credits';
+import { useToast } from '../contexts/ToastContext';
 
 interface CreditsTabProps {
   onBack: () => void;
@@ -11,6 +12,7 @@ const CreditsTab: React.FC<CreditsTabProps> = ({ onBack }) => {
   const [voucherCode, setVoucherCode] = useState('');
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const { showSuccess, showError } = useToast();
 
   useEffect(() => {
     loadCredits();
@@ -19,11 +21,9 @@ const CreditsTab: React.FC<CreditsTabProps> = ({ onBack }) => {
   const loadCredits = async () => {
     try {
       const creditsData = await getCredits();
-      console.log('🔄 Loading credits in UI:', creditsData.balance);
       setCredits(creditsData);
     } catch (error) {
-      console.error('Error loading credits:', error);
-      Alert.alert('Error', 'Failed to load credits');
+      showError('Failed to load credits');
     } finally {
       setIsLoading(false);
     }
@@ -37,17 +37,16 @@ const CreditsTab: React.FC<CreditsTabProps> = ({ onBack }) => {
       if (supported) {
         await Linking.openURL(kofiUrl);
       } else {
-        Alert.alert('Error', 'Cannot open payment link. Please visit ko-fi.com/hitchtrip manually.');
+        showError('Cannot open payment link. Please visit ko-fi.com/hitchtrip manually.');
       }
     } catch (error) {
-      console.error('Error opening Ko-Fi link:', error);
-      Alert.alert('Error', 'Failed to open payment link');
+      showError('Failed to open payment link');
     }
   };
 
   const handleRedeemVoucher = async () => {
     if (!voucherCode.trim()) {
-      Alert.alert('Error', 'Please enter a voucher code');
+      showError('Please enter a voucher code');
       return;
     }
 
@@ -58,16 +57,13 @@ const CreditsTab: React.FC<CreditsTabProps> = ({ onBack }) => {
       if (result.success) {
         setVoucherCode('');
         // Reload credits from storage to get the updated balance
-        console.log('🔄 Reloading credits after successful redemption...');
         await loadCredits();
-        console.log('🔄 Credits reloaded successfully');
-        Alert.alert('Success', `Successfully redeemed ${result.creditsRedeemed} credits!`);
+        showSuccess(`Successfully redeemed ${result.creditsRedeemed} credits!`);
       } else {
-        Alert.alert('Error', result.error || 'Failed to redeem voucher');
+        showError(result.error || 'Failed to redeem voucher');
       }
     } catch (error) {
-      console.error('Redeem error:', error);
-      Alert.alert('Error', 'Failed to redeem voucher. Please try again.');
+      showError('Failed to redeem voucher. Please try again.');
     } finally {
       setIsRedeeming(false);
     }

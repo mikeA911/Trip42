@@ -4,10 +4,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // import { debugLog, debugError, debugNetworkRequest, debugNetworkResponse } from './utils/debugUtils';
 
 // Temporary debug functions to avoid import error
-const debugLog = (...args) => console.log('[DEBUG]', ...args);
-const debugError = (...args) => console.error('[ERROR]', ...args);
-const debugNetworkRequest = (url, method, headers, body) => console.log('[NETWORK REQUEST]', method, url);
-const debugNetworkResponse = (url, status, headers, result) => console.log('[NETWORK RESPONSE]', status, url);
+const debugLog = (...args) => {};
+const debugError = (...args) => {};
+const debugNetworkRequest = (url, method, headers, body) => {};
+const debugNetworkResponse = (url, status, headers, result) => {};
 
 // Helper function to convert blob to base64
 const blobToBase64 = (blob) => {
@@ -30,8 +30,6 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 // Get user profile from userId
 export const getUserProfile = async (userId) => {
   try {
-    console.log('Getting user profile for userId:', userId);
-
     // First try to get from users table (which has avatar column)
     const { data: userData, error: userError } = await supabase
       .from('users')
@@ -40,7 +38,6 @@ export const getUserProfile = async (userId) => {
       .single();
 
     if (userData && !userError) {
-      console.log('Retrieved user profile from users table:', userData);
       return {
         display_name: userData.name,
         email: null, // users table doesn't have email
@@ -56,14 +53,11 @@ export const getUserProfile = async (userId) => {
       .single();
 
     if (profileError && profileError.code !== 'PGRST116') {
-      console.error('Error getting user profile:', profileError);
       return { display_name: null, email: null, avatar_url: null };
     }
 
-    console.log('Retrieved user profile from user_profiles table:', profileData);
     return profileData || { display_name: null, email: null, avatar_url: null };
   } catch (error) {
-    console.error('Error getting user profile:', error);
     return { display_name: null, email: null, avatar_url: null };
   }
 };
@@ -71,8 +65,6 @@ export const getUserProfile = async (userId) => {
 // Get user email from userId
 export const getUserEmail = async (userId) => {
   try {
-    console.log('Getting user email for userId:', userId);
-
     const response = await fetch('https://ofialssoolmzckjjngst.supabase.co/functions/v1/admin-get-user-email', {
       method: 'POST',
       headers: {
@@ -88,10 +80,8 @@ export const getUserEmail = async (userId) => {
     }
 
     const data = await response.json();
-    console.log('Retrieved user email:', data.email);
     return data.email;
   } catch (error) {
-    console.error('Error getting user email:', error);
     throw error;
   }
 };

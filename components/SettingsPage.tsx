@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sharedStyles } from '../styles';
+import { useToast } from '../contexts/ToastContext';
 
 interface SettingsPageProps {
   onBack: () => void;
@@ -162,19 +163,24 @@ const CURRENCIES = [
 
 const AI_THEMES = [
   { code: 'h2g2', name: 'Hitchhiker\'s Guide to the Galaxy', description: 'Marvin the Paranoid Android' },
-  { code: 'lotr', name: 'Lord of the Rings', description: 'Coming soon...' }
+  { code: 'QT-GR', name: 'Quentin Tarantino/Guy Ritchie Films', description: 'Full functionality coming soon...' },
+  { code: 'Epic', name: 'Greek & Norse Mythology', description: 'Full functionality coming soon...' },
+  { code: 'ikigai', name: 'Ikigai Philosophy', description: 'Full functionality coming soon...' },
+  { code: 'lotr', name: 'Lord of the Rings', description: 'Full functionality coming soon...' },
+  { code: 'TP-GG', name: 'Terry Pratchett Guards! Guards!', description: 'Full functionality coming soon...' }
 ];
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
-   const [settings, setSettings] = useState<UserSettings>({
-     uiLanguage: 'en',
-     userCurrency: 'USD',
-     customTags: [],
-     locationPermission: 'prompt',
-     enabledTags: [],
-     enabledLanguages: [],
-     aiTheme: 'h2g2'
-   });
+  const [settings, setSettings] = useState<UserSettings>({
+    uiLanguage: 'en',
+    userCurrency: 'USD',
+    customTags: [],
+    locationPermission: 'prompt',
+    enabledTags: [],
+    enabledLanguages: [],
+    aiTheme: 'h2g2'
+  });
+  const { showSuccess, showError } = useToast();
    const [tempEnabledTags, setTempEnabledTags] = useState<string[]>([]);
    const [tempEnabledLanguages, setTempEnabledLanguages] = useState<string[]>([]);
    const [newTag, setNewTag] = useState('');
@@ -200,11 +206,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
       const savedSettings = await AsyncStorage.getItem('userSettings');
       if (savedSettings) {
         const parsedSettings = JSON.parse(savedSettings);
-        console.log('DEBUG Settings: Loaded settings:', parsedSettings);
-        console.log('DEBUG Settings: enabledTags:', parsedSettings.enabledTags);
         setSettings(parsedSettings);
-      } else {
-        console.log('DEBUG Settings: No saved settings found');
       }
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -218,7 +220,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
       // Remove the success alert for individual setting changes
     } catch (error) {
       console.error('Error saving settings:', error);
-      Alert.alert('Error', 'Failed to save settings');
+      showError('Failed to save settings');
     }
   };
 
@@ -237,7 +239,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
       saveSettings(newSettings);
       setNewTag('');
     } else if (tag) {
-      Alert.alert('Error', 'Tag already exists or is a permanent tag');
+      showError('Tag already exists or is a permanent tag');
     }
   };
 
@@ -283,19 +285,29 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
           </TouchableOpacity>
 
           {showLanguageDropdown && (
-            <View style={sharedStyles.dropdownList}>
-              {LANGUAGES.map((lang) => (
-                <TouchableOpacity
-                  key={lang.code}
-                  style={sharedStyles.dropdownItem}
-                  onPress={() => {
-                    updateSetting('uiLanguage', lang.code);
-                    setShowLanguageDropdown(false);
-                  }}
-                >
-                  <Text style={sharedStyles.dropdownItemText}>{lang.name}</Text>
-                </TouchableOpacity>
-              ))}
+            <View style={[sharedStyles.tagsSelectorContainer, { maxHeight: 300, borderWidth: 1, borderColor: '#374151' }]}>
+              <ScrollView
+                style={sharedStyles.tagsSelectorList}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+                contentContainerStyle={{ paddingBottom: 10 }}
+              >
+                {LANGUAGES.map((lang) => (
+                  <TouchableOpacity
+                    key={`lang-${lang.code}`}
+                    style={sharedStyles.tagSelectorItem}
+                    onPress={() => {
+                      updateSetting('uiLanguage', lang.code);
+                      setShowLanguageDropdown(false);
+                    }}
+                  >
+                    <Text style={sharedStyles.checkboxText}>
+                      {settings.uiLanguage === lang.code ? '☑' : '□'}
+                    </Text>
+                    <Text style={sharedStyles.tagSelectorText}>{lang.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
           )}
         </View>
@@ -314,21 +326,31 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
           </TouchableOpacity>
 
           {showCurrencyDropdown && (
-            <View style={sharedStyles.dropdownList}>
-              {CURRENCIES.map((currency) => (
-                <TouchableOpacity
-                  key={currency.code}
-                  style={sharedStyles.dropdownItem}
-                  onPress={() => {
-                    updateSetting('userCurrency', currency.code);
-                    setShowCurrencyDropdown(false);
-                  }}
-                >
-                  <Text style={sharedStyles.dropdownItemText}>
-                    {currency.symbol} {currency.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View style={[sharedStyles.tagsSelectorContainer, { maxHeight: 300, borderWidth: 1, borderColor: '#374151' }]}>
+              <ScrollView
+                style={sharedStyles.tagsSelectorList}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+                contentContainerStyle={{ paddingBottom: 10 }}
+              >
+                {CURRENCIES.map((currency) => (
+                  <TouchableOpacity
+                    key={`currency-${currency.code}`}
+                    style={sharedStyles.tagSelectorItem}
+                    onPress={() => {
+                      updateSetting('userCurrency', currency.code);
+                      setShowCurrencyDropdown(false);
+                    }}
+                  >
+                    <Text style={sharedStyles.checkboxText}>
+                      {settings.userCurrency === currency.code ? '☑' : '□'}
+                    </Text>
+                    <Text style={sharedStyles.tagSelectorText}>
+                      {currency.symbol} {currency.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
           )}
         </View>
@@ -395,24 +417,36 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
           </TouchableOpacity>
 
           {showThemeDropdown && (
-            <View style={sharedStyles.dropdownList}>
-              {AI_THEMES.map((theme) => (
-                <TouchableOpacity
-                  key={theme.code}
-                  style={sharedStyles.dropdownItem}
-                  onPress={() => {
-                    updateSetting('aiTheme', theme.code);
-                    setShowThemeDropdown(false);
-                  }}
-                >
-                  <Text style={sharedStyles.dropdownItemText}>
-                    {theme.name}
-                  </Text>
-                  <Text style={[sharedStyles.dropdownItemText, { fontSize: 12, color: '#9CA3AF' }]}>
-                    {theme.description}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View style={[sharedStyles.tagsSelectorContainer, { maxHeight: 300, borderWidth: 1, borderColor: '#374151' }]}>
+              <ScrollView
+                style={sharedStyles.tagsSelectorList}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+                contentContainerStyle={{ paddingBottom: 10 }}
+              >
+                {AI_THEMES.map((theme) => (
+                  <TouchableOpacity
+                    key={theme.code}
+                    style={sharedStyles.tagSelectorItem}
+                    onPress={() => {
+                      updateSetting('aiTheme', theme.code);
+                      setShowThemeDropdown(false);
+                    }}
+                  >
+                    <Text style={sharedStyles.checkboxText}>
+                      {settings.aiTheme === theme.code ? '☑' : '□'}
+                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={sharedStyles.tagSelectorText}>
+                        {theme.name}
+                      </Text>
+                      <Text style={[sharedStyles.tagSelectorText, { fontSize: 12, color: '#9CA3AF' }]}>
+                        {theme.description}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
           )}
         </View>
@@ -486,7 +520,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
               style={[sharedStyles.actionButton, sharedStyles.saveButton]}
               onPress={() => {
                 updateSetting('enabledLanguages', tempEnabledLanguages);
-                Alert.alert('Success', 'Language settings saved successfully!');
+                showSuccess('Language settings saved successfully!');
               }}
             >
               <Text style={sharedStyles.saveButtonText}>Save</Text>
@@ -641,7 +675,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
               style={[sharedStyles.actionButton, sharedStyles.saveButton]}
               onPress={() => {
                 updateSetting('enabledTags', tempEnabledTags);
-                Alert.alert('Success', 'Tag settings saved successfully!');
+                showSuccess('Tag settings saved successfully!');
               }}
             >
               <Text style={sharedStyles.saveButtonText}>Save</Text>

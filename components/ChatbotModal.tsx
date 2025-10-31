@@ -5,6 +5,7 @@ import { translateTextWithGemini, transcribeAudioWithGemini } from '../services/
 import { useNotes } from '../hooks/useNotes';
 import { Note, generateNoteId } from '../utils/storage';
 import { deductCredits, CREDIT_PRICING, checkCreditsAndNotify } from '../utils/credits';
+import { useToast } from '../contexts/ToastContext';
 
 interface ChatbotModalProps {
   visible: boolean;
@@ -288,6 +289,7 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
   const [pendingSaveMode, setPendingSaveMode] = useState<ChatbotMode | null>(null);
   const [pendingZaphodNote, setPendingZaphodNote] = useState<Note | null>(null);
   const { addNote } = useNotes();
+  const { showError, showSuccess } = useToast();
 
   const avatars = {
     arthur: require('../public/icons/arturBent.png'),
@@ -351,21 +353,14 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
       if (currentMode !== 'ford') {
         const hasCredits = await checkCreditsAndNotify(5, 'Chatbot Interaction'); // 5 credits for chatbot
         if (!hasCredits) {
-          Alert.alert(
-            'Insufficient Credits',
-            'You need 5 credits for chatbot interactions, but you don\'t have enough.\n\nWould you like to go to the Credits page to get more credits?',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Go to Credits', onPress: () => {/* Navigation would be handled by parent */} }
-            ]
-          );
+          showError('You need 5 credits for chatbot interactions, but you don\'t have enough.');
           return;
         }
 
         // Deduct credits for chatbot interaction
         const creditDeducted = await deductCredits(5, 'Chatbot Interaction');
         if (!creditDeducted) {
-          Alert.alert('Error', 'Failed to process credits. Please try again.');
+          showError('Failed to process credits. Please try again.');
           return;
         }
       }
@@ -425,7 +420,7 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
       setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
       console.error('Chatbot error:', error);
-      Alert.alert('Error', 'Sorry, I encountered an error. Please try again.');
+      showError('Sorry, I encountered an error. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -467,7 +462,7 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
       if (pendingSaveMode === 'zaphod' && pendingZaphodNote) {
         // Save the pre-created Zaphod note
         await addNote(pendingZaphodNote);
-        Alert.alert('Success', 'Zaphod note saved!');
+        showSuccess('Zaphod note saved!');
       } else {
         // Create chat content for Arthur and Ford
         const chatContent = messages.map(msg =>
@@ -488,11 +483,11 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
         };
 
         await addNote(newNote);
-        Alert.alert('Success', 'Chat saved as note!');
+        showSuccess('Chat saved as note!');
       }
     } catch (error) {
       console.error('Error saving chat:', error);
-      Alert.alert('Error', 'Failed to save chat');
+      showError('Failed to save chat');
     }
 
     resetAndClose();
@@ -507,13 +502,21 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
       // Request microphone permission
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Microphone permission is required for voice input');
+        showError('Microphone permission is required for voice input');
+        return;
+      }
+
+      // Check credits first
+      const hasCredits = await checkCreditsAndNotify(CREDIT_PRICING.VOICE_RECORDING, 'Voice Chat Input');
+      if (!hasCredits) {
+        showError(`You need ${CREDIT_PRICING.VOICE_RECORDING} credits for voice input, but you don't have enough.`);
         return;
       }
 
       // Deduct credits for voice input
       const creditDeducted = await deductCredits(CREDIT_PRICING.VOICE_RECORDING, 'Voice Chat Input');
       if (!creditDeducted) {
+        showError('Failed to process credits. Please try again.');
         return;
       }
 
@@ -556,7 +559,7 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
 
     } catch (error) {
       console.error('Failed to start recording:', error);
-      Alert.alert('Error', 'Failed to start voice recording');
+      showError('Failed to start voice recording');
       setIsRecording(false);
     }
   };
@@ -577,7 +580,7 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
       }
     } catch (error) {
       console.error('Failed to stop recording:', error);
-      Alert.alert('Error', 'Failed to process voice recording');
+      showError('Failed to process voice recording');
     } finally {
       setRecording(null);
     }

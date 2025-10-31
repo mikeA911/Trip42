@@ -144,7 +144,7 @@ export const shareNoteWithImages = async (shareText, platform, selectedNote) => 
       shareText += `\n\n⚠️ ${failedCount} image${failedCount > 1 ? 's' : ''} failed to upload`;
     }
 
-    console.log('All images uploaded, sharing text with URLs...');
+    
 
     // Now share the text with image URLs
     await shareNoteTextOnly(shareText, platform);
@@ -253,7 +253,7 @@ export const copyNoteToClipboard = async (selectedNote) => {
       const imageCount = (selectedNote.attachedImages?.length || 0) +
                         (selectedNote.signImageUrl ? 1 : 0);
 
-      console.log('Copying note with images - uploading', imageCount, 'images to sharing bucket...');
+      
 
       // Show uploading progress
       Alert.alert('Uploading Images', 'Please wait while we upload your images for sharing...');

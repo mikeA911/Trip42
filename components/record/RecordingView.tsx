@@ -67,7 +67,6 @@ const RecordingView: React.FC<RecordingViewProps> = ({
         // No alert - just return to recording interface
       }
     } catch (error) {
-      console.error('Error taking photo:', error);
       Alert.alert('Error', 'Failed to take photo');
     }
   };
@@ -90,11 +89,8 @@ const RecordingView: React.FC<RecordingViewProps> = ({
 
   const handleStopRecording = async () => {
     if (onStopRecording) {
-      console.log('DEBUG: Stop recording called in RecordingView - setting status to stopped');
       setRecordingStatus('stopped');
-      console.log('DEBUG: Calling onStopRecording from RecordingView');
       await onStopRecording();
-      console.log('DEBUG: onStopRecording completed in RecordingView - parent should handle navigation');
       // Don't show save options here - parent handles navigation to tabs
     }
   };
@@ -168,10 +164,8 @@ const RecordingView: React.FC<RecordingViewProps> = ({
         <TouchableOpacity
           style={[styles.recordButton, styles.recordButtonReady]}
           onPress={() => {
-            console.log('DEBUG: Start recording button pressed');
             // Start recording immediately when pressing the microphone button
             setRecordingStatus('recording');
-            console.log('DEBUG: Calling onStartRecording');
             if (onStartRecording) onStartRecording();
           }}
         >

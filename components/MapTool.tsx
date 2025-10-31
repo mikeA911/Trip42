@@ -26,29 +26,20 @@ const MapTool: React.FC<MapToolProps> = ({ onBack }) => {
 
   const getCurrentLocation = async () => {
     try {
-      console.log('=== MAP TOOL: Requesting location permissions ===');
       const { status } = await Location.requestForegroundPermissionsAsync();
-      console.log('=== MAP TOOL: Location permission status:', status);
 
       if (status !== 'granted') {
-        console.error('=== MAP TOOL: Location permission denied ===');
         Alert.alert('Permission needed', 'Location permission is required to show nearby places');
         return;
       }
 
-      console.log('=== MAP TOOL: Getting current position ===');
       const currentLocation = await Location.getCurrentPositionAsync({});
-      console.log('=== MAP TOOL: Current location obtained:', currentLocation.coords);
 
       setLocation(currentLocation.coords);
 
       // Get address using reverse geocoding
       await getAddressFromCoordinates(currentLocation.coords.latitude, currentLocation.coords.longitude);
     } catch (error: any) {
-      console.error('=== MAP TOOL ERROR: Failed to get current location ===');
-      console.error('Error details:', error);
-      console.error('Error message:', error.message);
-      console.error('Error code:', error.code);
       Alert.alert('Error', `Failed to get current location: ${error.message}`);
     }
   };
@@ -56,39 +47,24 @@ const MapTool: React.FC<MapToolProps> = ({ onBack }) => {
   const getAddressFromCoordinates = async (latitude: number, longitude: number) => {
     setIsGettingAddress(true);
     try {
-      console.log('=== MAP TOOL: Starting reverse geocoding ===');
-      console.log('Coordinates:', { latitude, longitude });
-
       const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API;
-      console.log('=== MAP TOOL: GOOGLE_MAPS_API key loaded:', apiKey ? 'YES' : 'NO');
 
       const geocodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?` +
         `latlng=${latitude},${longitude}&` +
         `key=${apiKey}`;
 
-      console.log('=== MAP TOOL: Reverse geocoding URL:', geocodingUrl);
-
       const response = await fetch(geocodingUrl);
-      console.log('=== MAP TOOL: Geocoding response status:', response.status);
 
       const data = await response.json();
-      console.log('=== MAP TOOL: Geocoding response data:', data);
 
       if (data.status === 'OK' && data.results && data.results.length > 0) {
         // Get the most relevant address (usually the first result)
         const address = data.results[0].formatted_address;
-        console.log('=== MAP TOOL: Address found:', address);
         setAddress(address);
       } else {
-        console.warn('=== MAP TOOL: Geocoding failed with status:', data.status);
-        console.warn('=== MAP TOOL: Error message:', data.error_message);
         setAddress('Address not available');
       }
     } catch (error: any) {
-      console.error('=== MAP TOOL ERROR: Failed to get address ===');
-      console.error('Error details:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
       setAddress('Address lookup failed');
     } finally {
       setIsGettingAddress(false);
@@ -97,20 +73,13 @@ const MapTool: React.FC<MapToolProps> = ({ onBack }) => {
 
   const searchNearbyPlaces = async (query: string) => {
     if (!location) {
-      console.error('=== MAP TOOL ERROR: No location available for search ===');
       Alert.alert('Location Required', 'Please enable location services to search nearby places');
       return;
     }
 
     setIsLoading(true);
     try {
-      console.log('=== MAP TOOL: Starting places search ===');
-      console.log('Search query:', query);
-      console.log('Current location:', location);
-
       const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API;
-      console.log('=== MAP TOOL: GOOGLE_MAPS_API key loaded for places search:', apiKey ? 'YES' : 'NO');
-      console.log('=== MAP TOOL: GOOGLE_MAPS_API key value for places search:', apiKey);
 
       const { latitude, longitude } = location;
 
@@ -124,24 +93,13 @@ const MapTool: React.FC<MapToolProps> = ({ onBack }) => {
         `keyword=${encodeURIComponent(searchQuery)}&` +
         `key=${apiKey}`;
 
-      console.log('=== MAP TOOL: Places search URL:', placesUrl);
-
       const response = await fetch(placesUrl);
-      console.log('=== MAP TOOL: Places API response status:', response.status);
 
       const data = await response.json();
-      console.log('=== MAP TOOL: Places API response data:', data);
 
       if (data.status !== 'OK') {
-        console.error('=== MAP TOOL ERROR: Places API error ===');
-        console.error('Status:', data.status);
-        console.error('Error message:', data.error_message);
-        console.error('Error message:', data.error_message);
-        console.error('Full response:', data);
-
         // Handle specific error cases
         if (data.status === 'ZERO_RESULTS') {
-          console.warn('=== MAP TOOL: No places found in search area ===');
           Alert.alert(
             'No Results Found',
             `No ${searchQuery} found within 5km of your location. Try:\n• Different search terms (restaurant, pharmacy, store)\n• Moving to a more populated area\n• Checking your internet connection`,
@@ -155,15 +113,10 @@ const MapTool: React.FC<MapToolProps> = ({ onBack }) => {
       }
 
       if (!data.results || data.results.length === 0) {
-        console.warn('=== MAP TOOL: No places found ===');
-        console.warn('Search query:', searchQuery);
-        console.warn('Location:', { latitude, longitude });
         setPlaces([]);
         Alert.alert('No Results', `No places found for "${searchQuery}" near your location`);
         return;
       }
-
-      console.log('=== MAP TOOL: Processing', data.results.length, 'places ===');
 
       // Process the results
       const processedPlaces = data.results.slice(0, 10).map((place: any, index: number) => {
@@ -191,17 +144,12 @@ const MapTool: React.FC<MapToolProps> = ({ onBack }) => {
         };
       });
 
-      console.log('=== MAP TOOL: Processed places:', processedPlaces);
       setPlaces(processedPlaces);
 
       if (processedPlaces.length === 0) {
         Alert.alert('No Results', `No places found for "${searchQuery}" near your location`);
       }
     } catch (error: any) {
-      console.error('=== MAP TOOL ERROR: Failed to search nearby places ===');
-      console.error('Error details:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
       Alert.alert('Error', `Failed to search nearby places: ${error.message}. Please check your internet connection.`);
     } finally {
       setIsLoading(false);
@@ -473,8 +421,6 @@ const MapTool: React.FC<MapToolProps> = ({ onBack }) => {
                     <TouchableOpacity
                       style={styles.directionsButton}
                       onPress={() => {
-                        console.log('=== DIRECTIONS BUTTON: Place object:', place);
-                        console.log('=== DIRECTIONS BUTTON: Place geometry:', place.geometry);
                         if (place.geometry && place.geometry.location) {
                           const url = `https://www.google.com/maps/dir/?api=1&origin=${location.latitude},${location.longitude}&destination=${place.geometry.location.lat},${place.geometry.location.lng}&travelmode=driving`;
                           Linking.openURL(url);

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, TextInput, TouchableOpacity, Text, Image, Alert, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useToast } from '../../contexts/ToastContext';
 
 interface TypingViewProps {
   typedText: string;
@@ -19,6 +20,7 @@ const TypingView: React.FC<TypingViewProps> = ({
   attachedMedia = [],
   setAttachedMedia = () => {}
 }) => {
+  const { showSuccess, showError } = useToast();
   const handleAttachPhoto = async () => {
     try {
       // Request camera permissions
@@ -39,11 +41,11 @@ const TypingView: React.FC<TypingViewProps> = ({
       if (!result.canceled && result.assets[0]) {
         const imageUri = result.assets[0].uri;
         setAttachedMedia([...attachedMedia, imageUri]);
-        Alert.alert('Success', 'Photo attached successfully!');
+        showSuccess('Photo attached successfully!');
       }
     } catch (error) {
       console.error('Error attaching photo:', error);
-      Alert.alert('Error', 'Failed to attach photo');
+      showError('Failed to attach photo');
     }
   };
 

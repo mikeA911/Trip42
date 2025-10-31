@@ -18,6 +18,7 @@ import SettingsPage from './components/SettingsPage';
 import { useNotes } from './hooks/useNotes';
 import { Note } from './utils/storage';
 import { initializeCredits } from './utils/credits';
+import { ToastProvider } from './contexts/ToastContext';
 
 type AppScreen = 'landing' | 'notes' | 'record' | 'manageNotes' | 'credits' | 'fun' | 'map' | 'medicine' | 'calculator' | 'currency' | 'tetris' | 'settings';
 
@@ -31,9 +32,8 @@ export default function App() {
     const initCredits = async () => {
       try {
         await initializeCredits();
-        console.log('Credits initialized successfully');
       } catch (error) {
-        console.error('Failed to initialize credits:', error);
+        // Credits initialization failed - continue without credits
       }
     };
 
@@ -92,7 +92,8 @@ export default function App() {
       setCurrentScreen('tetris');
     } else {
       // For now, just show an alert - individual tool components will be implemented later
-      Alert.alert('Coming Soon', `${toolId} tool is under development.`);
+      // Alert.alert('Coming Soon', `${toolId} tool is under development.`);
+      // TODO: Replace with toast when context is available
     }
   };
 
@@ -101,10 +102,12 @@ export default function App() {
       setCurrentScreen(screen as AppScreen);
     } else if (screen === 'chatbot-zaphod' || screen === 'chatbot-arthur') {
       // Handle chatbot navigation - for now just show alert
-      Alert.alert('Coming Soon', `${screen} chatbot is under development.`);
+      // Alert.alert('Coming Soon', `${screen} chatbot is under development.`);
+      // TODO: Replace with toast when context is available
     } else if (screen === 'calendar') {
       // Handle calendar navigation - for now just show alert
-      Alert.alert('Coming Soon', 'Calendar modal is under development.');
+      // Alert.alert('Coming Soon', 'Calendar modal is under development.');
+      // TODO: Replace with toast when context is available
     }
   };
 
@@ -117,6 +120,7 @@ export default function App() {
             onNavigateToRecord={handleLogoPress}
             savedNotes={notes}
             onSaveNote={handleSaveNote}
+            aiTheme={aiTheme}
           />
         );
       case 'notes':
@@ -125,7 +129,6 @@ export default function App() {
             notes={notes}
             onNotePress={(note) => {
               // TODO: Implement note detail view
-              console.log('Note pressed:', note);
             }}
             onDeleteNote={handleDeleteNote}
             loading={loading}
@@ -208,15 +211,17 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <GestureHandlerRootView style={styles.container}>
-        <SafeAreaView style={styles.container}>
-          {renderHeader()}
-          <View style={styles.content}>
-            {renderContent()}
-          </View>
-          <StatusBar style="light" />
-        </SafeAreaView>
-      </GestureHandlerRootView>
+      <ToastProvider>
+        <GestureHandlerRootView style={styles.container}>
+          <SafeAreaView style={styles.container}>
+            {renderHeader()}
+            <View style={styles.content}>
+              {renderContent()}
+            </View>
+            <StatusBar style="light" />
+          </SafeAreaView>
+        </GestureHandlerRootView>
+      </ToastProvider>
     </SafeAreaProvider>
   );
 }

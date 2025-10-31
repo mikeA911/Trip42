@@ -41,7 +41,6 @@ const ActionsView: React.FC<ActionsViewProps> = ({
           />
           {isProcessing && (
             <View style={styles.processingOverlay}>
-              {(() => { console.log('DEBUG: Marvin avatar should be showing now'); return null; })()}
               <Image
                 source={require('../../assets/marvin.png')}
                 style={styles.marvinAvatar}

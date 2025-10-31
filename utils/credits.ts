@@ -48,12 +48,13 @@ export const generateDeviceFingerprint = async (): Promise<string> => {
     // Use a simple hash function for React Native compatibility
     const deviceId = `fp-${deviceInfo.osName.toLowerCase()}-${simpleHash(fingerprintString).substring(0, 32)}-trip42`;
 
-    console.log('📱 Generated device fingerprint:', {
-      brand: deviceInfo.brand,
-      model: deviceInfo.modelName,
-      os: `${deviceInfo.osName} ${deviceInfo.osVersion}`,
-      fingerprint: deviceId
-    });
+    // Remove console.log that exposes device fingerprint details
+    // console.log('📱 Generated device fingerprint:', {
+    //   brand: deviceInfo.brand,
+    //   model: deviceInfo.modelName,
+    //   os: `${deviceInfo.osName} ${deviceInfo.osVersion}`,
+    //   fingerprint: deviceId
+    // });
 
     return deviceId;
   } catch (error) {
@@ -87,23 +88,27 @@ const generateUUID = (): string => {
 // Initialize credits for new device
 export const initializeCredits = async (): Promise<UserCredits> => {
   try {
-    console.log('=== INITIALIZING CREDITS ===');
+    // Remove console.log that exposes initialization details
+    // console.log('=== INITIALIZING CREDITS ===');
 
     // Get or create device ID
     let deviceId = await AsyncStorage.getItem('deviceId');
     if (!deviceId) {
       deviceId = await generateDeviceFingerprint();
       await AsyncStorage.setItem('deviceId', deviceId);
-      console.log('📱 Generated NEW device fingerprint for credits:', deviceId);
+      // Remove console.log that exposes device fingerprint
+      // console.log('📱 Generated NEW device fingerprint for credits:', deviceId);
     } else {
-      console.log('📱 Using EXISTING device fingerprint:', deviceId);
+      // Remove console.log that exposes device fingerprint
+      // console.log('📱 Using EXISTING device fingerprint:', deviceId);
     }
 
     // Check if credits already initialized
     const existingCredits = await AsyncStorage.getItem('userCredits');
     if (existingCredits) {
       const parsedCredits = JSON.parse(existingCredits);
-      console.log('💰 Existing credits found:', parsedCredits.balance);
+      // Remove console.log that exposes credit balance
+      // console.log('💰 Existing credits found:', parsedCredits.balance);
       return parsedCredits;
     }
 
@@ -124,7 +129,8 @@ export const initializeCredits = async (): Promise<UserCredits> => {
     };
 
     await AsyncStorage.setItem('userCredits', JSON.stringify(initialCredits));
-    console.log('💰 Initialized credits with 100 welcome credits');
+    // Remove console.log that exposes credit initialization
+    // console.log('💰 Initialized credits with 100 welcome credits');
     return initialCredits;
 
   } catch (error) {
@@ -166,14 +172,17 @@ export const getCredits = async (): Promise<UserCredits> => {
 // Deduct credits for a service
 export const deductCredits = async (amount: number, description: string): Promise<boolean> => {
   try {
-    console.log(`Attempting to deduct ${amount} credits for: ${description}`);
+    // Remove console.log that exposes credit deduction details
+    // console.log(`Attempting to deduct ${amount} credits for: ${description}`);
 
     const currentCredits = await getCredits();
-    console.log(`Current credits: ${currentCredits.balance}`);
+    // Remove console.log that exposes current balance
+    // console.log(`Current credits: ${currentCredits.balance}`);
 
     // Check if user has enough credits
     if (currentCredits.balance < amount) {
-      console.log(`Insufficient credits: need ${amount}, have ${currentCredits.balance}`);
+      // Remove console.log that exposes insufficient credits
+      // console.log(`Insufficient credits: need ${amount}, have ${currentCredits.balance}`);
       return false;
     }
 
@@ -193,7 +202,8 @@ export const deductCredits = async (amount: number, description: string): Promis
     };
 
     await AsyncStorage.setItem('userCredits', JSON.stringify(updatedCredits));
-    console.log(`Credits deducted successfully. New balance: ${newBalance}`);
+    // Remove console.log that exposes new balance
+    // console.log(`Credits deducted successfully. New balance: ${newBalance}`);
     return true;
 
   } catch (error) {
@@ -213,7 +223,8 @@ export const checkCreditsAndNotify = async (amount: number, description: string,
 
       // Since we're in a utility function, we'll return a special value to indicate insufficient credits
       // The calling component should handle the UI alert and navigation
-      console.log(`Insufficient credits: need ${amount}, have ${currentCredits.balance}`);
+      // Remove console.log that exposes credit balance
+      // console.log(`Insufficient credits: need ${amount}, have ${currentCredits.balance}`);
       return false;
     }
 
@@ -227,10 +238,12 @@ export const checkCreditsAndNotify = async (amount: number, description: string,
 // Add credits (for voucher redemption)
 export const addCredits = async (amount: number, description: string): Promise<boolean> => {
   try {
-    console.log(`Adding ${amount} credits for: ${description}`);
+    // Remove console.log that exposes credit addition details
+    // console.log(`Adding ${amount} credits for: ${description}`);
 
     const currentCredits = await getCredits();
-    console.log(`Current balance before adding: ${currentCredits.balance}`);
+    // Remove console.log that exposes current balance
+    // console.log(`Current balance before adding: ${currentCredits.balance}`);
 
     const newBalance = currentCredits.balance + amount;
     const newHistoryEntry: CreditHistoryEntry = {
@@ -246,16 +259,24 @@ export const addCredits = async (amount: number, description: string): Promise<b
       history: [newHistoryEntry, ...currentCredits.history]
     };
 
-    console.log(`Saving credits with new balance: ${newBalance}`);
+    // Remove console.log that exposes new balance
+    // console.log(`Saving credits with new balance: ${newBalance}`);
     await AsyncStorage.setItem('userCredits', JSON.stringify(updatedCredits));
 
     // Force immediate persistence by reading back
     const persistedData = await AsyncStorage.getItem('userCredits');
     if (persistedData) {
       const persistedCredits = JSON.parse(persistedData);
-      console.log(`Credits persisted successfully. Balance: ${persistedCredits.balance}`);
+      // Remove console.log that exposes persisted balance
+      // console.log(`Credits persisted successfully. Balance: ${persistedCredits.balance}`);
       if (persistedCredits.balance === newBalance) {
-        console.log(`Credits added successfully. New balance: ${newBalance}`);
+        // Remove console.log that exposes successful addition
+        // console.log(`Credits added successfully. New balance: ${newBalance}`);
+
+        // Clear quotes cache when credits are added (voucher redemption)
+        const { clearQuotesCache } = await import('../services/quotesService');
+        await clearQuotesCache();
+
         return true;
       } else {
         console.error(`❌ Persistence failed: expected ${newBalance}, got ${persistedCredits.balance}`);
@@ -280,7 +301,8 @@ const checkAndResetMonthlyLimit = async (currentCredits: UserCredits): Promise<U
   const lastResetMonth = lastReset.getMonth();
 
   if (currentMonth !== lastResetMonth) {
-    console.log('📅 Resetting monthly redeemed credits');
+    // Remove console.log that exposes monthly reset
+    // console.log('📅 Resetting monthly redeemed credits');
     const updatedCredits = {
       ...currentCredits,
       monthlyRedeemed: 0,
@@ -295,12 +317,15 @@ const checkAndResetMonthlyLimit = async (currentCredits: UserCredits): Promise<U
 // Redeem voucher
 export const redeemVoucher = async (voucherCode: string): Promise<{ success: boolean; creditsRedeemed?: number; error?: string }> => {
   try {
-    console.log('🎫 Attempting to redeem voucher:', voucherCode.toUpperCase());
+    // Remove console.log that exposes voucher code
+    // console.log('🎫 Attempting to redeem voucher:', voucherCode.toUpperCase());
 
     let currentCredits = await getCredits();
-    console.log('🎫 Current user state - isAnonymous:', currentCredits.isAnonymous, 'deviceId:', currentCredits.deviceId);
+    // Remove console.log that exposes user state
+    // console.log('🎫 Current user state - isAnonymous:', currentCredits.isAnonymous, 'deviceId:', currentCredits.deviceId);
     currentCredits = await checkAndResetMonthlyLimit(currentCredits);
-    console.log('🎫 After getting credits - isAnonymous:', currentCredits.isAnonymous, 'deviceId:', currentCredits.deviceId);
+    // Remove console.log that exposes user state after reset
+    // console.log('🎫 After getting credits - isAnonymous:', currentCredits.isAnonymous, 'deviceId:', currentCredits.deviceId);
 
     // Special hidden vouchers for testing
     const testVouchers: Record<string, number> = {
@@ -318,17 +343,21 @@ export const redeemVoucher = async (voucherCode: string): Promise<{ success: boo
       if (!testVouchers.hasOwnProperty(voucherKey)) {
         const redeemedVouchers = currentCredits.redeemedVouchers || [];
         if (redeemedVouchers.includes(voucherKey)) {
-          console.log(`🎫 Voucher ${voucherKey} already redeemed by this device`);
+          // Remove console.log that exposes voucher redemption status
+          // console.log(`🎫 Voucher ${voucherKey} already redeemed by this device`);
           return { success: false, error: 'This voucher has already been redeemed' };
         }
       }
 
-      console.log(`🎫 Special test voucher detected: ${voucherKey}`);
-      console.log(`🎫 Credits BEFORE adding: ${currentCredits.balance}`);
+      // Remove console.log that exposes test voucher detection
+      // console.log(`🎫 Special test voucher detected: ${voucherKey}`);
+      // Remove console.log that exposes credit balance
+      // console.log(`🎫 Credits BEFORE adding: ${currentCredits.balance}`);
 
       const added = await addCredits(creditsToAdd, `Test Voucher: ${voucherKey}`);
       if (added) {
-        console.log(`🎫 Test voucher redeemed successfully: ${creditsToAdd} credits`);
+        // Remove console.log that exposes successful redemption
+        // console.log(`🎫 Test voucher redeemed successfully: ${creditsToAdd} credits`);
         return { success: true, creditsRedeemed: creditsToAdd };
       } else {
         return { success: false, error: 'Failed to add test credits' };
@@ -336,8 +365,10 @@ export const redeemVoucher = async (voucherCode: string): Promise<{ success: boo
     }
 
     // Call the Supabase edge function for regular vouchers
-    console.log('🎫 Calling Supabase edge function for voucher redemption');
-    console.log('🎫 Sending deviceId:', currentCredits.deviceId, 'isAnonymous:', currentCredits.isAnonymous);
+    // Remove console.log that exposes API call details
+    // console.log('🎫 Calling Supabase edge function for voucher redemption');
+    // Remove console.log that exposes device ID and anonymity status
+    // console.log('🎫 Sending deviceId:', currentCredits.deviceId, 'isAnonymous:', currentCredits.isAnonymous);
     const response = await fetch('https://ofialssoolmzckjjngst.supabase.co/functions/v1/redeem-voucher', {
       method: 'POST',
       headers: {
@@ -352,7 +383,8 @@ export const redeemVoucher = async (voucherCode: string): Promise<{ success: boo
     });
 
     const data = await response.json();
-    console.log('🎫 Supabase response:', { status: response.status, ok: response.ok, data });
+    // Remove console.log that exposes API response details
+    // console.log('🎫 Supabase response:', { status: response.status, ok: response.ok, data });
 
     if (!response.ok) {
       console.error('🎫 Voucher redemption failed:', data);
@@ -375,7 +407,8 @@ export const redeemVoucher = async (voucherCode: string): Promise<{ success: boo
           monthlyRedeemed: currentCredits.monthlyRedeemed + data.creditsRedeemed
         };
         await AsyncStorage.setItem('userCredits', JSON.stringify(updatedCredits));
-        console.log('🎫 Voucher redeemed successfully:', data.creditsRedeemed, 'credits');
+        // Remove console.log that exposes successful redemption amount
+        // console.log('🎫 Voucher redeemed successfully:', data.creditsRedeemed, 'credits');
         return { success: true, creditsRedeemed: data.creditsRedeemed };
       } else {
         return { success: false, error: 'Failed to add credits locally' };
@@ -394,7 +427,8 @@ export const redeemVoucher = async (voucherCode: string): Promise<{ success: boo
 export const updateCredits = async (newCredits: UserCredits): Promise<void> => {
   try {
     await AsyncStorage.setItem('userCredits', JSON.stringify(newCredits));
-    console.log('💰 Credits updated:', newCredits.balance);
+    // Remove console.log that exposes credit balance
+    // console.log('💰 Credits updated:', newCredits.balance);
   } catch (error) {
     console.error('❌ Error updating credits:', error);
   }

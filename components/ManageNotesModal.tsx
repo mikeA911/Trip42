@@ -117,7 +117,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       const allUniqueTags = Array.from(new Set([...defaultTags, ...uniqueTags, ...customTags]));
       setAllTags(allUniqueTags);
     } catch (error) {
-      console.error('Error loading custom tags:', error);
       // Fallback to default behavior
       const uniqueTags = Array.from(new Set(notes.flatMap(note => note.tags || [])));
       const defaultTags = [
@@ -134,7 +133,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       const settings = await getSettings();
       setEnabledLanguages(settings.enabledLanguages || ['en', 'lo', 'km', 'th', 'vi', 'zh', 'ja', 'ko', 'uk', 'fil']);
     } catch (error) {
-      console.error('Error loading enabled languages:', error);
       setEnabledLanguages(['en', 'lo', 'km', 'th', 'vi', 'zh', 'ja', 'ko', 'uk', 'fil']);
     }
   };
@@ -144,7 +142,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       const settings = await getSettings();
       setEnabledTags(settings.enabledTags || []);
     } catch (error) {
-      console.error('Error loading enabled tags:', error);
       setEnabledTags([]);
     }
   };
@@ -308,7 +305,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
 
               processedMedia.push(base64Data);
             } catch (mediaError) {
-              console.error('Error processing media:', mediaError);
               processedMedia.push(mediaUri); // Keep original URI if processing fails
             }
           }
@@ -389,7 +385,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         }
       }
     } catch (error) {
-      console.error('Error exporting notes:', error);
       Alert.alert('Error', 'Failed to export notes');
     }
   };
@@ -406,7 +401,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       // Then share via Telegram (placeholder - would need Telegram sharing implementation)
       Alert.alert('Share', 'Notes saved and ready to share via Telegram!');
     } catch (error) {
-      console.error('Error sharing notes:', error);
       Alert.alert('Error', 'Failed to share notes');
     }
   };
@@ -473,7 +467,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         }
       }
     } catch (error) {
-      console.error('Error importing notes:', error);
       Alert.alert('Error', 'Failed to import notes');
     }
   };
@@ -517,7 +510,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         refreshNotes();
       }
     } catch (error) {
-      console.error('Error adding media:', error);
       Alert.alert('Error', 'Failed to add media');
     }
   };
@@ -543,7 +535,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       }
       Alert.alert('Success', 'Media shared/saved successfully!');
     } catch (error) {
-      console.error('Error saving media:', error);
       Alert.alert('Error', 'Failed to save/share media');
     }
   };
@@ -553,7 +544,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       await Clipboard.setStringAsync(text);
       Alert.alert('Success', `${label} copied to clipboard!`);
     } catch (error) {
-      console.error('Error copying text:', error);
       Alert.alert('Error', 'Failed to copy text');
     }
   };
@@ -609,9 +599,8 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             });
           }
 
-          console.log('Shared with Supabase media URL:', mediaUrl);
+          // Shared with Supabase media URL
         } catch (mediaError) {
-          console.error('Error sharing with media:', mediaError);
           Alert.alert('Media Upload Failed', 'Sharing note text only. Media could not be uploaded.');
 
           // Fallback to text-only sharing
@@ -643,7 +632,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
           });
         }
 
-        console.log('Share options (text only):', { message, title: `Shared note from Trip42: ${selectedNote.title}` });
+        // Share options (text only)
       }
 
       if (selectedNote.attachedMedia && selectedNote.attachedMedia.length > 1) {
@@ -654,7 +643,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         );
       }
     } catch (error) {
-      console.error('Error sharing note:', error);
       Alert.alert('Error', 'Failed to share note');
     }
   };
@@ -663,7 +651,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
     if (!selectedNote) return;
 
     try {
-      console.log('Starting note export for:', selectedNote.title);
       Alert.alert('Exporting', 'Preparing note with media...');
 
       // Create a copy of the note for export
@@ -671,41 +658,34 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
 
       // Process attached media - convert URIs to base64 blobs
       if (exportNote.attachedMedia && exportNote.attachedMedia.length > 0) {
-        console.log('Processing', exportNote.attachedMedia.length, 'media files');
         const processedMedia: string[] = [];
 
         for (let i = 0; i < exportNote.attachedMedia.length; i++) {
           const mediaUri = exportNote.attachedMedia[i];
-          console.log(`Processing media ${i + 1}:`, mediaUri);
+          // Processing media
 
           try {
             let base64Data: string;
 
             if (Platform.OS === 'web') {
               // For web, fetch the blob and convert to base64
-              console.log('Fetching media for web...');
               const response = await fetch(mediaUri);
               const blob = await response.blob();
-              console.log('Blob size:', blob.size, 'type:', blob.type);
               base64Data = await new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = () => {
-                  console.log('FileReader loaded successfully');
                   resolve(reader.result as string);
                 };
                 reader.onerror = () => {
-                  console.error('FileReader error');
                   reject(new Error('FileReader failed'));
                 };
                 reader.readAsDataURL(blob);
               });
             } else {
               // For native, read file as base64
-              console.log('Reading file for native platform...');
               const rawBase64 = await FileSystem.readAsStringAsync(mediaUri, {
                 encoding: FileSystem.EncodingType.Base64,
               });
-              console.log('Raw base64 length:', rawBase64.length);
 
               // Add data URL prefix based on file type
               const isAudio = mediaUri.includes('.mp3') || mediaUri.includes('.wav') || mediaUri.includes('.m4a');
@@ -713,7 +693,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               base64Data = `data:${mimeType};base64,${rawBase64}`;
             }
 
-            console.log('Base64 data length:', base64Data.length);
             processedMedia.push(base64Data);
           } catch (mediaError) {
             console.error('Error processing media:', mediaError);
@@ -725,15 +704,11 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         exportNote.attachedMedia = processedMedia;
       }
 
-      console.log('Creating JSON string...');
       const noteJson = JSON.stringify(exportNote, null, 2);
-      console.log('JSON length:', noteJson.length);
 
       const fileName = `${selectedNote.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.ike`;
-      console.log('Filename:', fileName);
 
       if (Platform.OS === 'web') {
-        console.log('Using web download method');
         // For web, download the file
         const blob = new Blob([noteJson], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -744,36 +719,26 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         URL.revokeObjectURL(url);
         Alert.alert('Success', `Note exported as ${fileName}`);
       } else {
-        console.log('Using native file save method');
         // For native, save directly to documents directory
         try {
           const documentsDir = FileSystem.documentDirectory;
           if (documentsDir) {
             const fileUri = `${documentsDir}${fileName}`;
-            console.log('Saving to:', fileUri);
 
             await FileSystem.writeAsStringAsync(fileUri, noteJson, {
               encoding: FileSystem.EncodingType.UTF8,
             });
-            console.log('File saved successfully');
 
             Alert.alert('Success', `Note saved to Documents as ${fileName}\n\nLocation: ${fileUri}`);
           } else {
             throw new Error('No documents directory available');
           }
         } catch (saveError) {
-          console.error('Error saving file:', saveError);
           Alert.alert('Error', 'Failed to save note file');
         }
       }
     } catch (error) {
-      console.error('Error exporting note:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('Error details:', {
-        message: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined,
-        name: error instanceof Error ? error.name : undefined
-      });
       Alert.alert('Error', `Failed to export note: ${errorMessage}`);
     }
   };
@@ -2281,7 +2246,6 @@ const TagSelectorModal: React.FC<{
       const allTags = Array.from(new Set([...enabledTags, ...customTags, ...defaultTags]));
       setAvailableTags(allTags);
     } catch (error) {
-      console.error('Error loading tags:', error);
       setAvailableTags([
         'vitals', 'medicines', 'events', 'activities', 'habits',
         'Work', 'Personal', 'Ideas', 'Health', 'Fitness', 'Nutrition', 'Sleep', 'Mood', 'Energy', 'Focus', 'Creativity'
@@ -2301,7 +2265,7 @@ const TagSelectorModal: React.FC<{
         await saveSettings(updatedSettings);
       }
     } catch (error) {
-      console.error('Error saving custom tag:', error);
+      // Error saving custom tag - silently fail
     }
   };
 

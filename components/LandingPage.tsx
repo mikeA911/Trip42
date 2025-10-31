@@ -3,6 +3,9 @@ import { View, TouchableOpacity, Animated, Image, Text, Modal, ScrollView, Alert
 import { PanGestureHandler, State, PanGestureHandlerGestureEvent, PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import { QUOTES } from '../constants/quotes';
 import { ChatbotModal } from './ChatbotModal';
+import CalendarModal from './CalendarModal';
+import { fetchRandomQuote, Quote } from '../services/quotesService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
@@ -19,18 +22,20 @@ interface LandingPageProps {
   onNavigateToRecord: () => void;
   savedNotes?: any[];
   onSaveNote?: (note: any) => void;
+  aiTheme?: string;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   onNavigateToNotes,
   onNavigateToRecord,
   savedNotes = [],
-  onSaveNote
+  onSaveNote,
+  aiTheme = 'h2g2'
 }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [spinCount, setSpinCount] = useState(0);
   const [isSpinning, setIsSpinning] = useState(false);
-  const [currentQuote, setCurrentQuote] = useState('');
+  const [currentQuote, setCurrentQuote] = useState<Quote | null>(null);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
@@ -43,6 +48,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [selectedDateForNote, setSelectedDateForNote] = useState<Date | null>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showPwaInfoModal, setShowPwaInfoModal] = useState(false);
+  const [userCredits, setUserCredits] = useState(0);
+  const [purchasedThemes, setPurchasedThemes] = useState<string[]>(['h2g2']);
 
   const spinValue = useRef(new Animated.Value(0)).current;
   const pulsateValue = useRef(new Animated.Value(1)).current;
@@ -57,6 +64,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     }, 1000);
 
     return () => clearInterval(timer);
+  }, []);
+
+  // Load user credits and purchased themes
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const creditsData = await AsyncStorage.getItem('userCredits');
+        const themes = await AsyncStorage.getItem('purchasedThemes');
+
+        if (creditsData) {
+          const parsedCredits = JSON.parse(creditsData);
+          setUserCredits(parsedCredits.balance || 0);
+        }
+
+        if (themes) {
+          setPurchasedThemes(JSON.parse(themes));
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      }
+    };
+
+    loadUserData();
   }, []);
 
   // Pulsating animation for the red dot
@@ -157,7 +187,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     if (isSpinning) return;
 
     setIsSpinning(true);
-    setCurrentQuote('');
+    setCurrentQuote(null);
     setSpinCount(prev => prev + 1);
 
     // Top-like spin animation - fast rotation that slows down
@@ -168,7 +198,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       useNativeDriver: false,
     });
 
-    topSpinAnimation.start(() => {
+    topSpinAnimation.start(async () => {
       spinValue.setValue(0); // Reset for next spin
       verticalSpinValue.setValue(0); // Reset vertical spin
       // Always default to trip42 icon
@@ -186,14 +216,53 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       const randomSpinThreshold = Math.floor(Math.random() * (maxSpins - minSpins + 1)) + minSpins;
 
       if (spinCount >= randomSpinThreshold - 1) {
-        const randomIndex = Math.floor(Math.random() * QUOTES.length);
-        setCurrentQuote(QUOTES[randomIndex]);
-        setSpinCount(0);
-        // Change to random avatar when quote is displayed
-        const avatarIndices = [1, 2, 3, 4]; // Indices of avatar images (excluding trip42)
-        const randomAvatarIndex = avatarIndices[Math.floor(Math.random() * avatarIndices.length)];
-        setCurrentImageIndex(randomAvatarIndex);
-        setIsQuoteMode(true);
+        // Check if theme is purchased or is h2g2 (free)
+        const isThemePurchased = purchasedThemes.includes(aiTheme) || aiTheme === 'h2g2';
+
+        if (isThemePurchased) {
+          // Fetch quote from Supabase
+          const quote = await fetchRandomQuote(aiTheme);
+          if (quote) {
+            setCurrentQuote(quote);
+            setSpinCount(0);
+            // Change to random avatar when quote is displayed
+            const avatarIndices = [1, 2, 3, 4]; // Indices of avatar images (excluding trip42)
+            const randomAvatarIndex = avatarIndices[Math.floor(Math.random() * avatarIndices.length)];
+            setCurrentImageIndex(randomAvatarIndex);
+            setIsQuoteMode(true);
+          }
+        } else {
+          // Trial mode - show message about purchasing theme
+          Alert.alert(
+            'Theme Not Purchased',
+            `The ${aiTheme} theme requires purchase (200 credits). Would you like to purchase it?`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Purchase',
+                onPress: async () => {
+                  if (userCredits >= 200) {
+                    const newCredits = userCredits - 200;
+                    const newPurchasedThemes = [...purchasedThemes, aiTheme];
+
+                    try {
+                      await AsyncStorage.setItem('userCredits', newCredits.toString());
+                      await AsyncStorage.setItem('purchasedThemes', JSON.stringify(newPurchasedThemes));
+                      setUserCredits(newCredits);
+                      setPurchasedThemes(newPurchasedThemes);
+                      Alert.alert('Success', `Theme ${aiTheme} purchased successfully!`);
+                    } catch (error) {
+                      console.error('Error saving purchase:', error);
+                      Alert.alert('Error', 'Failed to complete purchase');
+                    }
+                  } else {
+                    Alert.alert('Insufficient Credits', 'You need 200 credits to purchase this theme.');
+                  }
+                }
+              }
+            ]
+          );
+        }
       }
     });
   };
@@ -479,103 +548,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {currentQuote && (
         <View style={styles.quoteContainer}>
-          <Text style={styles.quoteText}>"{currentQuote}"</Text>
+          <Text style={styles.quoteSourceText}>{currentQuote.Source} - {currentQuote.character}</Text>
+          <Text style={styles.quoteText}>"{currentQuote.quote}"</Text>
         </View>
       )}
 
-      <Modal
+      <CalendarModal
         visible={showCalendar}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowCalendar(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.calendarModalContent}>
-            <Text style={styles.calendarTitle}>
-              {calendarDate.toLocaleDateString([], { month: 'long', year: 'numeric' })}
-            </Text>
-
-            <View style={styles.calendarNavigation}>
-              <TouchableOpacity
-                style={styles.navButton}
-                onPress={() => navigateMonth(-1)}
-              >
-                <Text style={styles.navButtonText}>‹</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.navButton}
-                onPress={() => navigateMonth(1)}
-              >
-                <Text style={styles.navButtonText}>›</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.calendarScrollView}>
-              {getWeeklyCalendarData(calendarDate).map((week, weekIndex) => (
-                <View key={weekIndex} style={styles.weekContainer}>
-                  {week.map((dayData, dayIndex) => {
-                    const dayName = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][dayIndex];
-                    const hasNotes = dayData && hasNotesForDate(dayData.year, dayData.month, dayData.day);
-                    const isSelected = dayData &&
-                      dayData.day === currentTime.getDate() &&
-                      dayData.month === currentTime.getMonth() &&
-                      dayData.year === currentTime.getFullYear();
-
-                    const notesForDay = dayData ? getNotesForDate(dayData.year, dayData.month, dayData.day) : [];
-
-                    return (
-                      <View key={dayIndex} style={styles.dayRow}>
-                        <View style={styles.dayNameContainer}>
-                          <Text style={styles.dayNameText}>{dayName}</Text>
-                        </View>
-                        <TouchableOpacity
-                          style={[
-                            styles.dayDateContainer,
-                            ...(isSelected ? [styles.dayDateSelected] : []),
-                            ...(hasNotes && !isSelected ? [styles.dayDateWithNotes] : [])
-                          ]}
-                          onPress={() => dayData && selectDate(dayData.day)}
-                          disabled={!dayData}
-                        >
-                          <Text style={[
-                            styles.dayDateText,
-                            ...(isSelected ? [styles.dayDateTextSelected] : []),
-                            ...(hasNotes && !isSelected ? [styles.dayDateTextWithNotes] : [])
-                          ]}>
-                            {dayData ? dayData.day : ''}
-                          </Text>
-                        </TouchableOpacity>
-                        <View style={styles.dayNotesContainer}>
-                          {notesForDay.length > 0 ? (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.notesScrollView}>
-                              {notesForDay.map((note, noteIndex) => (
-                                <View key={noteIndex} style={styles.notePreview}>
-                                  <Text style={styles.notePreviewText} numberOfLines={1}>
-                                    {note.title || 'Untitled'}
-                                  </Text>
-                                </View>
-                              ))}
-                            </ScrollView>
-                          ) : (
-                            <Text style={styles.noNotesText}>No notes</Text>
-                          )}
-                        </View>
-                      </View>
-                    );
-                  })}
-                </View>
-              ))}
-            </ScrollView>
-
-            <TouchableOpacity
-              style={styles.calendarCloseButton}
-              onPress={() => setShowCalendar(false)}
-            >
-              <Text style={styles.calendarCloseButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setShowCalendar(false)}
+        savedNotes={savedNotes}
+        onSaveNote={onSaveNote}
+        onNavigateToNotes={onNavigateToNotes}
+      />
 
       <ChatbotModal
         visible={showChatbot}
@@ -808,6 +792,12 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     alignItems: 'center',
+  },
+  quoteSourceText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginBottom: 5,
   },
   quoteText: {
     fontSize: 18,

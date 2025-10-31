@@ -22,6 +22,7 @@ import ActionsView from './record/ActionsView';
 import RecordingView from './record/RecordingView';
 import TypingView from './record/TypingView';
 import TabsView from './record/TabsView';
+import { useToast } from '../contexts/ToastContext';
 
 type AppScreen = 'landing' | 'notes' | 'record' | 'settings' | 'credits' | 'link' | 'upload' | 'fun' | 'map' | 'medicine' | 'calculator' | 'currency' | 'tetris' | 'profile';
 
@@ -31,6 +32,7 @@ interface RecordTranslateProps {
 }
 
 export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, setCurrentScreen }) => {
+  const { showSuccess, showError } = useToast();
   // Recording view mode states
   const [recordingViewMode, setRecordingViewMode] = useState<'actions' | 'recording' | 'typing' | 'tabs'>('actions');
   const [isRecording, setIsRecording] = useState(false);
@@ -62,7 +64,6 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         const enabledLangs = LANGUAGES.filter(lang => enabledLangCodes.includes(lang.code));
         setAvailableLanguages(enabledLangs);
       } catch (error) {
-        console.error('Error loading settings:', error);
         setTargetLanguage('en');
         // Fallback to default enabled languages
         const defaultEnabled = ['en', 'lo', 'km', 'th', 'vi', 'zh', 'ja', 'ko', 'uk', 'fil'];
@@ -98,7 +99,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         const creditsData = await getCredits();
         setCredits(creditsData.balance);
       } catch (error) {
-        console.error('Error loading credits:', error);
+        // Error loading credits - continue without credits display
       }
     };
     loadCredits();
@@ -172,7 +173,6 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         }
       }
     } catch (error) {
-      console.error('Sign translation error:', error);
       Alert.alert('Error', 'Failed to process sign translation');
     } finally {
       setIsProcessing(false);
@@ -207,17 +207,14 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
     }
 
     // Start recording immediately
-    console.log('DEBUG: Starting voice recording - setting view mode to recording');
     setRecordingViewMode('recording');
     setIsRecording(true);
-    console.log('DEBUG: Set isRecording to true');
     // Start the actual recording
     await handleStartRecording();
   };
 
   const handleStartRecording = async () => {
     try {
-      console.log('DEBUG: handleStartRecording called');
       // Request permissions
       const permission = await Audio.requestPermissionsAsync();
       if (permission.status !== 'granted') {
@@ -259,9 +256,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
       recordingRef.current = recording;
       setRecording(recording);
-      console.log('DEBUG: Recording started successfully, recordingRef set');
     } catch (error) {
-      console.error('Failed to start recording:', error);
       Alert.alert('Error', 'Failed to start recording');
     }
   };
@@ -272,21 +267,15 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
   const handleStopRecording = async () => {
     try {
-      console.log('DEBUG: handleStopRecording called in RecordTranslate');
       if (!recordingRef.current) {
-        console.log('DEBUG: No recording ref found');
         return;
       }
 
-      console.log('DEBUG: Setting isRecording to false');
       setIsRecording(false);
-      console.log('DEBUG: Stopping and unloading recording');
       await recordingRef.current.stopAndUnloadAsync();
       const uri = recordingRef.current.getURI();
-      console.log('DEBUG: Got URI:', uri);
 
       if (uri) {
-        console.log('DEBUG: Starting transcription');
         setIsTranscribing(true);
         setIsProcessingRecording(true);
         setProcessingMessage('Transcribing audio...');
@@ -294,7 +283,6 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         try {
           // Transcribe the audio
           const transcribedText = await transcribeAudioWithGemini(uri);
-          console.log('DEBUG: Transcription completed:', transcribedText);
 
           if (!transcribedText || transcribedText.trim() === '') {
             throw new Error('Transcription returned empty result');
@@ -303,15 +291,12 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           setProcessingMessage('Polishing transcription...');
 
           // Polish the transcription
-          console.log('DEBUG: Starting polish');
           const polished = await polishNoteWithGemini(transcribedText);
-          console.log('DEBUG: Polish completed:', polished.polishedNote);
 
           if (!polished.polishedNote || polished.polishedNote.trim() === '') {
             throw new Error('Polishing returned empty result');
           }
 
-          console.log('DEBUG: Setting recording current note');
           setRecordingCurrentNote({
             rawTranscription: transcribedText,
             polishedNote: polished.polishedNote,
@@ -320,32 +305,25 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           });
 
           // Add the audio URI to attached media
-          console.log('DEBUG: Adding audio URI to attached media');
           setAttachedMedia(prev => [...prev, uri]);
 
-          console.log('DEBUG: Setting view mode to tabs');
           setRecordingViewMode('tabs');
           setActiveRecordingTab('polished');
-          console.log('DEBUG: Navigation to tabs completed');
 
-          Alert.alert('Success', 'Recording processed successfully!');
+          showSuccess('Recording processed successfully!');
         } catch (processingError) {
-          console.error('DEBUG: Processing error:', processingError);
           Alert.alert('Processing Error', `Failed to process recording: ${processingError instanceof Error ? processingError.message : 'Unknown error'}`);
           // Reset to recording view so user can try again
           setRecordingViewMode('recording');
         }
       } else {
-        console.log('DEBUG: No URI received from recording');
         Alert.alert('Error', 'No recording data found');
         setRecordingViewMode('recording');
       }
     } catch (error) {
-      console.error('Failed to stop recording:', error);
       Alert.alert('Error', 'Failed to stop recording');
       setRecordingViewMode('recording');
     } finally {
-      console.log('DEBUG: Finally block - setting isTranscribing to false');
       setIsTranscribing(false);
       setIsProcessingRecording(false);
       setProcessingMessage('');
@@ -406,7 +384,6 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         [targetLanguage]: result
       }));
     } catch (error) {
-      console.error('Translation error:', error);
       Alert.alert('Error', 'Failed to translate text');
     } finally {
       setIsProcessing(false);
@@ -438,7 +415,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             await import('../utils/storage').then(({ saveSettings }) => saveSettings(updatedSettings));
           }
         } catch (error) {
-          console.error('Error adding language to settings:', error);
+          // Error adding language to settings
         }
       };
       addToEnabledLanguages();
@@ -483,9 +460,8 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       setTags([]);
       setAttachedMedia([]);
 
-      Alert.alert('Success', 'Note saved successfully!');
+      showSuccess('Note saved successfully!');
     } catch (error) {
-      console.error('Error saving note:', error);
       Alert.alert('Error', 'Failed to save note');
     }
   };
@@ -504,7 +480,6 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
   const speakTranslation = async () => {
     try {
-      console.log('=== SPEAKING CURRENT TRANSLATION ===');
       if (!translatedText || !translatedText.text) {
         Alert.alert('Error', 'No translation text to speak');
         return;
@@ -512,7 +487,6 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
       // Get the language for the current translation
       const currentLang = targetLanguage;
-      console.log('Speaking translation in language:', currentLang);
 
       // Get appropriate voice for the language
       const voice = getVoiceForLanguage(currentLang);
@@ -521,25 +495,21 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       const { audioData, contentType } = await speakTextWithGoogleTTS(translatedText.text, currentLang, voice);
 
       // For now, show a success message (in a real implementation, you'd play the audio)
-      Alert.alert('TTS Success', `Audio generated for ${currentLang} using Google Cloud TTS`);
+      showSuccess(`Audio generated for ${currentLang} using Google Cloud TTS`);
 
     } catch (error) {
-      console.error('Error speaking translation:', error);
       Alert.alert('Error', 'Failed to generate speech for translation');
     }
   };
 
   const speakTranslationForLang = async (langCode: string) => {
     try {
-      console.log('=== SPEAKING TRANSLATION FOR LANGUAGE ===', langCode);
       const translation = multipleTranslations[langCode];
 
       if (!translation || !translation.text) {
         Alert.alert('Error', 'No translation text to speak');
         return;
       }
-
-      console.log('Speaking translation in language:', langCode);
 
       // Get appropriate voice for the language
       const voice = getVoiceForLanguage(langCode);
@@ -548,10 +518,9 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       const { audioData, contentType } = await speakTextWithGoogleTTS(translation.text, langCode, voice);
 
       // For now, show a success message (in a real implementation, you'd play the audio)
-      Alert.alert('TTS Success', `Audio generated for ${langCode} using Google Cloud TTS`);
+      showSuccess(`Audio generated for ${langCode} using Google Cloud TTS`);
 
     } catch (error) {
-      console.error('Error speaking translation for language:', error);
       Alert.alert('Error', 'Failed to generate speech for translation');
     }
   };
@@ -571,7 +540,6 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         accuracy: location.coords.accuracy || undefined,
       };
     } catch (error) {
-      console.error('Error getting location:', error);
       return null;
     }
   };

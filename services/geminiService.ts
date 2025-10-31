@@ -4,7 +4,8 @@ import { Platform } from 'react-native';
 import { getPrompt } from '../prompts';
 
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API;
-console.log('=== GEMINI SERVICE: GEMINI_API key loaded:', GEMINI_API_KEY ? 'YES' : 'NO');
+// Remove console.log that exposes API key status
+// console.log('=== GEMINI SERVICE: GEMINI_API key loaded:', GEMINI_API_KEY ? 'YES' : 'NO');
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
 
 export interface TranslationResult {

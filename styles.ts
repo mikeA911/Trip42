@@ -668,6 +668,8 @@ const stylesObject = {
     borderRadius: 8,
     marginTop: 5,
     maxHeight: 200,
+    borderWidth: 1,
+    borderColor: '#374151',
   },
   dropdownItem: {
     padding: 12,

@@ -216,7 +216,7 @@ Deno.serve(async (req)=>{
           }
         });
       }
-      console.log('Credits updated successfully for authenticated user:', redeemingUserId);
+      
     }
     return new Response(JSON.stringify({
       success: true,
