@@ -315,10 +315,10 @@ const checkAndResetMonthlyLimit = async (currentCredits: UserCredits): Promise<U
 };
 
 // Redeem voucher
-export const redeemVoucher = async (voucherCode: string): Promise<{ success: boolean; creditsRedeemed?: number; error?: string }> => {
+export const redeemVoucher = async (voucherCode: string, theme: string | null): Promise<{ success: boolean; creditsRedeemed?: number; error?: string }> => {
   try {
     // Remove console.log that exposes voucher code
-    // console.log('🎫 Attempting to redeem voucher:', voucherCode.toUpperCase());
+    console.log('🎫 Attempting to redeem voucher:', voucherCode.toUpperCase());
 
     let currentCredits = await getCredits();
     // Remove console.log that exposes user state
@@ -378,7 +378,8 @@ export const redeemVoucher = async (voucherCode: string): Promise<{ success: boo
       },
       body: JSON.stringify({
         voucherCode: voucherCode.trim().toUpperCase(),
-        deviceId: currentCredits.deviceId
+        deviceId: currentCredits.deviceId,
+        theme: theme,
       })
     });
 

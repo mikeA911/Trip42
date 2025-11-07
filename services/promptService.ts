@@ -31,16 +31,54 @@ const themeCache = new Map<string, ThemeData>();
 const AI_PROMPTS_CACHE_KEY = 'ai_prompts_cache';
 const AVATARS_CACHE_KEY = 'avatars_cache';
 
-// Download and cache all AI prompts on first install/app open
+// Download and cache all AI prompts if the version is newer
 export const downloadAndCacheAllPrompts = async (): Promise<void> => {
   try {
-    console.log('📥 Downloading and caching all AI prompts...');
+    console.log('📥 Checking for new AI prompts...');
 
     if (!supabase) {
       console.error('❌ Supabase client not available');
       return;
     }
 
+    const { data: remoteVersions, error: versionError } = await supabase
+      .from('ai_prompts')
+      .select('theme, prompt_type, version')
+      .eq('is_active', true);
+
+    if (versionError) {
+      console.error('❌ Error fetching remote prompt versions:', versionError);
+      return;
+    }
+
+    const cachedPromptsJson = await AsyncStorage.getItem(AI_PROMPTS_CACHE_KEY);
+    const cachedPrompts = cachedPromptsJson ? JSON.parse(cachedPromptsJson) : {};
+
+    let shouldDownload = false;
+    if (Object.keys(cachedPrompts).length === 0) {
+      shouldDownload = true;
+    } else {
+      for (const remotePrompt of remoteVersions) {
+        const { theme, prompt_type, version } = remotePrompt;
+        const cachedTheme = cachedPrompts[theme];
+        if (!cachedTheme) {
+          shouldDownload = true;
+          break;
+        }
+        const cachedPrompt = cachedTheme.find((p: PromptData) => p.prompt_type === prompt_type);
+        if (!cachedPrompt || cachedPrompt.version < version) {
+          shouldDownload = true;
+          break;
+        }
+      }
+    }
+
+    if (!shouldDownload) {
+      console.log('✅ AI prompts are up to date.');
+      return;
+    }
+
+    console.log('📥 Downloading and caching all AI prompts...');
     const { data, error } = await supabase
       .from('ai_prompts')
       .select('*')
@@ -60,16 +98,18 @@ export const downloadAndCacheAllPrompts = async (): Promise<void> => {
 
     console.log(`✅ Downloaded ${data.length} prompts from database`);
 
-    // Group by theme
     const promptsByTheme: { [theme: string]: PromptData[] } = {};
     data.forEach((prompt: PromptData) => {
       if (!promptsByTheme[prompt.theme]) {
         promptsByTheme[prompt.theme] = [];
       }
-      promptsByTheme[prompt.theme].push(prompt);
+      // Only keep the latest version of each prompt
+      const existingPrompt = promptsByTheme[prompt.theme].find(p => p.prompt_type === prompt.prompt_type);
+      if (!existingPrompt) {
+        promptsByTheme[prompt.theme].push(prompt);
+      }
     });
 
-    // Cache all prompts
     await AsyncStorage.setItem(AI_PROMPTS_CACHE_KEY, JSON.stringify(promptsByTheme));
     console.log('💾 Cached all AI prompts locally');
   } catch (error) {

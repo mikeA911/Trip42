@@ -66,32 +66,6 @@ export const updateNote = async (updatedNote: Note): Promise<void> => {
   }
 };
 
-export const saveSettings = async (settings: any): Promise<void> => {
-  try {
-    await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  } catch (error) {
-    console.error('Error saving settings:', error);
-    throw error;
-  }
-};
-
-export const getSettings = async (): Promise<any> => {
-  try {
-    const settingsJson = await AsyncStorage.getItem(SETTINGS_KEY);
-    return settingsJson ? JSON.parse(settingsJson) : {
-      uiLanguage: 'en',
-      defaultTargetLanguage: 'lo',
-      theme: 'dark'
-    };
-  } catch (error) {
-    console.error('Error getting settings:', error);
-    return {
-      uiLanguage: 'en',
-      defaultTargetLanguage: 'lo',
-      theme: 'dark'
-    };
-  }
-};
 
 export const generateNoteId = (): string => {
   return `note-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;

@@ -7,7 +7,6 @@ import { Note, generateNoteId } from '../utils/storage';
 import { deductCredits, CREDIT_PRICING, checkCreditsAndNotify } from '../utils/credits';
 import { useToast } from '../contexts/ToastContext';
 import { getPrompt, getCharacterForPromptType } from '../services/promptService';
-import { supabase } from '../supabase';
 
 interface ChatbotModalProps {
   visible: boolean;
@@ -19,7 +18,7 @@ interface ChatbotModalProps {
   initialMode?: string;
 }
 
-type ChatbotMode = string; // Dynamic based on theme
+type ChatbotMode = string;
 
 interface Message {
   id: string;
@@ -29,258 +28,15 @@ interface Message {
 }
 
 const CHATBOT_PROMPTS = {
-  arthur: `You are Artur Bent, Trip42 guide and companion.
-
-Help the user understand and master the app—this is the guidebook to the guidebook's precursor (H2G2).
-
-YOUR ROLE:
-- Explain app features: note-taking, translation modes, tagging, vital logging, local search
-- Navigate UI questions and help them find features
-- Provide tips for getting the most out of Trip42's unique functions
-- Troubleshoot common issues with humor and patience
-- Explain privacy, data handling, and what stays on their device
-- Welcome new users with the philosophy of true travel
-
-Be patient, clear, and occasionally witty. This might be their first time—make it good.
-
-FAQ Information:
-# Trip42 FAQ - How to Use the App
-
-## General Questions
-
-### What is Trip42?
-Trip42 is an AI-powered travel companion app that combines voice recording, sign language translation, text translation, and note-taking capabilities. It uses Google's Gemini AI and Google Cloud TTS to provide seamless multilingual communication and documentation tools for travelers and language learners.
-
-### How do I get started with Trip42?
-1. Launch the app and tap the spinning logo on the landing page.
-2. Choose your input method: Sign Translation (📷), Voice Recording (🎤), or Text Input (✏️).
-3. Follow the 3-step workflow: Record/Process → Process → Save.
-
-### What languages does Trip42 support?
-Trip42 supports 10+ languages including English, Lao, Khmer, Thai, Vietnamese, and more. Each language can include phonetic pronunciation guides for accurate pronunciation.
-
-## Voice Recording Features
-
-### How do I record audio?
-1. Tap "Voice Recording" from the actions screen.
-2. Grant microphone permission when prompted.
-3. Start recording with the red button.
-4. Pause/resume as needed, or take photos during recording.
-5. Stop recording to begin AI processing.
-
-### What happens after I stop recording?
-The app will automatically transcribe your audio using Google Gemini AI, polish the text for clarity, and present it in a tabs interface for review, editing, translation, and saving.
-
-### Can I attach photos during recording?
-Yes, you can take photos during voice recording sessions. These photos will be attached to your note for visual context.
-
-## Sign Language Translation
-
-### How do I translate sign language?
-1. Select "Sign Translation" from the actions screen.
-2. Grant camera permission.
-3. Position the sign language gesture in the camera view.
-4. Take a photo for AI analysis.
-5. Review the translation in the tabs interface.
-
-### What is sign translation?
-The app uses Optical Character Recognition to extract the words on the sign to text in multiple languages.
-
-## Text Translation
-
-### How do I translate text?
-1. Choose "Text Input" from the actions screen.
-2. Type or paste your text.
-3. Attach photos if needed for context.
-4. Select your target language in the translate tab.
-5. Generate the translation with AI.
-
-### Can I get pronunciation for translations?
-Yes, Trip42 includes Google Cloud TTS integration. After translation, you can listen to the pronunciation with one-tap audio playback in the selected language.
-
-## Note Management
-
-### How do I save and organize notes?
-- After processing your input, use the tabs interface to review and edit.
-- Add custom tags for organization.
-- Include location tracking with GPS coordinates.
-- Attach photos for visual context.
-- Save your note to local storage.
-
-### Can I sync my notes across devices?
-The app has sync-ready architecture using Supabase for cloud backup. Cloud synchronization is planned for future updates.
-
-## Fun Tools
-
-### What fun tools are available?
-Trip42 includes several entertainment and utility tools in the Fun Tools section:
-- **Local Map**: View your current location and explore nearby points of interest. Access it from the recording page by tapping the last button on the right (🎉 Fun Tools → 🗺️ Map).
-- **Currency Converter**: Convert between different currencies with real-time exchange rates.
-- **Tetris Game**: Classic Tetris game for entertainment during travel.
-- **Medicine Tool**: Quick reference for common medications and dosages.
-
-## Credit System
-
-### How does the credit system work?
-Trip42 uses a credit-based system for AI services:
-- Text Translation: 5 credits
-- Sign Translation: 7 credits
-- Voice Recording: 10 credits
-- Note Polishing: Free
-
-New users receive 100 welcome credits.
-
-### How do I check my credit balance?
-View your balance in the Credits tab, which also shows transaction history and allows voucher redemption.
-
-### How do I get more credits?
-- Redeem voucher codes in the Credits tab.
-- Share codes with other users.
-- Credits are added instantly upon successful redemption.
-
-### What is device fingerprinting?
-Trip42 uses anonymous device fingerprinting for user identification without collecting personal data. This provides a consistent device ID across app sessions for secure credit tracking.
-
-## Technical Questions
-
-### Do I need internet for all features?
-Most AI features require internet connection for API calls to Google Gemini and TTS services. However, the app includes offline capability with local storage for saved notes.
-
-### How do I grant permissions?
-The app will prompt for permissions when needed:
-- Microphone permission for voice recording
-- Camera permission for sign language translation and photos
-- Location permission for GPS coordinates in notes
-
-### What if I encounter an error?
-The app includes user-friendly error handling with visual feedback. Check your internet connection, ensure permissions are granted, and verify your credit balance. If issues persist, restart the app or check for updates.
-
-### Is my data secure?
-Trip42 prioritizes privacy with no personal data collection for anonymous users. All API communications use HTTPS, and data is stored locally with optional cloud sync.
-
-## Troubleshooting
-
-### App won't start recording
-- Ensure microphone permission is granted in device settings.
-- Check that no other app is using the microphone.
-- Restart the app and try again.
-
-### Sign translation not working
-- Grant camera permission.
-- Ensure good lighting and clear positioning of signs.
-- Try taking the photo again.
-
-### Translations are inaccurate
-- Check your internet connection.
-- Ensure the source text is clear and in a supported language.
-- Try rephrasing or providing more context.
-
-### Credits not updating
-- Check transaction history in the Credits tab.
-- Ensure voucher codes are entered correctly.
-- Restart the app to refresh the balance.
-
-### Notes not saving
-- Verify you have sufficient storage space.
-- Check that the app has storage permissions.
-- Try saving again or restart the app.
-
-For additional support, feature requests, or bug reports, please create an issue in the repository.`,
-
-  zaphod: `You are Zaphod Babblefish, the two-headed President of the Galaxy, and now the Quick Note Handler for Trip42.
-
-Zaphod is: - Wildly impulsive, chaotic, and hilarious - Dangerously unpredictable but somehow makes it work
-- Self-absorbed but charming (he's the PRESIDENT, baby)
-- Obsessed with his own coolness and everything being "hoopy"
-- Has NO attention span but oddly perceptive
-- Speaks in fragments, exclamations, and double-takes
-- Uses superlatives constantly ("most amazing," "really quite stunning")
-- Makes everything about himself ("reminds me of the time I...")
-- His second head occasionally disagrees or adds sarcastic commentary
-- Loves psychedelia, danger, and being the center of attention
-- Speaks colloquially with phrases like "really quite stunning," "hoopy," "what's it doing," "most extraordinary"
-- NEVER boring. NEVER corporate. ALWAYS with personality.
-
-YOUR JOB:
-You receive messy, quick user input (someone typing while busy, tired, distracted).
-Your job is to transform it into a polished, coherent note while maintaining the user's original meaning and intent.
-You're not judging—you're refining chaos into clarity.
-IMPORTANT: While you SOUND like Zaphod (wild, irreverent, fun), the actual NOTE CONTENT must be clear and useful. Zaphod's personality goes into the TRANSLATION commentary, not the core data.
-
-The user needs to read this later and actually understand what they meant. RESPONSE FORMAT (STRICT JSON):
-
-You MUST return ONLY valid JSON. No extra text before or after. No explanations.
-
-{
-  "title": "Max 15 characters, snappy title",
-  "text": "Your polished, clear version of the note",
-  "tags": ["tag1", "tag2"],
-  "commentary": "Optional sassy comment from Zaphod"
-}
-
-TAGGING RULES: - "vitals" - Weight, BP, temperature, sleep, energy levels, pain - "medicines" - Medication taken, doses, side effects, pharmacy visits - "activities" - Exercise, walking, hiking, sports, movement - "events" - Meetings, appointments, experiences, encounters - "habits" - Routines, patterns, daily practices, recurring behaviors Pick 1-3 tags that are most relevant. Don't tag everything.
-
-TITLE RULES: - Max 15 characters (count carefully) - Make it punchy and memorable - Can include emojis if it helps (count as 1 char each) - Should capture the essence`,
-
-  ford: `You are Ford Pretext, Field Researcher for the Hitchhiker's Guide to the Galaxy,
-and now the companion for Trip42's BORED mode.
-
-Ford is:
-- A seasoned hitchhiker with 15 years of galactic travel experience
-- Knowledgeable but not pompous—he shares wisdom casually, like a friend
-- Pragmatic and street-smart; has been through actual survival situations
-- Genuinely curious about humanity and local cultures (even Earth culture now)
-- Witty, wry, sardonic—sees the absurdity but loves it anyway
-- A fantastic storyteller who brings situations to life
-- Quick-thinking and adaptable; can talk about anything
-- Respectful of local customs despite finding them amusing
-- Has friends everywhere across the galaxy (name-drops occasionally)
-- Speaks with an understated British tone—intelligent but never pretentious
-- Uses phrases like "frightfully," "rather," "you see," "bit of a situation"
-- Makes connections between the mundane and the cosmic
-- Has a drink in hand (or nearby) during philosophical moments
-- Actually LISTENS to the user; asks follow-up questions
-- Protective of humans despite their chaos
-- Sees humor in the darkest situations but doesn't mock the user
-
-YOUR JOB:
-The user is bored. They're traveling, tired, maybe lonely, or just need conversation.
-You're not trying to solve their problem. You're just... hanging out. Being a companion.
-Share stories. Ask about THEIR journey. Discuss travel philosophy. Make them laugh.
-Help them see their adventure from a new angle.
-
-BORED MODE PHILOSOPHY:
-This isn't a translation or emergency. This is connection. Think of it like:
-- Meeting Ford at a spaceport bar and having a drink
-- Listening to someone who's been everywhere tell you why it matters
-- Getting advice from a friend who actually cares, not an AI
-- The best travel conversations happen when you're not trying to solve anything
-
-TONE:
-- Conversational and natural—like texting a friend
-- Humor is dry and observational, not forced
-- Stories should be vivid but relatable
-- Ask questions that make them think about their journey differently
-- Never boring, never phony, never preachy
-- Mix profound observations with mundane details
-- Use contractions—it's more human
-- Occasional sarcasm is fine; cynicism tempered with warmth
-
-RESPONSE STYLE:
-- 2-4 paragraphs typically (can be longer if a story is warranted)
-- Mix short, punchy sentences with flowing narrative
-- Ask genuine questions
-- Reference things they've mentioned in context (if available)
-- If you reference the Guide or the galaxy, do it naturally—not forced
-- End conversationally (sometimes with a question, sometimes not)`
+  arthur: `You are Artur Bent, Trip42 guide and companion. Help the user understand and master the app. Be patient, clear, and occasionally witty.`,
+  zaphod: `You are Zaphod Babblefish, the Quick Note Handler. Turn messy user input into a polished, coherent note in strict JSON format: {"title": "Short Title", "text": "Polished note", "tags": ["tag1"], "commentary": "Optional sassy comment"}.`,
+  ford: `You are Ford Pretext, a companion for BORED mode. Chat with the user. Share stories, ask about their journey, and make them laugh. Be conversational and natural.`
 };
 
 export const ChatbotModal: React.FC<ChatbotModalProps> = ({
   visible,
   onClose,
   systemPrompt,
-  chatbotName = 'Ford Pretext',
-  chatbotAvatar = require('../public/icons/fordPretext.png'),
   theme = 'h2g2',
   initialMode
 }) => {
@@ -290,70 +46,62 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [inputMode, setInputMode] = useState<'text' | 'voice'>('text');
-  const [showSavePrompt, setShowSavePrompt] = useState(false);
-  const [pendingSaveMode, setPendingSaveMode] = useState<ChatbotMode | null>(null);
   const [pendingZaphodNote, setPendingZaphodNote] = useState<Note | null>(null);
-  const { notes, addNote } = useNotes();
+  const [showChatSaveButtons, setShowChatSaveButtons] = useState(false);
+  const { addNote } = useNotes();
   const { showError, showSuccess } = useToast();
 
-  // Get theme-specific character data
   const [themeCharacters, setThemeCharacters] = useState<Array<{ character?: string; avatar?: string; promptType?: string }>>([]);
   const [currentMode, setCurrentMode] = useState<string>('arthur');
 
-  // Load theme character data when theme changes
+  const fallbackMappings: { [theme: string]: Array<{ character?: string; avatar?: string; promptType?: string }> } = {
+    'h2g2': [
+      { character: 'Arthur', avatar: 'arturBent.png', promptType: 'chatbotFaq' },
+      { character: 'Zaphod', avatar: 'zaphodBabblefish.png', promptType: 'chatbotQuickNote' },
+      { character: 'Ford', avatar: 'fordPretext.png', promptType: 'chatbotBored' }
+    ],
+    'QT-GR': [
+      { character: 'Jules', avatar: 'jules.png', promptType: 'chatbotFaq' },
+      { character: 'Mia', avatar: 'mia.png', promptType: 'chatbotQuickNote' },
+      { character: 'Vincent', avatar: 'vincent.png', promptType: 'chatbotBored' }
+    ],
+    'TP': [
+      { character: 'Colon', avatar: 'colon.png', promptType: 'chatbotFaq' },
+      { character: 'Nobbs', avatar: 'nobbs.png', promptType: 'chatbotQuickNote' },
+      { character: 'Vimes', avatar: 'vimes.png', promptType: 'chatbotBored' }
+    ]
+  };
+
   useEffect(() => {
-    const loadThemeCharacters = () => {
-      console.log('🔄 Loading theme characters for theme:', theme);
+    const characters = fallbackMappings[theme] || fallbackMappings['h2g2'];
+    setThemeCharacters(characters);
 
-      // Fallback to hardcoded mappings
-      const fallbackMappings: { [theme: string]: Array<{ character?: string; avatar?: string; promptType?: string }> } = {
-        'h2g2': [
-          { character: 'Arthur', avatar: 'arturBent.png', promptType: 'chatbotFaq' },
-          { character: 'Zaphod', avatar: 'zaphodBabblefish.png', promptType: 'chatbotQuickNote' },
-          { character: 'Ford', avatar: 'fordPretext.png', promptType: 'chatbotBored' }
-        ],
-        'QT-GR': [
-          { character: 'Jules', avatar: 'jules.png', promptType: 'chatbotFaq' },
-          { character: 'Mia', avatar: 'mia.png', promptType: 'chatbotQuickNote' },
-          { character: 'Vincent', avatar: 'vincent.png', promptType: 'chatbotBored' }
-        ],
-        'TP': [
-          { character: 'Colon', avatar: 'colon.png', promptType: 'chatbotFaq' },
-          { character: 'Nobbs', avatar: 'nobbs.png', promptType: 'chatbotQuickNote' },
-          { character: 'Vimes', avatar: 'vimes.png', promptType: 'chatbotBored' }
-        ]
-      };
+    let mode = initialMode;
+    if (mode) {
+        const char = characters.find(c => c.promptType === mode);
+        if (char) {
+            mode = char.character?.toLowerCase();
+        }
+    }
+    
+    setCurrentMode(mode || characters[0]?.character?.toLowerCase() || 'arthur');
 
-      const characters = fallbackMappings[theme] || fallbackMappings['h2g2'];
-      setThemeCharacters(characters);
-      
-      const defaultMode = characters[0]?.character?.toLowerCase() || 'arthur';
-      setCurrentMode(defaultMode);
-
-      console.log('✅ Loaded characters:', characters);
-      console.log('🎯 Set default mode to:', defaultMode);
-    };
-
-    loadThemeCharacters();
-  }, [theme]);
+  }, [theme, initialMode]);
 
   const getAvatar = (characterName: string) => {
     const character = themeCharacters.find(char => char.character?.toLowerCase() === characterName.toLowerCase());
-    if (character?.avatar) {
-      const avatarMap: { [key: string]: any } = {
-        'arturBent.png': require('../public/icons/arturBent.png'),
-        'zaphodBabblefish.png': require('../public/icons/zaphodBabblefish.png'),
-        'fordPretext.png': require('../public/icons/fordPretext.png'),
-        'jules.png': require('../public/icons/jules.png'),
-        'mia.png': require('../public/icons/mia.png'),
-        'vincent.png': require('../public/icons/vincent.png'),
-        'colon.png': require('../public/icons/colon.png'),
-        'nobbs.png': require('../public/icons/nobbs.png'),
-        'vimes.png': require('../public/icons/vimes.png'),
-      };
-      return avatarMap[character.avatar] || require('../public/icons/arturBent.png');
-    }
-    return require('../public/icons/arturBent.png');
+    const avatarMap: { [key: string]: any } = {
+      'arturBent.png': require('../public/icons/arturBent.png'),
+      'zaphodBabblefish.png': require('../public/icons/zaphodBabblefish.png'),
+      'fordPretext.png': require('../public/icons/fordPretext.png'),
+      'jules.png': require('../public/icons/jules.png'),
+      'mia.png': require('../public/icons/mia.png'),
+      'vincent.png': require('../public/icons/vincent.png'),
+      'colon.png': require('../public/icons/colon.png'),
+      'nobbs.png': require('../public/icons/nobbs.png'),
+      'vimes.png': require('../public/icons/vimes.png'),
+    };
+    return character?.avatar ? avatarMap[character.avatar] : require('../public/icons/HitchTrip.png');
   };
 
   const getModeTitle = (characterName: string) => {
@@ -366,186 +114,75 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
 
   useEffect(() => {
     if (visible && messages.length === 0) {
-      const themeMap: { [key: string]: { [key: string]: string } } = {
-        'h2g2': { 'faq': 'arthur', 'quicknote': 'zaphod', 'bored': 'ford' },
-        'QT-GR': { 'faq': 'jules', 'quicknote': 'mia', 'bored': 'vincent' },
-        'TP': { 'faq': 'colon', 'quicknote': 'nobbs', 'bored': 'vimes' }
-      };
-
-      const character = (theme && themeMap[theme] && initialMode) ? themeMap[theme][initialMode] || initialMode : initialMode || 'arthur';
-      setCurrentMode(character);
-
       const loadGreeting = async () => {
-        const greeting = await getInitialGreeting(character);
+        const greeting = await getInitialGreeting(currentMode);
         setMessages([{ id: '1', text: greeting, isUser: false, timestamp: new Date() }]);
       };
       loadGreeting();
     }
-  }, [visible, initialMode, theme]);
+  }, [visible, currentMode]);
 
   const getInitialGreeting = async (mode: ChatbotMode): Promise<string> => {
-    if (systemPrompt) {
-      // Use the custom system prompt for Ford mode
-      return `Ah, hello there. ${chatbotName} at your service. I see you're looking at your location on the map. What are you curious about discovering in this area?`;
-    }
-
-    // Map mode to prompt type
-    const promptTypeMap: { [key in ChatbotMode]: string } = {
-      'arthur': 'chatbotFaq',
-      'zaphod': 'chatbotQuickNote',
-      'ford': 'chatbotBored',
-      'colon': 'chatbotFaq',
-      'nobbs': 'chatbotQuickNote',
-      'vimes': 'chatbotBored',
-      'jules': 'chatbotFaq',
-      'mia': 'chatbotQuickNote',
-      'vincent': 'chatbotBored'
-    };
-
-    const promptType = promptTypeMap[mode];
-
-    // Try to get character-specific initial greeting from database
+    const character = themeCharacters.find(c => c.character?.toLowerCase() === mode);
+    const promptType = character?.promptType;
     try {
-      const characterData = await getCharacterForPromptType(theme, promptType);
+      const characterData = await getCharacterForPromptType(theme, promptType as any);
       if (characterData.initialGreeting) {
-        console.log(`🎯 Using ${characterData.character} initial greeting for ${mode}:`, characterData.initialGreeting);
         return characterData.initialGreeting;
       }
     } catch (error) {
       console.log('⚠️ Could not load character greeting, using fallback');
     }
-
-    // Fallback greetings
-    switch (mode) {
-      case 'arthur':
-        return "Hello! I'm Artur Bent, your Trip42 guide. I'm here to help you navigate this rather confusing app. What would you like to know about Trip42?";
-      case 'zaphod':
-        return "Hey there! Zaphod Babblefish here, President of the Galaxy and your Quick Note handler. Got some messy thoughts to turn into something hoopy? Fire away!";
-      case 'ford':
-        // Load theme-specific chatbotBored prompt
-        const themePrompt = await getPrompt(theme, 'chatbotBored');
-        if (themePrompt) {
-          return themePrompt.split('\n')[0] || "Ah, hello there. Ford Pretext at your service. I see you're feeling a bit bored. Care to tell me about your journey? I've got some stories that might make it more interesting.";
-        }
-        return "Ah, hello there. Ford Pretext at your service. I see you're feeling a bit bored. Care to tell me about your journey? I've got some stories that might make it more interesting.";
-      default:
-        return "Hello!";
-    }
+    if (promptType === 'chatbotFaq') return `Hello! I'm ${character?.character}. How can I help you with the app?`;
+    if (promptType === 'chatbotQuickNote') return `Hey there! ${character?.character} here. Ready to handle your quick notes. Fire away!`;
+    if (promptType === 'chatbotBored') return `Ah, hello. ${character?.character} at your service. What's on your mind?`;
+    return "Hello!";
   };
-
-  const getRecentNotesContext = (): string => {
-    // Get all notes except Ford chat notes, sorted by timestamp (most recent first)
-    const userNotes = notes
-      .filter(note => note.noteType !== 'ford_note')
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 7); // Take the last 7 notes
-
-    if (userNotes.length === 0) {
-      return '';
-    }
-
-    const context = userNotes.map(note =>
-      `Note: ${note.title}\nText: ${note.text}\nTags: ${note.tags.join(', ')}\nDate: ${new Date(note.timestamp).toLocaleDateString()}`
-    ).join('\n\n---\n\n');
-
-    return `\n\nRecent Notes Context:\n${context}\n\n---\n\n`;
-  };
+  
+  const getRecentNotesContext = (): string => "";
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      text: inputText,
-      isUser: true,
-      timestamp: new Date()
-    };
-
+    const userMessage: Message = { id: Date.now().toString(), text: inputText, isUser: true, timestamp: new Date() };
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
     setIsLoading(true);
 
     try {
+      const currentCharacter = themeCharacters.find(char => char.character?.toLowerCase() === currentMode.toLowerCase());
+      const promptType = currentCharacter?.promptType;
       let response: string;
 
-      // Find the current character data
-    const currentCharacter = themeCharacters.find(char => char.character?.toLowerCase() === currentMode.toLowerCase());
-
-    if (currentCharacter?.promptType === 'chatbotQuickNote') {
-      // Zaphod-style quick note
-      const prompt = `${CHATBOT_PROMPTS.zaphod}\n\nUser input: "${inputText}"`;
-      const aiResponse = await translateTextWithGemini(prompt, 'en', 'en', undefined, prompt);
-      // Clean the response by removing markdown code blocks
-      let cleanResponse = aiResponse.text.trim();
-      if (cleanResponse.startsWith('```json')) {
-        cleanResponse = cleanResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-      } else if (cleanResponse.startsWith('```')) {
-        cleanResponse = cleanResponse.replace(/^```\s*/, '').replace(/\s*```$/, '');
-      }
-      const parsedResponse = JSON.parse(cleanResponse);
-
-      // Create the note but don't save it yet
-      const newNote: Note = {
-        id: generateNoteId(),
-        title: parsedResponse.title,
-        text: parsedResponse.text,
-        timestamp: new Date().toISOString(),
-        tags: parsedResponse.tags,
-        translations: {},
-        attachedMedia: [],
-        noteType: 'zaphod_note',
-        originalText: inputText, // Save the original user input
-        polishedText: parsedResponse.text, // Save the AI-polished version
-      };
-
-      // Store the note for review instead of saving immediately
-      setPendingZaphodNote(newNote);
-      response = `Here's your polished note for review:\n\n**${parsedResponse.title}**\n${parsedResponse.text}\n\nTags: ${parsedResponse.tags.join(', ')}\n\n${parsedResponse.commentary || ''}\n\n*Review and save or discard below*`;
-
-      // Show save/cancel prompt for Zaphod
-      setPendingSaveMode(currentMode);
-      setShowSavePrompt(true);
-    } else {
-      // Get the prompt based on promptType
-      let prompt: string;
-      if (currentCharacter?.promptType) {
-        const themePrompt = await getPrompt(theme, currentCharacter.promptType as any);
-        if (themePrompt) {
-          if (currentCharacter.promptType === 'chatbotBored') {
-            // For bored mode, include recent notes context
-            const notesContext = getRecentNotesContext();
-            prompt = `${themePrompt}${notesContext}\n\nUser: ${inputText}\n\nRespond as ${currentCharacter.character}:`;
-          } else {
-            prompt = `${themePrompt}\n\nUser: ${inputText}\n\nRespond as ${currentCharacter.character}:`;
-          }
-        } else {
-          // Fallback to static prompts
-          const fallbackPrompts: { [key: string]: string } = {
-            'chatbotFaq': CHATBOT_PROMPTS.arthur,
-            'chatbotBored': CHATBOT_PROMPTS.ford,
-            'chatbotQuickNote': CHATBOT_PROMPTS.zaphod
-          };
-          const basePrompt = fallbackPrompts[currentCharacter.promptType] || CHATBOT_PROMPTS.arthur;
-          prompt = `${basePrompt}\n\nUser: ${inputText}\n\nRespond as ${currentCharacter.character}:`;
-        }
+      if (promptType === 'chatbotQuickNote') {
+        const prompt = `${CHATBOT_PROMPTS.zaphod}\n\nUser input: "${inputText}"`;
+        const aiResponse = await translateTextWithGemini(prompt, 'en', 'en', undefined, prompt);
+        let cleanResponse = aiResponse.text.trim().replace(/^```json\s*/, '').replace(/\s*```$/, '');
+        const parsedResponse = JSON.parse(cleanResponse);
+        const newNote: Note = {
+          id: generateNoteId(),
+          title: parsedResponse.title,
+          text: parsedResponse.text,
+          timestamp: new Date().toISOString(),
+          tags: parsedResponse.tags,
+          translations: {},
+          attachedMedia: [],
+          noteType: `${currentMode}_note` as any,
+          originalText: inputText,
+          polishedText: parsedResponse.text,
+        };
+        setPendingZaphodNote(newNote);
+        response = `Here's your polished note:\n\n**${parsedResponse.title}**\n${parsedResponse.text}\n\n*${parsedResponse.commentary || ''}*`;
+        setShowChatSaveButtons(true);
       } else {
-        // Fallback for system prompt
-        prompt = systemPrompt
-          ? `${systemPrompt}\n\nUser: ${inputText}\n\nRespond as ${chatbotName}:`
-          : `${CHATBOT_PROMPTS.arthur}\n\nUser: ${inputText}\n\nRespond as Artur Bent:`;
+        const themePrompt = await getPrompt(theme, promptType as any);
+        const basePrompt = promptType === 'chatbotFaq' ? CHATBOT_PROMPTS.arthur : CHATBOT_PROMPTS.ford;
+        const prompt = `${themePrompt || basePrompt}${getRecentNotesContext()}\n\nUser: ${inputText}\n\nRespond as ${currentCharacter?.character}:`;
+        const aiResponse = await translateTextWithGemini(prompt, 'en', 'en', undefined, prompt);
+        response = aiResponse.text;
+        if(messages.length >= 1) setShowChatSaveButtons(true);
       }
 
-      const aiResponse = await translateTextWithGemini(prompt, 'en', 'en', undefined, prompt);
-      response = aiResponse.text;
-    }
-
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: response,
-        isUser: false,
-        timestamp: new Date()
-      };
-
+      const aiMessage: Message = { id: (Date.now() + 1).toString(), text: response, isUser: false, timestamp: new Date() };
       setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
       console.error('Chatbot error:', error);
@@ -555,163 +192,74 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
     }
   };
 
-  const handleModeChange = (mode: ChatbotMode) => {
-    setCurrentMode(mode);
-    setMessages([]);
-  };
-
-  const handleClose = () => {
-    // For Arthur and Ford, prompt to save chat
-    if ((currentMode === 'arthur' || currentMode === 'ford') && messages.length > 1) {
-      setPendingSaveMode(currentMode);
-      setShowSavePrompt(true);
-    } else {
-      // For Zaphod or empty chats, close directly
-      resetAndClose();
-    }
-  };
-
   const resetAndClose = () => {
     setMessages([]);
     setInputText('');
     setCurrentMode('arthur');
-    setInputMode('text');
-    setIsRecording(false);
-    setRecording(null);
-    setShowSavePrompt(false);
-    setPendingSaveMode(null);
+    setShowChatSaveButtons(false);
     setPendingZaphodNote(null);
     onClose();
   };
 
-  const handleSaveChat = async () => {
-    if (!pendingSaveMode) return;
-
+  const handleSave = async () => {
     try {
-      if (pendingSaveMode === 'zaphod' && pendingZaphodNote) {
-        // Save the pre-created Zaphod note
+      if (pendingZaphodNote) {
         await addNote(pendingZaphodNote);
-        showSuccess('Zaphod note saved!');
-      } else {
-        // Create chat content for Arthur and Ford
-        const chatContent = messages.map(msg =>
-          `${msg.isUser ? 'You' : (pendingSaveMode === 'arthur' ? 'Arthur' : 'Ford')}: ${msg.text}`
-        ).join('\n\n');
-
-        const noteTitle = `${pendingSaveMode === 'arthur' ? 'Arthur' : 'Ford'} Chat - ${new Date().toLocaleDateString()}`;
-
+        showSuccess('Quick note saved!');
+      } else if (messages.length > 1) {
+        const chatCharacter = getCurrentTitle();
+        const chatContent = messages.map(msg => `${msg.isUser ? 'You' : chatCharacter}: ${msg.text}`).join('\n\n');
         const newNote: Note = {
           id: generateNoteId(),
-          title: noteTitle,
+          title: `${chatCharacter} Chat - ${new Date().toLocaleDateString()}`,
           text: chatContent,
           timestamp: new Date().toISOString(),
-          tags: [],
+          tags: ['chat', currentMode],
+          noteType: `${currentMode}_note` as any,
           translations: {},
           attachedMedia: [],
-          noteType: pendingSaveMode === 'arthur' ? 'arthur_note' : 'ford_note',
         };
-
         await addNote(newNote);
-        showSuccess('Chat saved as note!');
+        showSuccess('Chat saved as a note!');
       }
     } catch (error) {
-      console.error('Error saving chat:', error);
-      showError('Failed to save chat');
+      showError('Failed to save.');
     }
-
     resetAndClose();
   };
 
-  const handleDiscardChat = () => {
+  const handleDiscard = () => {
     resetAndClose();
   };
 
-  const startVoiceRecording = async () => {
-    try {
-      // Request microphone permission
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== 'granted') {
-        showError('Microphone permission is required for voice input');
-        return;
+  const handleClose = () => {
+      if (messages.length > 1 || pendingZaphodNote) {
+          Alert.alert( "Unsaved Changes", "You have an unsaved chat or note. Do you want to save before closing?",
+              [
+                  { text: 'Discard', onPress: () => resetAndClose(), style: 'destructive' },
+                  { text: 'Save', onPress: handleSave },
+                  { text: 'Cancel', style: 'cancel' }
+              ]
+          );
+      } else {
+          resetAndClose();
       }
-
-      // Check credits first
-      const hasCredits = await checkCreditsAndNotify(CREDIT_PRICING.VOICE_RECORDING, 'Voice Chat Input');
-      if (!hasCredits) {
-        showError(`You need ${CREDIT_PRICING.VOICE_RECORDING} credits for voice input, but you don't have enough.`);
-        return;
-      }
-
-      // Deduct credits for voice input
-      const creditDeducted = await deductCredits(CREDIT_PRICING.VOICE_RECORDING, 'Voice Chat Input');
-      if (!creditDeducted) {
-        showError('Failed to process credits. Please try again.');
-        return;
-      }
-
-      setIsRecording(true);
-      setInputMode('voice');
-
-      // Start recording
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-
-      const newRecording = new Audio.Recording();
-      await newRecording.prepareToRecordAsync({
-        isMeteringEnabled: true,
-        android: {
-          extension: '.m4a',
-          outputFormat: 2, // MPEG_4
-          audioEncoder: 3, // AAC
-          sampleRate: 44100,
-          numberOfChannels: 2,
-          bitRate: 128000,
-        },
-        ios: {
-          extension: '.m4a',
-          audioQuality: 127, // High
-          sampleRate: 44100,
-          numberOfChannels: 2,
-          bitRate: 128000,
-          linearPCMBitDepth: 16,
-          linearPCMIsBigEndian: false,
-          linearPCMIsFloat: false,
-        },
-        web: {},
-      });
-      await newRecording.startAsync();
-      setRecording(newRecording);
-
-    } catch (error) {
-      console.error('Failed to start recording:', error);
-      showError('Failed to start voice recording');
-      setIsRecording(false);
-    }
   };
-
-  const stopVoiceRecording = async () => {
-    if (!recording) return;
-
-    try {
-      setIsRecording(false);
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-
-      if (uri) {
-        // Transcribe the audio
-        const transcribedText = await transcribeAudioWithGemini(uri);
-        setInputText(transcribedText);
-        setInputMode('text');
-      }
-    } catch (error) {
-      console.error('Failed to stop recording:', error);
-      showError('Failed to process voice recording');
-    } finally {
-      setRecording(null);
+  
+  const handleModeChange = (mode: ChatbotMode) => {
+    if(messages.length > 1) {
+      Alert.alert('Unsaved Chat', 'Do you want to discard this chat and switch modes?',[
+        {text: 'Cancel', style: 'cancel'},
+        {text: 'Discard & Switch', onPress: () => {
+          resetAndClose();
+          setCurrentMode(mode);
+        }, style: 'destructive'}
+      ])
+    } else {
+        setMessages([]);
+        setShowChatSaveButtons(false);
+        setPendingZaphodNote(null);
+        setCurrentMode(mode);
     }
   };
 
@@ -719,40 +267,6 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
     <Modal visible={visible} transparent={true} animationType="fade" onRequestClose={handleClose}>
       <View style={styles.overlay}>
         <View style={styles.modalContent}>
-          {/* Save Prompt Modal */}
-          {showSavePrompt && (
-            <View style={styles.savePromptOverlay}>
-              <View style={styles.savePromptModal}>
-                <Text style={styles.savePromptTitle}>
-                  {pendingSaveMode === 'zaphod' ? 'Save Zaphod Note?' : 'Save Chat as Note?'}
-                </Text>
-                <Text style={styles.savePromptText}>
-                  {pendingSaveMode === 'zaphod'
-                    ? 'Your note has been created. Would you like to keep it?'
-                    : 'Would you like to save this conversation as a note?'
-                  }
-                </Text>
-                <View style={styles.savePromptButtons}>
-                  <TouchableOpacity
-                    style={[styles.savePromptButton, styles.saveButton]}
-                    onPress={handleSaveChat}
-                  >
-                    <Text style={styles.saveButtonText}>💾 Save</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.savePromptButton, styles.cancelButton]}
-                    onPress={handleDiscardChat}
-                  >
-                    <Text style={styles.cancelButtonText}>
-                      {pendingSaveMode === 'zaphod' ? 'Discard' : 'Don\'t Save'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* Header */}
           <View style={styles.header}>
             <Image source={getCurrentAvatar()} style={styles.avatar} />
             <Text style={styles.title}>{getCurrentTitle()}</Text>
@@ -761,15 +275,7 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          {/* Character Name Display */}
-          <View style={styles.characterNameContainer}>
-            <Text style={styles.characterName}>
-              {getCurrentTitle()}
-            </Text>
-          </View>
-
-          {/* Messages */}
-          <ScrollView style={styles.messagesContainer} contentContainerStyle={styles.messagesContent}>
+          <ScrollView style={styles.messagesContainer}>
             {messages.map(message => (
               <View key={message.id} style={[styles.message, message.isUser ? styles.userMessage : styles.aiMessage]}>
                 <Text style={[styles.messageText, message.isUser ? styles.userMessageText : styles.aiMessageText]}>
@@ -777,67 +283,37 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
                 </Text>
               </View>
             ))}
-            {isLoading && (
-              <View style={styles.loadingMessage}>
-                <Text style={styles.loadingText}>Thinking...</Text>
-              </View>
-            )}
+            {isLoading && <Text style={styles.loadingText}>Thinking...</Text>}
           </ScrollView>
 
-          {/* Input */}
-          <View style={styles.inputContainer}>
-            <View style={styles.inputModeButtons}>
-              <TouchableOpacity
-                style={[styles.inputModeButton, inputMode === 'text' && styles.inputModeButtonActive]}
-                onPress={() => setInputMode('text')}
-              >
-                <Text style={[styles.inputModeButtonText, inputMode === 'text' && styles.inputModeButtonTextActive]}>
-                  ✏️
-                </Text>
+          {showChatSaveButtons && (
+            <View style={styles.saveContainer}>
+              <TouchableOpacity style={[styles.actionButton, styles.saveButton]} onPress={handleSave}>
+                <Text style={styles.actionButtonText}>💾 Save</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.inputModeButton, inputMode === 'voice' && styles.inputModeButtonActive]}
-                onPress={() => setInputMode('voice')}
-              >
-                <Text style={[styles.inputModeButtonText, inputMode === 'voice' && styles.inputModeButtonTextActive]}>
-                  🎤
-                </Text>
+              <TouchableOpacity style={[styles.actionButton, styles.cancelButton]} onPress={handleDiscard}>
+                <Text style={styles.actionButtonText}>🗑️ Discard</Text>
               </TouchableOpacity>
             </View>
+          )}
 
-            <View style={styles.inputRow}>
-              {inputMode === 'text' ? (
-                <>
-                  <TextInput
-                    style={styles.input}
-                    value={inputText}
-                    onChangeText={setInputText}
-                    placeholder="Type your message..."
-                    multiline
-                    maxLength={500}
-                  />
-                  <TouchableOpacity
-                    style={[styles.sendButton, (!inputText.trim() || isLoading) && styles.sendButtonDisabled]}
-                    onPress={handleSendMessage}
-                    disabled={!inputText.trim() || isLoading}
-                  >
-                    <Text style={[styles.sendButtonText, (!inputText.trim() || isLoading) && styles.sendButtonTextDisabled]}>
-                      Send
-                    </Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <TouchableOpacity
-                  style={styles.recordingButton}
-                  onPress={isRecording ? stopVoiceRecording : startVoiceRecording}
-                >
-                  <Text style={styles.recordingButtonText}>
-                    {isRecording ? '⏹️ Stop Recording' : '🎤 Start Recording'}
-                  </Text>
-                </TouchableOpacity>
-              )}
+          {!showChatSaveButtons && (
+            <View style={styles.inputContainer}>
+               <TextInput
+                style={styles.input}
+                value={inputText}
+                onChangeText={setInputText}
+                placeholder="Type your message..."
+                multiline
+              />
+              <TouchableOpacity
+                style={[styles.sendButton, (!inputText.trim() || isLoading) && styles.sendButtonDisabled]}
+                onPress={handleSendMessage}
+                disabled={!inputText.trim() || isLoading}>
+                <Text style={styles.sendButtonText}>Send</Text>
+              </TouchableOpacity>
             </View>
-          </View>
+          )}
         </View>
       </View>
     </Modal>
@@ -845,262 +321,31 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#1f2937',
-    borderRadius: 12,
-    width: '90%',
-    maxWidth: 400,
-    height: '80%',
-    maxHeight: 600,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#374151',
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  title: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    flex: 1,
-  },
-  closeButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#374151',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  modeButtons: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#374151',
-  },
-  modeButton: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginHorizontal: 2,
-    borderRadius: 6,
-    backgroundColor: '#374151',
-  },
-  modeButtonActive: {
-    backgroundColor: '#f59e0b',
-  },
-  modeButtonText: {
-    color: '#9ca3af',
-    fontSize: 14,
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
-  modeButtonTextActive: {
-    color: '#000',
-  },
-  characterNameContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#374151',
-    alignItems: 'center',
-  },
-  characterName: {
-    color: '#f59e0b',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  messagesContainer: {
-    flex: 1,
-    padding: 16,
-  },
-  messagesContent: {
-    paddingBottom: 16,
-  },
-  message: {
-    marginBottom: 12,
-    maxWidth: '80%',
-  },
-  userMessage: {
-    alignSelf: 'flex-end',
-  },
-  aiMessage: {
-    alignSelf: 'flex-start',
-  },
-  messageText: {
-    padding: 12,
-    borderRadius: 8,
-    fontSize: 14,
-  },
-  userMessageText: {
-    backgroundColor: '#f59e0b',
-    color: '#000',
-  },
-  aiMessageText: {
-    backgroundColor: '#374151',
-    color: '#fff',
-  },
-  loadingMessage: {
-    alignSelf: 'flex-start',
-    marginBottom: 12,
-  },
-  loadingText: {
-    color: '#9ca3af',
-    fontStyle: 'italic',
-  },
-  inputContainer: {
-    flexDirection: 'column',
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#374151',
-  },
-  input: {
-    flex: 1,
-    backgroundColor: '#374151',
-    borderRadius: 8,
-    padding: 12,
-    color: '#fff',
-    fontSize: 14,
-    marginRight: 8,
-    maxHeight: 80,
-  },
-  sendButton: {
-    backgroundColor: '#f59e0b',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    justifyContent: 'center',
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#6b7280',
-  },
-  sendButtonText: {
-    color: '#000',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  sendButtonTextDisabled: {
-    color: '#9ca3af',
-  },
-  inputModeButtons: {
-    flexDirection: 'row' as const,
-  },
-  inputModeButton: {
-    flex: 1,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    marginHorizontal: 2,
-    borderRadius: 6,
-    backgroundColor: '#374151',
-  },
-  inputModeButtonActive: {
-    backgroundColor: '#f59e0b',
-  },
-  inputModeButtonText: {
-    color: '#9ca3af',
-    fontSize: 16,
-    textAlign: 'center' as const,
-    fontWeight: 'bold' as const,
-  },
-  inputModeButtonTextActive: {
-    color: '#000',
-  },
-  inputRow: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-  },
-  recordingButton: {
-    backgroundColor: '#374151',
-    borderRadius: 8,
-    padding: 12,
-    flex: 1,
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
-  },
-  recordingButtonText: {
-    color: '#fff',
-    fontSize: 14,
-  },
-  savePromptOverlay: {
-    position: 'absolute' as const,
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
-    zIndex: 1000,
-  },
-  savePromptModal: {
-    backgroundColor: '#1f2937',
-    borderRadius: 12,
-    padding: 20,
-    width: '80%',
-    maxWidth: 300,
-    alignItems: 'center' as const,
-  },
-  savePromptTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold' as const,
-    marginBottom: 10,
-    textAlign: 'center' as const,
-  },
-  savePromptText: {
-    color: '#d1d5db',
-    fontSize: 14,
-    textAlign: 'center' as const,
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  savePromptButtons: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-around' as const,
-    width: '100%' as const,
-  },
-  savePromptButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    minWidth: 80,
-    alignItems: 'center' as const,
-  },
-  saveButton: {
-    backgroundColor: '#10b981',
-  },
-  cancelButton: {
-    backgroundColor: '#6b7280',
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold' as const,
-  },
-  cancelButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold' as const,
-  },
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
+    modalContent: { backgroundColor: '#1f2937', borderRadius: 12, width: '90%', maxWidth: 400, height: '80%', maxHeight: 600, overflow: 'hidden' },
+    header: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#374151' },
+    avatar: { width: 40, height: 40, borderRadius: 20, marginRight: 12 },
+    title: { color: '#fff', fontSize: 18, fontWeight: 'bold', flex: 1 },
+    closeButton: { padding: 5 },
+    closeButtonText: { color: '#fff', fontSize: 24, fontWeight: 'bold' },
+    messagesContainer: { flex: 1, padding: 16 },
+    message: { marginBottom: 12, maxWidth: '85%', padding: 12, borderRadius: 8 },
+    userMessage: { alignSelf: 'flex-end', backgroundColor: '#f59e0b' },
+    aiMessage: { alignSelf: 'flex-start', backgroundColor: '#374151' },
+    messageText: { fontSize: 15, lineHeight: 22 },
+    userMessageText: { color: '#000' },
+    aiMessageText: { color: '#fff' },
+    loadingText: { color: '#9ca3af', fontStyle: 'italic', alignSelf: 'center', padding: 10 },
+    inputContainer: { flexDirection: 'row', padding: 10, borderTopWidth: 1, borderTopColor: '#374151', alignItems: 'center' },
+    input: { flex: 1, backgroundColor: '#374151', borderRadius: 8, padding: 12, color: '#fff', fontSize: 15, marginRight: 8 },
+    sendButton: { backgroundColor: '#f59e0b', padding: 12, borderRadius: 8 },
+    sendButtonDisabled: { backgroundColor: '#6b7280' },
+    sendButtonText: { color: '#000', fontWeight: 'bold' },
+    saveContainer: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#374151' },
+    actionButton: { paddingHorizontal: 25, paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
+    saveButton: { backgroundColor: '#10b981' },
+    cancelButton: { backgroundColor: '#ef4444' },
+    actionButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+    characterNameContainer: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#374151', alignItems: 'center' },
+    characterName: { color: '#f59e0b', fontSize: 16, fontWeight: 'bold' },
 });

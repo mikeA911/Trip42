@@ -3,7 +3,7 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-type EventType = 'interact' | 'navigate' | 'error' | 'performance' | 'app_start' | 'voucher_redemption';
+type EventType = 'interact' | 'navigate' | 'error' | 'performance' | 'app_start' | 'voucher_redemption' | 'load_theme_on_start' | 'default_theme_on_start';
 
 interface LogData {
   event_type: EventType;
@@ -22,8 +22,9 @@ export const logEvent = async (data: LogData) => {
     const creditBalance = await getCreditBalance();
     const theme = await getTheme();
 
+    const { details, ...restData } = data;
     const logPayload = {
-      ...data,
+      ...restData,
       device_id: deviceId,
       app_version: appVersion,
       os_name: Device.osName,
@@ -72,7 +73,7 @@ const getCreditBalance = async (): Promise<number | null> => {
 
 const getTheme = async (): Promise<string | null> => {
   try {
-    const settings = await AsyncStorage.getItem('userSettings');
+    const settings = await AsyncStorage.getItem('hitchtrip_settings');
     if (settings) {
       const parsed = JSON.parse(settings);
       return parsed.aiTheme || 'h2g2';

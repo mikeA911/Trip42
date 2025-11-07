@@ -47,16 +47,23 @@ const MedicineTool: React.FC<MedicineToolProps> = ({ onBack, theme = 'h2g2' }) =
   }, [theme]);
 
   const getMedicineAvatar = () => {
-    if (medicineCharacter.avatar?.startsWith('http')) {
-      return { uri: medicineCharacter.avatar };
-    }
-    // Fallback mapping for local avatars
     const avatarMap: { [key: string]: any } = {
       'marvin.png': require('../public/icons/marvin.png'),
       'vincent.png': require('../public/icons/vincent.png'),
       'vimes.png': require('../public/icons/vimes.png'),
+      'jules.png': require('../public/icons/jules.png'),
+      'fordPretext.png': require('../public/icons/fordPretext.png'),
+      'arturBent.png': require('../public/icons/arturBent.png'),
+      'zaphodBabblefish.png': require('../public/icons/zaphodBabblefish.png'),
+      'mia.png': require('../public/icons/mia.png'),
+      'colon.png': require('../public/icons/colon.png'),
+      'nobbs.png': require('../public/icons/nobbs.png'),
     };
-    return avatarMap[medicineCharacter.avatar || 'marvin.png'] || require('../public/icons/marvin.png');
+
+    if (medicineCharacter.avatar && avatarMap[medicineCharacter.avatar]) {
+      return avatarMap[medicineCharacter.avatar];
+    }
+    return require('../public/icons/marvin.png'); // Default to Marvin if no match
   };
 
   const getMedicineGreeting = () => {
@@ -534,16 +541,20 @@ When the user exits - prompt user if they want to save the chat dialogue.  if ye
   const handleSaveMarvinChat = async () => {
     try {
       // Get summary from Marvin
-      const summaryPrompt = `${marvinPrompt}\n\nBased on this conversation, provide a brief 2-3 sentence summary of the medicine advice given:\n\n${marvinMessages.map(msg => `${msg.isUser ? 'User' : 'Marvin'}: ${msg.text}`).join('\n\n')}\n\nSummary:`;
+      // Get theme-specific chatbotMeds prompt
+      const themePrompt = await getPrompt(theme, 'chatbotMeds');
+      const systemPrompt = themePrompt || marvinPrompt; // Fallback to marvinPrompt if theme prompt not found
+      
+      const summaryPrompt = `${systemPrompt}\n\nBased on this conversation, provide a brief 2-3 sentence summary of the medicine advice given:\n\n${marvinMessages.map(msg => `${msg.isUser ? 'User' : medicineCharacter.character}: ${msg.text}`).join('\n\n')}\n\nSummary:`;
       const summaryResponse = await translateTextWithGemini(summaryPrompt, 'en', 'en', undefined, summaryPrompt);
 
       const fullChat = marvinMessages.map(msg =>
-        `${msg.isUser ? 'You' : 'Marvin'}: ${msg.text}`
+        `${msg.isUser ? 'You' : medicineCharacter.character}: ${msg.text}`
       ).join('\n\n');
 
       const newNote: Note = {
         id: generateNoteId(),
-        title: `Marvin Medicine Chat - ${new Date().toLocaleDateString()}`,
+        title: `${medicineCharacter.character} Medicine Chat - ${new Date().toLocaleDateString()}`,
         text: fullChat,
         timestamp: new Date().toISOString(),
         tags: ['medicine', 'marvin', 'consultation'],

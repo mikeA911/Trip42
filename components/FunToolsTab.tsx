@@ -18,12 +18,22 @@ const FunToolsTab: React.FC<FunToolsTabProps> = ({ onNavigateToTool, onNavigateT
     const loadToolsGuideCharacter = async () => {
       try {
         const characterData = await getCharacterForPromptType(theme, 'chatbotTools');
+        // Use a more specific character for QT-GR theme tools
+        if (theme === 'QT-GR') {
+          const julesData = await getCharacterForPromptType(theme, 'chatbotFaq');
+          if (julesData.character) {
+            setToolsGuideCharacter(julesData);
+            return;
+          }
+        }
+        
         if (characterData.character) {
           setToolsGuideCharacter(characterData);
         } else {
+          // Fallback logic
           const fallbackCharacters: { [theme: string]: { character?: string; avatar?: string } } = {
             'h2g2': { character: 'Ford', avatar: 'fordPretext.png' },
-            'QT-GR': { character: 'Vincent', avatar: 'vincent.png' },
+            'QT-GR': { character: 'Jules', avatar: 'jules.png' },
             'TP': { character: 'Vimes', avatar: 'vimes.png' }
           };
           setToolsGuideCharacter(fallbackCharacters[theme] || fallbackCharacters['h2g2']);
@@ -32,7 +42,7 @@ const FunToolsTab: React.FC<FunToolsTabProps> = ({ onNavigateToTool, onNavigateT
         console.log('⚠️ Could not load tools guide character, using fallback:', error);
         const fallbackCharacters: { [theme: string]: { character?: string; avatar?: string } } = {
           'h2g2': { character: 'Ford', avatar: 'fordPretext.png' },
-          'QT-GR': { character: 'Vincent', avatar: 'vincent.png' },
+          'QT-GR': { character: 'Jules', avatar: 'jules.png' },
           'TP': { character: 'Vimes', avatar: 'vimes.png' }
         };
         setToolsGuideCharacter(fallbackCharacters[theme] || fallbackCharacters['h2g2']);
@@ -43,29 +53,22 @@ const FunToolsTab: React.FC<FunToolsTabProps> = ({ onNavigateToTool, onNavigateT
 
   const getAvatarSource = () => {
     const avatarMap: { [key: string]: any } = {
-      'Ford': require('../public/icons/Ford.png'),
-      'jules': require('../public/icons/jules.png'),
-      'carrot': require('../public/icons/carrot.png'),
-      'marvin': require('../public/icons/marvin.png'),
-      'artur': require('../public/icons/arturDent.png'),
-      'vincent': require('../public/icons/vincent.png'),
-      'wolf': require('../public/icons/wolf.png'),
-      'mia': require('../public/icons/mia.png'),
-      'vimes': require('../public/icons/vimes.png'),
-      'colon': require('../public/icons/colon.png'),
-      'ook': require('../public/icons/ook.png'),
-      'nobbs': require('../public/icons/nobbs.png'),
-      'Vincent': require('../public/icons/vincent.png'),
-      'Vimes': require('../public/icons/vimes.png'),
-      'Marvin': require('../public/icons/marvin.png'),
-      'Arthur': require('../public/icons/arturBent.png'),
-      'Zaphod': require('../public/icons/Zaphod.png'),
+      'fordPretext.png': require('../public/icons/fordPretext.png'),
+      'jules.png': require('../public/icons/jules.png'),
+      'vimes.png': require('../public/icons/vimes.png'),
+      'vincent.png': require('../public/icons/vincent.png'),
+      'marvin.png': require('../public/icons/marvin.png'),
+      'arturBent.png': require('../public/icons/arturBent.png'),
+      'zaphodBabblefish.png': require('../public/icons/zaphodBabblefish.png'),
+      'mia.png': require('../public/icons/mia.png'),
+      'colon.png': require('../public/icons/colon.png'),
+      'nobbs.png': require('../public/icons/nobbs.png'),
     };
 
-    if (toolsGuideCharacter.character && avatarMap[toolsGuideCharacter.character]) {
-      return avatarMap[toolsGuideCharacter.character];
+    if (toolsGuideCharacter.avatar && avatarMap[toolsGuideCharacter.avatar]) {
+      return avatarMap[toolsGuideCharacter.avatar];
     }
-    return require('../public/icons/Ford.png');
+    return require('../public/icons/HitchTrip.png');
   };
 
   const getToolsGuideText = () => {

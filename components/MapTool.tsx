@@ -4,14 +4,15 @@ import * as Location from 'expo-location';
 import { WebView } from 'react-native-webview';
 import { sharedStyles as styles } from '../styles';
 import { ChatbotModal } from './ChatbotModal';
-import { getPrompt, getThemeCharacter, getCharacterForPromptType } from '../services/promptService';
+import { getPrompt, getCharacterForPromptType } from '../services/promptService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface MapToolProps {
   onBack?: () => void;
+  theme: string;
 }
 
-const MapTool: React.FC<MapToolProps> = ({ onBack }) => {
+const MapTool: React.FC<MapToolProps> = ({ onBack, theme = 'h2g2' }) => {
   const [location, setLocation] = useState<any>(null);
   const [address, setAddress] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,46 +22,34 @@ const MapTool: React.FC<MapToolProps> = ({ onBack }) => {
   const [showMapModal, setShowMapModal] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<any>(null);
   const [showFordChatbot, setShowFordChatbot] = useState(false);
-  const [aiTheme, setAiTheme] = useState('h2g2');
   const [themeCharacter, setThemeCharacter] = useState<{ character?: string; avatar?: string }>({});
 
   useEffect(() => {
     getCurrentLocation();
-    loadUserTheme();
   }, []);
-
-  const loadUserTheme = async () => {
-    try {
-      const savedSettings = await AsyncStorage.getItem('userSettings');
-      if (savedSettings) {
-        const parsedSettings = JSON.parse(savedSettings);
-        setAiTheme(parsedSettings.aiTheme || 'h2g2');
-      }
-    } catch (error) {
-      console.error('Error loading theme:', error);
-    }
-  };
-
+  
   // Load theme character for map exploration when theme changes
   useEffect(() => {
     const loadMapCharacter = async () => {
       try {
-        const characterData = await getCharacterForPromptType(aiTheme, 'chatbotMap');
-        setThemeCharacter(characterData);
-        console.log('🎯 Loaded map character:', characterData.character);
+        const characterData = await getCharacterForPromptType(theme, 'chatbotMap');
+        if (characterData.character) {
+          setThemeCharacter(characterData);
+        } else {
+          throw new Error('No character found');
+        }
       } catch (error) {
         console.log('⚠️ Could not load map character, using fallback');
-        // Fallback to theme-specific defaults
         const fallbackCharacters: { [theme: string]: { character?: string; avatar?: string } } = {
           'h2g2': { character: 'Ford', avatar: 'fordPretext.png' },
           'QT-GR': { character: 'Vincent', avatar: 'vincent.png' },
           'TP': { character: 'Vimes', avatar: 'vimes.png' }
         };
-        setThemeCharacter(fallbackCharacters[aiTheme] || fallbackCharacters['h2g2']);
+        setThemeCharacter(fallbackCharacters[theme] || fallbackCharacters['h2g2']);
       }
     };
     loadMapCharacter();
-  }, [aiTheme]);
+  }, [theme]);
 
   const getCurrentLocation = async () => {
     try {
@@ -685,8 +674,9 @@ CRITICAL PRINCIPLE:
 Your job is to make them THINK about exploration, not to DO the exploration for them.
 ${themeCharacter.character || 'Ford Pretext'} is a thinking partner, not a guidebook.`}
         chatbotName={themeCharacter.character || "Ford Pretext"}
-        chatbotAvatar={themeCharacter.avatar ? { uri: themeCharacter.avatar } : require('../public/icons/fordPretext.png')}
-        theme={aiTheme}
+        chatbotAvatar={themeCharacter.avatar}
+        theme={theme}
+        initialMode="chatbotMap"
       />
     </ScrollView>
   );

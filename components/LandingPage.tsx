@@ -71,98 +71,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   }, []);
 
   // Load user credits, purchased themes, and theme icons
-  useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        console.log('🚀 Loading user data on app start');
-
-        // Check if this is first install by looking for credits
-        const creditsData = await AsyncStorage.getItem('userCredits');
-        const isFirstInstall = !creditsData;
-
-        if (isFirstInstall) {
-          console.log('🎁 First install detected - setting up initial data');
-
-          // A. First install setup
-          // 1. Download ai_prompts table in full, avatars are already in public/icons directory
-          console.log('📥 Downloading AI prompts...');
-          await downloadAndCacheAllPrompts();
-
-          // 2. initial credits = 100 (as we currently have in code), keep persistent and updated by usage
-          console.log('💰 Setting initial credits to 100');
-          await AsyncStorage.setItem('userCredits', JSON.stringify({ balance: 100, transactions: [] }));
-          setUserCredits(100);
-
-          // 3. theme = h2g2, keep persistent until user selects a new theme
-          console.log('🎭 Setting default theme to h2g2');
-          await AsyncStorage.setItem('purchasedThemes', JSON.stringify(['h2g2']));
-          setPurchasedThemes(['h2g2']);
-
-          // 4. download quotes based on theme keep persistent
-          console.log('📜 Downloading quotes for h2g2 theme');
-          await fetchQuotesByTheme('h2g2');
-
-          // Set default settings
-          console.log('🔧 Setting default settings');
-          const defaultSettings = {
-            uiLanguage: 'en',
-            userCurrency: 'USD',
-            customTags: [],
-            locationPermission: 'prompt' as const,
-            enabledTags: [],
-            enabledLanguages: [],
-            aiTheme: 'h2g2'
-          };
-          await AsyncStorage.setItem('userSettings', JSON.stringify(defaultSettings));
-        } else {
-          console.log('🔄 App reopen - loading existing data');
-
-          // B. App reopen setup
-          // 1. download ai_prompts table in full, avatars are already in public/icons directory
-          console.log('📥 Refreshing AI prompts...');
-          await downloadAndCacheAllPrompts();
-
-          // Load existing credits
-          const parsedCredits = JSON.parse(creditsData);
-          setUserCredits(parsedCredits.balance || 0);
-          console.log('💰 Loaded credits:', parsedCredits.balance || 0);
-
-          // Load existing themes
-          const themes = await AsyncStorage.getItem('purchasedThemes');
-          if (themes) {
-            setPurchasedThemes(JSON.parse(themes));
-            console.log('🎨 Loaded purchased themes:', JSON.parse(themes));
-          }
-        }
-
-        // Load theme icons for the selected theme
-        console.log('🎨 Loading theme icons for:', aiTheme);
-        const icons = await getCachedThemeIcons(aiTheme);
-        if (icons) {
-          console.log('✅ Theme icons loaded from cache');
-          setThemeIcons(icons);
-        } else {
-          console.log('🔄 Fetching theme icons from Supabase');
-          // If not cached, fetch and cache theme assets
-          const quotes = await fetchRandomQuote(aiTheme);
-          if (quotes) {
-            // This will trigger caching of theme assets
-            await fetchRandomQuote(aiTheme);
-            // Try to get icons again after caching
-            const newIcons = await getCachedThemeIcons(aiTheme);
-            if (newIcons) {
-              console.log('✅ Theme icons cached and loaded');
-              setThemeIcons(newIcons);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('❌ Error loading user data:', error);
-      }
-    };
-
-    loadUserData();
-  }, [aiTheme]);
 
   // Pulsating animation for the red dot
   useEffect(() => {
@@ -680,7 +588,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               style={styles.chatbotOption}
               onPress={() => {
                 setShowChatbotSelector(false);
-                setShowChatbot({ mode: 'faq', visible: true });
+                const characters: { [key: string]: string } = {
+                  'h2g2': 'arthur', 'QT-GR': 'jules', 'TP': 'colon'
+                };
+                setShowChatbot({ mode: characters[aiTheme] || 'arthur', visible: true });
               }}
             >
               <Text style={styles.chatbotOptionEmoji}>❓</Text>
@@ -695,7 +606,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               onPress={() => {
                 console.log('🎯 Selected Quick Note for theme:', aiTheme);
                 setShowChatbotSelector(false);
-                setShowChatbot({ mode: 'quicknote', visible: true });
+                const characters: { [key: string]: string } = {
+                  'h2g2': 'zaphod', 'QT-GR': 'mia', 'TP': 'nobbs'
+                };
+                setShowChatbot({ mode: characters[aiTheme] || 'zaphod', visible: true });
               }}
             >
               <Text style={styles.chatbotOptionEmoji}>📝</Text>
@@ -709,7 +623,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               style={styles.chatbotOption}
               onPress={() => {
                 setShowChatbotSelector(false);
-                setShowChatbot({ mode: 'bored', visible: true });
+                const characters: { [key: string]: string } = {
+                  'h2g2': 'ford', 'QT-GR': 'vincent', 'TP': 'vimes'
+                };
+                setShowChatbot({ mode: characters[aiTheme] || 'ford', visible: true });
               }}
             >
               <Text style={styles.chatbotOptionEmoji}>😴</Text>

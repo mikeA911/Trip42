@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, TextInput, Alert, Linking } f
 import { getCredits, redeemVoucher, UserCredits, CreditHistoryEntry } from '../utils/credits';
 import { useToast } from '../contexts/ToastContext';
 import { logEvent } from '../services/loggingService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface CreditsTabProps {
   onBack: () => void;
@@ -53,7 +54,9 @@ const CreditsTab: React.FC<CreditsTabProps> = ({ onBack }) => {
 
     setIsRedeeming(true);
     try {
-      const result = await redeemVoucher(voucherCode.trim());
+      const settings = await AsyncStorage.getItem('userSettings');
+      const theme = settings ? JSON.parse(settings).aiTheme : 'h2g2';
+      const result = await redeemVoucher(voucherCode.trim(), theme);
 
       if (result.success) {
         setVoucherCode('');
@@ -62,16 +65,14 @@ const CreditsTab: React.FC<CreditsTabProps> = ({ onBack }) => {
         showSuccess(`Successfully redeemed ${result.creditsRedeemed} credits!`);
         logEvent({
           event_type: 'voucher_redemption',
-          voucher_code: voucherCode.trim(),
-          success: true,
+          result: 'success',
         });
       } else {
         showError(result.error || 'Failed to redeem voucher');
         logEvent({
           event_type: 'voucher_redemption',
-          voucher_code: voucherCode.trim(),
-          success: false,
-          error: result.error || 'Failed to redeem voucher',
+          result: 'error',
+          error: `[Voucher: ${voucherCode.trim()}] ${result.error || 'Failed to redeem voucher'}`,
         });
       }
     } catch (error) {

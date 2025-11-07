@@ -19,27 +19,31 @@ import { useNotes } from './hooks/useNotes';
 import { Note } from './utils/storage';
 import { initializeCredits } from './utils/credits';
 import { logEvent } from './services/loggingService';
+import { useAuth } from './hooks/useAuth';
+import { downloadAndCacheAllPrompts } from './services/promptService';
+import { getOrCreateSettings } from './utils/settings';
 
 import { ToastProvider } from './contexts/ToastContext';
+import { UserSettings } from './types/settings';
 type AppScreen = 'landing' | 'notes' | 'record' | 'manageNotes' | 'credits' | 'fun' | 'map' | 'medicine' | 'calculator' | 'currency' | 'tetris' | 'settings';
 
 function AppContent() {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('landing');
   const { notes, addNote, removeNote, loading } = useNotes();
-  const [aiTheme, setAiTheme] = useState('h2g2');
+  const { aiTheme, setAiTheme } = useAuth();
 
   // Initialize credits on app start
   useEffect(() => {
     const initApp = async () => {
       try {
         await initializeCredits();
-        console.log('Credits initialized successfully');
+        await getOrCreateSettings();
+        await downloadAndCacheAllPrompts();
         await logEvent({ event_type: 'app_start' });
       } catch (error) {
         console.error('Failed to initialize app:', error);
       }
     };
-
     initApp();
   }, []);
 
@@ -120,6 +124,7 @@ function AppContent() {
             onNavigateToRecord={handleLogoPress}
             savedNotes={notes}
             onSaveNote={handleSaveNote}
+            aiTheme={aiTheme}
           />
         );
       case 'notes':
@@ -136,7 +141,7 @@ function AppContent() {
         );
       case 'record':
         return (
-          <RecordTranslate onSaveNote={handleSaveNote} setCurrentScreen={setCurrentScreen} />
+          <RecordTranslate onSaveNote={handleSaveNote} setCurrentScreen={setCurrentScreen} aiTheme={aiTheme} />
         );
       case 'credits':
         return (
@@ -144,15 +149,15 @@ function AppContent() {
         );
       case 'fun':
         return (
-          <FunToolsTab onNavigateToTool={handleNavigateToTool} onNavigateToScreen={handleNavigateToScreen} />
+          <FunToolsTab onNavigateToTool={handleNavigateToTool} onNavigateToScreen={handleNavigateToScreen} theme={aiTheme} />
         );
       case 'map':
         return (
-          <MapTool onBack={() => setCurrentScreen('fun')} />
+          <MapTool onBack={() => setCurrentScreen('fun')} theme={aiTheme} />
         );
       case 'medicine':
         return (
-          <MedicineTool onBack={() => setCurrentScreen('fun')} />
+          <MedicineTool onBack={() => setCurrentScreen('fun')} theme={aiTheme} />
         );
       case 'calculator':
         return (
@@ -202,7 +207,7 @@ function AppContent() {
         );
       case 'settings':
         return (
-          <SettingsPage onBack={() => setCurrentScreen('record')} />
+          <SettingsPage onBack={() => setCurrentScreen('record')} onThemeChange={setAiTheme} />
         );
       default:
         return null;

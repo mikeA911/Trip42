@@ -1,24 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sharedStyles } from '../styles';
 import { useToast } from '../contexts/ToastContext';
 import { fetchQuotesByTheme } from '../services/quotesService';
+import { UserSettings } from '../types/settings';
+import { getOrCreateSettings, saveSettings } from '../utils/settings';
 
 // Add callback prop to notify parent of theme changes
 interface SettingsPageProps {
   onBack: () => void;
   onThemeChange?: (newTheme: string) => void;
-}
-
-interface UserSettings {
-  uiLanguage: string;
-  userCurrency: string;
-  customTags: string[];
-  locationPermission: 'always' | 'prompt' | 'never';
-  enabledTags: string[];
-  enabledLanguages: string[];
-  aiTheme: string;
 }
 
 // Permanent tags with icons and descriptions - sorted alphabetically
@@ -197,39 +188,24 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, onThemeChange }) =>
 
   useEffect(() => {
     // Initialize temp states when settings are loaded
-    setTempEnabledTags(settings.enabledTags);
-    setTempEnabledLanguages(settings.enabledLanguages);
+    setTempEnabledTags(settings.enabledTags || []);
+    setTempEnabledLanguages(settings.enabledLanguages || []);
   }, [settings.enabledTags, settings.enabledLanguages]);
 
   const loadSettings = async () => {
-    try {
-      const savedSettings = await AsyncStorage.getItem('userSettings');
-      if (savedSettings) {
-        const parsedSettings = JSON.parse(savedSettings);
-        setSettings(parsedSettings);
-      }
-    } catch (error) {
-      console.error('Error loading settings:', error);
-    }
-  };
-
-  const saveSettings = async (newSettings: UserSettings) => {
-    try {
-      await AsyncStorage.setItem('userSettings', JSON.stringify(newSettings));
-      setSettings(newSettings);
-      // Remove the success alert for individual setting changes
-    } catch (error) {
-      console.error('Error saving settings:', error);
-      showError('Failed to save settings');
-    }
+    const userSettings = await getOrCreateSettings();
+    setSettings(userSettings);
   };
 
   const updateSetting = (key: keyof UserSettings, value: any) => {
-    const newSettings = { ...settings, [key]: value };
-    saveSettings(newSettings);
-    if (key === 'aiTheme' && onThemeChange) {
-      onThemeChange(value);
-    }
+    setSettings(prevSettings => {
+      const newSettings = { ...prevSettings, [key]: value };
+      saveSettings(newSettings);
+      if (key === 'aiTheme' && onThemeChange) {
+        onThemeChange(value);
+      }
+      return newSettings;
+    });
   };
 
   const addCustomTag = () => {
@@ -480,7 +456,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, onThemeChange }) =>
         <View style={sharedStyles.settingsSection}>
            <Text style={sharedStyles.settingsLabel}>Quick select languages</Text>
            {/* Selected Languages Flags Display */}
-           {settings.enabledLanguages.length > 0 && (
+           {settings.enabledLanguages && settings.enabledLanguages.length > 0 && (
              <View style={sharedStyles.selectedLanguagesContainer}>
                <Text style={sharedStyles.selectedLanguagesLabel}>Selected:</Text>
                <View style={sharedStyles.flagsContainer}>
@@ -505,7 +481,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, onThemeChange }) =>
              onPress={() => setShowLanguagesSelector(!showLanguagesSelector)}
            >
              <Text style={sharedStyles.dropdownButtonText}>
-               {settings.enabledLanguages.length} languages selected
+               {settings.enabledLanguages ? settings.enabledLanguages.length : 0} languages selected
              </Text>
              <Text style={sharedStyles.dropdownArrow}>▼</Text>
            </TouchableOpacity>

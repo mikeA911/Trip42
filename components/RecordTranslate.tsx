@@ -15,7 +15,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { translateTextWithGemini, translateSignWithGemini, transcribeAudioWithGemini, polishNoteWithGemini } from '../services/geminiService';
 import { speakTextWithGoogleTTS, getVoiceForLanguage } from '../services/googleTTSService';
-import { Note, generateNoteId, getSettings } from '../utils/storage';
+import { Note, generateNoteId } from '../utils/storage';
+import { getOrCreateSettings, saveSettings } from '../utils/settings';
 import { deductCredits, CREDIT_PRICING, getCredits, checkCreditsAndNotify } from '../utils/credits';
 import { LANGUAGES } from './SettingsPage';
 import ActionsView from './record/ActionsView';
@@ -29,9 +30,10 @@ type AppScreen = 'landing' | 'notes' | 'record' | 'settings' | 'credits' | 'link
 interface RecordTranslateProps {
   onSaveNote: (note: Note) => void;
   setCurrentScreen: (screen: any) => void;
+  aiTheme: string;
 }
 
-export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, setCurrentScreen }) => {
+export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, setCurrentScreen, aiTheme }) => {
   const { showSuccess, showError } = useToast();
   // Recording view mode states
   const [recordingViewMode, setRecordingViewMode] = useState<'actions' | 'recording' | 'typing' | 'tabs'>('actions');
@@ -53,26 +55,6 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
   const [availableLanguages, setAvailableLanguages] = useState(LANGUAGES);
 
   // Load user preferred language and enabled languages from settings
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const settings = await getSettings();
-        setTargetLanguage(settings.uiLanguage || 'en');
-
-        // Filter LANGUAGES to only include enabled languages
-        const enabledLangCodes = settings.enabledLanguages || ['en', 'lo', 'km', 'th', 'vi', 'zh', 'ja', 'ko', 'uk', 'fil'];
-        const enabledLangs = LANGUAGES.filter(lang => enabledLangCodes.includes(lang.code));
-        setAvailableLanguages(enabledLangs);
-      } catch (error) {
-        setTargetLanguage('en');
-        // Fallback to default enabled languages
-        const defaultEnabled = ['en', 'lo', 'km', 'th', 'vi', 'zh', 'ja', 'ko', 'uk', 'fil'];
-        const defaultLangs = LANGUAGES.filter(lang => defaultEnabled.includes(lang.code));
-        setAvailableLanguages(defaultLangs);
-      }
-    };
-    loadSettings();
-  }, []);
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [newLanguageCode, setNewLanguageCode] = useState('');
   const [newLanguageName, setNewLanguageName] = useState('');
@@ -405,17 +387,17 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       // Add to enabled languages in settings
       const addToEnabledLanguages = async () => {
         try {
-          const settings = await getSettings();
+          const settings = await getOrCreateSettings();
           const enabledLanguages = settings.enabledLanguages || [];
           if (!enabledLanguages.includes(newLang.code)) {
             const updatedSettings = {
               ...settings,
               enabledLanguages: [...enabledLanguages, newLang.code]
             };
-            await import('../utils/storage').then(({ saveSettings }) => saveSettings(updatedSettings));
+            await saveSettings(updatedSettings);
           }
         } catch (error) {
-          // Error adding language to settings
+          console.error("Failed to add language to settings:", error);
         }
       };
       addToEnabledLanguages();
