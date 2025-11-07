@@ -6,7 +6,7 @@ import { useNotes } from '../hooks/useNotes';
 import { Note, generateNoteId } from '../utils/storage';
 import { deductCredits, CREDIT_PRICING, checkCreditsAndNotify } from '../utils/credits';
 import { useToast } from '../contexts/ToastContext';
-import { getPrompt, getThemeCharacter, getCharacterForPromptType } from '../services/promptService';
+import { getPrompt, getCharacterForPromptType } from '../services/promptService';
 import { supabase } from '../supabase';
 
 interface ChatbotModalProps {
@@ -302,13 +302,8 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
 
   // Load theme character data when theme changes
   useEffect(() => {
-    const loadThemeCharacters = async () => {
-      console.log('🔍 Loading theme characters for theme:', theme);
-      console.log('📊 Current themeCharacters before load:', themeCharacters.length);
-      console.log('🎯 Current currentMode before load:', currentMode);
-
-      // Always use fallback for now since Supabase might not have data
-      console.log('🔄 Using fallback mappings for theme:', theme);
+    const loadThemeCharacters = () => {
+      console.log('🔄 Loading theme characters for theme:', theme);
 
       // Fallback to hardcoded mappings
       const fallbackMappings: { [theme: string]: Array<{ character?: string; avatar?: string; promptType?: string }> } = {
@@ -330,114 +325,35 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
       };
 
       const characters = fallbackMappings[theme] || fallbackMappings['h2g2'];
-      console.log('✅ Using fallback characters:', characters);
-      console.log('📊 Fallback characters count:', characters.length);
-
       setThemeCharacters(characters);
-      const defaultMode = characters[0].character?.toLowerCase() || 'arthur';
-      console.log('🎯 Setting fallback default mode to:', defaultMode);
+      
+      const defaultMode = characters[0]?.character?.toLowerCase() || 'arthur';
       setCurrentMode(defaultMode);
 
-      // Try Supabase but don't fail if it doesn't work
-      try {
-        if (!supabase) {
-          console.log('⚠️ Supabase client not available, using fallback');
-          return;
-        }
-
-        console.log('🔗 Also trying Supabase for theme:', theme);
-        // Load all prompts for this theme
-        const { data, error } = await supabase
-          .from('ai_prompts')
-          .select('character, avatar, prompt_type')
-          .eq('theme', theme)
-          .eq('is_active', true)
-          .order('version', { ascending: false });
-
-        if (error) {
-          console.log('⚠️ Supabase query error, sticking with fallback:', error);
-          return;
-        }
-
-        console.log('📦 Supabase data (if any):', data);
-        console.log('📊 Number of Supabase records:', data?.length || 0);
-
-        if (data && data.length > 0) {
-          // Group by prompt_type to get unique characters
-          const characterMap = new Map<string, { character?: string; avatar?: string; promptType: string }>();
-          console.log('🔄 Processing Supabase character data...');
-
-          data.forEach((prompt: any, index: number) => {
-            console.log(`   ${index + 1}. Processing Supabase prompt:`, {
-              character: prompt.character,
-              avatar: prompt.avatar,
-              prompt_type: prompt.prompt_type
-            });
-
-            if (prompt.prompt_type && !characterMap.has(prompt.prompt_type)) {
-              characterMap.set(prompt.prompt_type, {
-                character: prompt.character,
-                avatar: prompt.avatar,
-                promptType: prompt.prompt_type
-              });
-              console.log(`   ✅ Added Supabase character for ${prompt.prompt_type}:`, prompt.character);
-            } else {
-              console.log(`   ⏭️ Skipped duplicate Supabase prompt_type:`, prompt.prompt_type);
-            }
-          });
-
-          // Convert to array and sort by prompt type priority
-          const supabaseCharacters = Array.from(characterMap.values()).sort((a, b) => {
-            const order = ['chatbotFaq', 'chatbotQuickNote', 'chatbotBored'];
-            return order.indexOf(a.promptType) - order.indexOf(b.promptType);
-          });
-
-          console.log('🎉 Final Supabase processed characters:', supabaseCharacters);
-          console.log('📊 Total Supabase characters loaded:', supabaseCharacters.length);
-
-          if (supabaseCharacters.length > 0) {
-            setThemeCharacters(supabaseCharacters);
-            const supabaseDefaultMode = supabaseCharacters[0].character?.toLowerCase() || 'arthur';
-            console.log('🎯 Overriding with Supabase default mode to:', supabaseDefaultMode);
-            setCurrentMode(supabaseDefaultMode);
-          }
-        }
-      } catch (error) {
-        console.log('⚠️ Supabase loading failed, keeping fallback:', error);
-      }
+      console.log('✅ Loaded characters:', characters);
+      console.log('🎯 Set default mode to:', defaultMode);
     };
+
     loadThemeCharacters();
   }, [theme]);
 
   const getAvatar = (characterName: string) => {
-    // Find the character in themeCharacters array
     const character = themeCharacters.find(char => char.character?.toLowerCase() === characterName.toLowerCase());
     if (character?.avatar) {
-      // For Supabase URLs, return as URI object
-      if (character.avatar.startsWith('http')) {
-        return { uri: character.avatar };
-      }
-      // For local files, use existing mapping
       const avatarMap: { [key: string]: any } = {
         'arturBent.png': require('../public/icons/arturBent.png'),
         'zaphodBabblefish.png': require('../public/icons/zaphodBabblefish.png'),
         'fordPretext.png': require('../public/icons/fordPretext.png'),
+        'jules.png': require('../public/icons/jules.png'),
+        'mia.png': require('../public/icons/mia.png'),
+        'vincent.png': require('../public/icons/vincent.png'),
+        'colon.png': require('../public/icons/colon.png'),
+        'nobbs.png': require('../public/icons/nobbs.png'),
+        'vimes.png': require('../public/icons/vimes.png'),
       };
       return avatarMap[character.avatar] || require('../public/icons/arturBent.png');
     }
-    // Fallback based on character name
-    const fallbackMap: { [key: string]: any } = {
-      'arthur': require('../public/icons/arturBent.png'),
-      'zaphod': require('../public/icons/zaphodBabblefish.png'),
-      'ford': chatbotAvatar,
-      'jules': require('../public/icons/arturBent.png'),
-      'mia': require('../public/icons/zaphodBabblefish.png'),
-      'vincent': chatbotAvatar,
-      'colon': require('../public/icons/arturBent.png'),
-      'nobbs': require('../public/icons/zaphodBabblefish.png'),
-      'vimes': chatbotAvatar,
-    };
-    return fallbackMap[characterName.toLowerCase()] || require('../public/icons/arturBent.png');
+    return require('../public/icons/arturBent.png');
   };
 
   const getModeTitle = (characterName: string) => {
@@ -450,54 +366,22 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
 
   useEffect(() => {
     if (visible && messages.length === 0) {
-      // Set initial mode if provided
-      if (initialMode) {
-        console.log('🎯 Initial mode provided:', initialMode, 'for theme:', theme);
+      const themeMap: { [key: string]: { [key: string]: string } } = {
+        'h2g2': { 'faq': 'arthur', 'quicknote': 'zaphod', 'bored': 'ford' },
+        'QT-GR': { 'faq': 'jules', 'quicknote': 'mia', 'bored': 'vincent' },
+        'TP': { 'faq': 'colon', 'quicknote': 'nobbs', 'bored': 'vimes' }
+      };
 
-        // Map selector modes to character names based on theme
-        const getCharacterForMode = (mode: string, theme: string) => {
-          const themeMappings: { [theme: string]: { [mode: string]: string } } = {
-            'h2g2': {
-              'faq': 'arthur',
-              'quicknote': 'zaphod',
-              'bored': 'ford'
-            },
-            'QT-GR': {
-              'faq': 'jules',
-              'quicknote': 'mia',
-              'bored': 'vincent'
-            },
-            'TP': {
-              'faq': 'colon',
-              'quicknote': 'nobbs',
-              'bored': 'vimes'
-            }
-          };
+      const character = (theme && themeMap[theme] && initialMode) ? themeMap[theme][initialMode] || initialMode : initialMode || 'arthur';
+      setCurrentMode(character);
 
-          const themeMap = themeMappings[theme] || themeMappings['h2g2'];
-          const character = themeMap[mode] || mode;
-          console.log('🎭 Mapped mode', mode, 'to character', character, 'for theme', theme);
-          return character;
-        };
-
-        const mappedMode = getCharacterForMode(initialMode, theme);
-        console.log('🎯 Setting currentMode to:', mappedMode);
-        setCurrentMode(mappedMode);
-      }
-
-      // Add initial greeting based on mode
       const loadGreeting = async () => {
-        const greeting = await getInitialGreeting(currentMode);
-        setMessages([{
-          id: '1',
-          text: greeting,
-          isUser: false,
-          timestamp: new Date()
-        }]);
+        const greeting = await getInitialGreeting(character);
+        setMessages([{ id: '1', text: greeting, isUser: false, timestamp: new Date() }]);
       };
       loadGreeting();
     }
-  }, [visible, currentMode, initialMode, theme]);
+  }, [visible, initialMode, theme]);
 
   const getInitialGreeting = async (mode: ChatbotMode): Promise<string> => {
     if (systemPrompt) {

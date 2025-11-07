@@ -158,18 +158,22 @@ Deno.serve(async (req)=>{
     if (isAnonymous) {
       // For anonymous users, log the redemption - credits are managed locally
       console.log('Logging anonymous redemption for deviceId:', deviceId);
-      const { error: logError } = await supabase.from('anonymous_redemption_logs').insert({
-        device_id: deviceId,
+      
+      const logPayload = {
+        event_type: 'voucher_redemption',
         voucher_code: voucherCode.toUpperCase(),
+        success: true,
         credits_redeemed: creditAmount,
-        location: location || null
-      });
+        device_id: deviceId,
+        location: location || null,
+      };
+
+      const { error: logError } = await supabase.from('mobile_app_logs').insert(logPayload);
+
       if (logError) {
-        console.error('Error logging anonymous redemption:', logError);
-        // Don't fail the redemption if logging fails, but log it
-        console.error('Anonymous redemption succeeded but logging failed - continuing...');
+        console.error('Error logging voucher redemption:', logError);
       } else {
-        console.log('Anonymous redemption logged successfully');
+        console.log('Voucher redemption logged successfully');
       }
     } else {
       // For authenticated users, update their credit balance

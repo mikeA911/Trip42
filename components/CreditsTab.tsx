@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, Alert, Linking } from 'react-native';
 import { getCredits, redeemVoucher, UserCredits, CreditHistoryEntry } from '../utils/credits';
 import { useToast } from '../contexts/ToastContext';
+import { logEvent } from '../services/loggingService';
 
 interface CreditsTabProps {
   onBack: () => void;
@@ -59,8 +60,19 @@ const CreditsTab: React.FC<CreditsTabProps> = ({ onBack }) => {
         // Reload credits from storage to get the updated balance
         await loadCredits();
         showSuccess(`Successfully redeemed ${result.creditsRedeemed} credits!`);
+        logEvent({
+          event_type: 'voucher_redemption',
+          voucher_code: voucherCode.trim(),
+          success: true,
+        });
       } else {
         showError(result.error || 'Failed to redeem voucher');
+        logEvent({
+          event_type: 'voucher_redemption',
+          voucher_code: voucherCode.trim(),
+          success: false,
+          error: result.error || 'Failed to redeem voucher',
+        });
       }
     } catch (error) {
       showError('Failed to redeem voucher. Please try again.');

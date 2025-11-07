@@ -177,90 +177,22 @@ export const getPrompt = async (theme: string, promptType: string): Promise<stri
   return themeData.prompts[promptType];
 };
 
-export const getThemeCharacter = async (theme: string): Promise<{ character?: string; avatar?: string }> => {
-  const themeData = await loadThemePrompts(theme);
-  return {
-    character: themeData.character,
-    avatar: themeData.avatar
-  };
-};
-
-// Get character data for a specific prompt type
 export const getCharacterForPromptType = async (theme: string, promptType: string): Promise<{ character?: string; avatar?: string; initialGreeting?: string }> => {
-  console.log(`🔍 getCharacterForPromptType called with theme: ${theme}, promptType: ${promptType}`);
-
   try {
-    // First try to get from local cache
     const cachedPrompts = await getCachedPromptsForTheme(theme);
-    console.log(`📋 Cached prompts for theme ${theme}:`, cachedPrompts ? `${cachedPrompts.length} prompts` : 'null');
-
-    if (cachedPrompts && cachedPrompts.length > 0) {
+    if (cachedPrompts) {
       const prompt = cachedPrompts.find(p => p.prompt_type === promptType);
-      console.log(`🎯 Found cached prompt for ${promptType}:`, prompt ? 'YES' : 'NO');
-
       if (prompt) {
-        const result = {
+        return {
           character: prompt.character,
           avatar: prompt.avatar,
           initialGreeting: prompt.initialGreeting
         };
-        console.log(`✅ Returning cached character data:`, result);
-        return result;
-      } else {
-        console.log(`⚠️ No cached prompt found for ${promptType} in theme ${theme}`);
-        // Log what prompt types ARE available in cache
-        const availableTypes = cachedPrompts.map(p => p.prompt_type);
-        console.log(`📋 Available prompt types in cache for ${theme}:`, availableTypes);
       }
-    } else {
-      console.log(`⚠️ No cached prompts found for theme ${theme}`);
     }
-
-    // Fallback to Supabase
-    console.log(`🔄 Falling back to Supabase query for theme: ${theme}, promptType: ${promptType}`);
-    if (!supabase) {
-      console.error('❌ Supabase client not available');
-      return {};
-    }
-
-    const { data, error } = await supabase
-      .from('ai_prompts')
-      .select('character, avatar, initialGreeting, theme, prompt_type')
-      .eq('theme', theme)
-      .eq('prompt_type', promptType)
-      .eq('is_active', true)
-      .order('version', { ascending: false })
-      .limit(1);
-
-    console.log(`📊 Supabase query result:`, { data, error });
-
-    if (error) {
-      console.error('❌ Supabase query error:', error);
-      return {};
-    }
-
-    if (!data || data.length === 0) {
-      console.log(`⚠️ No data found in Supabase for theme: ${theme}, promptType: ${promptType}`);
-      // Let's also try without theme filter to see if data exists at all
-      const { data: allData, error: allError } = await supabase
-        .from('ai_prompts')
-        .select('theme, prompt_type, character')
-        .eq('prompt_type', promptType)
-        .eq('is_active', true);
-      console.log(`🔍 All records for prompt_type ${promptType}:`, allData);
-      return {};
-    }
-
-    const result = {
-      character: data[0].character,
-      avatar: data[0].avatar,
-      initialGreeting: data[0].initialGreeting
-    };
-    console.log(`✅ Returning Supabase character data:`, result);
-    return result;
-
+    return {};
   } catch (error) {
-    console.error('❌ Error getting character for prompt type:', error);
+    console.error('Error getting character for prompt type:', error);
     return {};
   }
 };

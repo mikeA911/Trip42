@@ -3,8 +3,10 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+type EventType = 'interact' | 'navigate' | 'error' | 'performance' | 'app_start' | 'voucher_redemption';
+
 interface LogData {
-  event_type: string;
+  event_type: EventType;
   [key: string]: any;
 }
 

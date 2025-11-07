@@ -16,77 +16,36 @@ const FunToolsTab: React.FC<FunToolsTabProps> = ({ onNavigateToTool, onNavigateT
   // Load theme-specific tools guide character
   useEffect(() => {
     const loadToolsGuideCharacter = async () => {
-      console.log(`🎯 Loading tools guide character for theme: ${theme}`);
-
       try {
-        // First try to get from chatbotTools (specific tools guide character)
         const characterData = await getCharacterForPromptType(theme, 'chatbotTools');
-        console.log('🎯 chatbotTools result:', characterData);
-
         if (characterData.character) {
           setToolsGuideCharacter(characterData);
-          console.log('🎯 SUCCESS: Loaded tools guide character from chatbotTools:', characterData.character);
         } else {
-          // Fallback to chatbotGuide (legacy tools guide character)
-          console.log('⚠️ No chatbotTools character found, trying chatbotGuide');
-          const guideCharacterData = await getCharacterForPromptType(theme, 'chatbotGuide');
-          console.log('🎯 chatbotGuide result:', guideCharacterData);
-
-          if (guideCharacterData.character) {
-            setToolsGuideCharacter(guideCharacterData);
-            console.log('🎯 SUCCESS: Loaded tools guide character from chatbotGuide:', guideCharacterData.character);
-          } else {
-            // Final fallback to chatbotFaq (main theme character)
-            console.log('⚠️ No character data found, trying chatbotFaq');
-            const faqCharacterData = await getCharacterForPromptType(theme, 'chatbotFaq');
-            console.log('🎯 chatbotFaq result:', faqCharacterData);
-
-            if (faqCharacterData.character) {
-              setToolsGuideCharacter(faqCharacterData);
-              console.log('🎯 SUCCESS: Loaded tools guide character from chatbotFaq:', faqCharacterData.character);
-            } else {
-              // Final fallback to theme-specific defaults
-              console.log('⚠️ No character data found, using hardcoded fallback');
-              const fallbackCharacters: { [theme: string]: { character?: string; avatar?: string } } = {
-                'h2g2': { character: 'Ford', avatar: 'fordPretext.png' },
-                'QT-GR': { character: 'Vincent', avatar: 'vincent.png' },
-                'TP': { character: 'Vimes', avatar: 'vimes.png' }
-              };
-              setToolsGuideCharacter(fallbackCharacters[theme] || fallbackCharacters['h2g2']);
-              console.log('🎯 FALLBACK: Using hardcoded character:', fallbackCharacters[theme]?.character || 'Ford');
-            }
-          }
+          const fallbackCharacters: { [theme: string]: { character?: string; avatar?: string } } = {
+            'h2g2': { character: 'Ford', avatar: 'fordPretext.png' },
+            'QT-GR': { character: 'Vincent', avatar: 'vincent.png' },
+            'TP': { character: 'Vimes', avatar: 'vimes.png' }
+          };
+          setToolsGuideCharacter(fallbackCharacters[theme] || fallbackCharacters['h2g2']);
         }
       } catch (error) {
         console.log('⚠️ Could not load tools guide character, using fallback:', error);
-        // Fallback to theme-specific defaults
         const fallbackCharacters: { [theme: string]: { character?: string; avatar?: string } } = {
           'h2g2': { character: 'Ford', avatar: 'fordPretext.png' },
           'QT-GR': { character: 'Vincent', avatar: 'vincent.png' },
           'TP': { character: 'Vimes', avatar: 'vimes.png' }
         };
         setToolsGuideCharacter(fallbackCharacters[theme] || fallbackCharacters['h2g2']);
-        console.log('🎯 ERROR FALLBACK: Using hardcoded character:', fallbackCharacters[theme]?.character || 'Ford');
       }
     };
     loadToolsGuideCharacter();
   }, [theme]);
 
   const getAvatarSource = () => {
-    console.log('🎯 Getting avatar source for character:', toolsGuideCharacter.character, 'avatar:', toolsGuideCharacter.avatar);
-
-    // Character to local avatar mapping based on your database mapping
-    const characterAvatarMap: { [key: string]: any } = {
-      // H2G2 theme - chatbotTools
+    const avatarMap: { [key: string]: any } = {
       'Ford': require('../public/icons/Ford.png'),
-
-      // QT-GR theme - chatbotTools
       'jules': require('../public/icons/jules.png'),
-
-      // TP theme - chatbotTools
       'carrot': require('../public/icons/carrot.png'),
-
-      // Other characters from your mapping
       'marvin': require('../public/icons/marvin.png'),
       'artur': require('../public/icons/arturDent.png'),
       'vincent': require('../public/icons/vincent.png'),
@@ -96,8 +55,6 @@ const FunToolsTab: React.FC<FunToolsTabProps> = ({ onNavigateToTool, onNavigateT
       'colon': require('../public/icons/colon.png'),
       'ook': require('../public/icons/ook.png'),
       'nobbs': require('../public/icons/nobbs.png'),
-
-      // Legacy mappings for backward compatibility
       'Vincent': require('../public/icons/vincent.png'),
       'Vimes': require('../public/icons/vimes.png'),
       'Marvin': require('../public/icons/marvin.png'),
@@ -105,14 +62,9 @@ const FunToolsTab: React.FC<FunToolsTabProps> = ({ onNavigateToTool, onNavigateT
       'Zaphod': require('../public/icons/Zaphod.png'),
     };
 
-    // Map by character name first
-    if (toolsGuideCharacter.character && characterAvatarMap[toolsGuideCharacter.character]) {
-      console.log('🎯 Using character-based avatar mapping:', toolsGuideCharacter.character);
-      return characterAvatarMap[toolsGuideCharacter.character];
+    if (toolsGuideCharacter.character && avatarMap[toolsGuideCharacter.character]) {
+      return avatarMap[toolsGuideCharacter.character];
     }
-
-    // Fallback to Ford if no character match
-    console.log('🎯 No character match found, using Ford fallback');
     return require('../public/icons/Ford.png');
   };
 

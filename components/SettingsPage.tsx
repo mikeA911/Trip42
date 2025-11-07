@@ -11,10 +11,6 @@ interface SettingsPageProps {
   onThemeChange?: (newTheme: string) => void;
 }
 
-interface SettingsPageProps {
-  onBack: () => void;
-}
-
 interface UserSettings {
   uiLanguage: string;
   userCurrency: string;
@@ -231,6 +227,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, onThemeChange }) =>
   const updateSetting = (key: keyof UserSettings, value: any) => {
     const newSettings = { ...settings, [key]: value };
     saveSettings(newSettings);
+    if (key === 'aiTheme' && onThemeChange) {
+      onThemeChange(value);
+    }
   };
 
   const addCustomTag = () => {
@@ -459,8 +458,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, onThemeChange }) =>
             <TouchableOpacity
               style={[sharedStyles.actionButton, sharedStyles.saveButton]}
               onPress={async () => {
-                console.log('💾 Saving theme:', settings.aiTheme);
-
                 // C. When the user selects a new theme:
                 // 1. download quotes based on theme keep persistent
                 console.log('📜 Downloading quotes for new theme:', settings.aiTheme);
@@ -471,9 +468,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, onThemeChange }) =>
                   console.log('🔄 Notifying parent of theme change:', settings.aiTheme);
                   onThemeChange(settings.aiTheme);
                 }
-
-                // Theme changes are already saved immediately when selected
-                showSuccess('Theme updated successfully!');
+                showSuccess('Theme quotes updated successfully!');
               }}
             >
               <Text style={sharedStyles.saveButtonText}>Save Theme</Text>
