@@ -36,6 +36,7 @@ const RecordingView: React.FC<RecordingViewProps> = ({
   const [audioSegments, setAudioSegments] = useState<string[]>([]);
   const [isPaused, setIsPaused] = useState(false);
   const [showSaveOptions, setShowSaveOptions] = useState(false);
+  const [recordingTimer, setRecordingTimer] = useState<NodeJS.Timeout | null>(null);
 
   // Sync recordingStatus with isRecording prop - only when component first mounts
   useEffect(() => {
@@ -43,6 +44,29 @@ const RecordingView: React.FC<RecordingViewProps> = ({
       setRecordingStatus('recording');
     }
   }, []); // Empty dependency array - only run once on mount
+
+  const startRecordingTimer = () => {
+    // Clear any existing timer
+    if (recordingTimer) {
+      clearTimeout(recordingTimer);
+    }
+    // Set a 15-minute (900,000 ms) timer
+    const timer = setTimeout(() => {
+      Alert.alert(
+        'Recording Limit Reached',
+        'Recording has been automatically stopped after 15 minutes.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              handleStopRecording();
+            }
+          }
+        ]
+      );
+    }, 900000); // 15 minutes in milliseconds
+    setRecordingTimer(timer);
+  };
 
   const handleTakePhoto = async () => {
     try {
@@ -76,6 +100,11 @@ const RecordingView: React.FC<RecordingViewProps> = ({
       await onPauseRecording();
       setRecordingStatus('paused');
       setIsPaused(true);
+      // Clear the timer when paused
+      if (recordingTimer) {
+        clearTimeout(recordingTimer);
+        setRecordingTimer(null);
+      }
     }
   };
 
@@ -84,12 +113,19 @@ const RecordingView: React.FC<RecordingViewProps> = ({
       await onResumeRecording();
       setRecordingStatus('recording');
       setIsPaused(false);
+      // Restart the timer when resumed
+      startRecordingTimer();
     }
   };
 
   const handleStopRecording = async () => {
     if (onStopRecording) {
       setRecordingStatus('stopped');
+      // Clear the timer when stopped
+      if (recordingTimer) {
+        clearTimeout(recordingTimer);
+        setRecordingTimer(null);
+      }
       await onStopRecording();
       // Don't show save options here - parent handles navigation to tabs
     }
@@ -130,6 +166,15 @@ const RecordingView: React.FC<RecordingViewProps> = ({
     }
   }, [recordingStatus, onStopRecording, isRecording, hasInitialized]);
 
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingTimer) {
+        clearTimeout(recordingTimer);
+      }
+    };
+  }, [recordingTimer]);
+
   return (
     <View style={styles.recordingView}>
       <View style={styles.recordingIndicator}>
@@ -166,6 +211,7 @@ const RecordingView: React.FC<RecordingViewProps> = ({
           onPress={() => {
             // Start recording immediately when pressing the microphone button
             setRecordingStatus('recording');
+            startRecordingTimer(); // Start the 15-minute timer
             if (onStartRecording) onStartRecording();
           }}
         >

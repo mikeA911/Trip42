@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { getPrompt } from '../prompts';
+import { getThemeCharacter } from './promptService';
 
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API;
 // Remove console.log that exposes API key status
@@ -31,11 +32,21 @@ export const translateTextWithGemini = async (
       throw new Error('Text to translate is empty');
     }
 
-    const prompt = systemPrompt || getPrompt(theme, 'translation')?.replace('{targetLanguage}', targetLanguage).replace('{text}', text) || `Translate the following text to ${targetLanguage}. Provide the translation and if applicable, include phonetic pronunciation in parentheses.
+    let prompt: string;
+    if (systemPrompt) {
+      prompt = systemPrompt;
+    } else {
+      const themePrompt = await getPrompt(theme, 'translation');
+      if (themePrompt) {
+        prompt = themePrompt.replace('{targetLanguage}', targetLanguage).replace('{text}', text);
+      } else {
+        prompt = `Translate the following text to ${targetLanguage}. Provide the translation and if applicable, include phonetic pronunciation in parentheses.
 
 Text: "${text}"
 
 Please respond with just the translation, no additional explanations.`;
+      }
+    }
 
     const requestBody = {
       contents: [{
@@ -100,11 +111,17 @@ export const translateSignWithGemini = async (
   theme: string = 'h2g2'
 ): Promise<{ title: string; translation: string }> => {
   try {
-    const prompt = getPrompt(theme, 'signTranslation')?.replace('{targetLanguage}', targetLanguage) || `Analyze this image of a sign and translate any text you find to ${targetLanguage}. Provide a brief title for the sign and the translation.
+    let prompt: string;
+    const themePrompt = await getPrompt(theme, 'signTranslation');
+    if (themePrompt) {
+      prompt = themePrompt.replace('{targetLanguage}', targetLanguage);
+    } else {
+      prompt = `Analyze this image of a sign and translate any text you find to ${targetLanguage}. Provide a brief title for the sign and the translation.
 
 Please respond in this format:
 Title: [brief title]
 Translation: [translated text]`;
+    }
 
     const requestBody = {
       contents: [{
@@ -204,7 +221,8 @@ export const transcribeAudioWithGemini = async (
       });
     }
 
-    const prompt = getPrompt(theme, 'transcription') || 'Transcribe this audio recording. Provide only the transcription text, no additional explanations or formatting.';
+    const themePrompt = await getPrompt(theme, 'transcription');
+    const prompt = themePrompt || 'Transcribe this audio recording. Provide only the transcription text, no additional explanations or formatting.';
 
     const requestBody = {
       contents: [{
@@ -274,12 +292,18 @@ export const polishNoteWithGemini = async (
       throw new Error('Transcription is empty');
     }
 
-    const prompt = getPrompt(theme, 'notePolishing')?.replace('{transcription}', transcription) || `Please polish and improve this note, then give it a good title. Format your response as:
+    let prompt: string;
+    const themePrompt = await getPrompt(theme, 'notePolishing');
+    if (themePrompt) {
+      prompt = themePrompt.replace('{transcription}', transcription);
+    } else {
+      prompt = `Please polish and improve this note, then give it a good title. Format your response as:
 
 Title: [concise title]
 Note: [polished and improved version of the text]
 
 Original note: "${transcription}"`;
+    }
 
     const requestBody = {
       contents: [{
@@ -353,7 +377,14 @@ export const marvinCurrencyConversion = async (
     }
 
     console.log('DEBUG - Building request body...');
-    const finalPrompt = systemPrompt || getPrompt(theme, 'currencyConversion') || 'Please perform currency conversion calculations.';
+    let finalPrompt: string;
+    if (systemPrompt) {
+      finalPrompt = systemPrompt;
+    } else {
+      const themePrompt = await getPrompt(theme, 'currencyConversion');
+      finalPrompt = themePrompt || 'Please perform currency conversion calculations.';
+    }
+
     const requestBody = {
       contents: [{
         parts: [{ text: `${finalPrompt}\n\n${query}` }]

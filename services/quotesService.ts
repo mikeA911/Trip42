@@ -3,18 +3,20 @@ import { supabase } from '../supabase';
 
 export interface Quote {
   id: number;
-  Source: string;
+  source: string;
   character: string;
   quote: string;
   created_at: string;
   theme: string;
+  icon: string;
 }
 
-const CACHE_KEY_PREFIX = 'quotes_cache_';
+const CACHE_KEY_PREFIX = 'theme_assets_cache_';
 const CACHE_EXPIRY_HOURS = 24; // Cache for 24 hours
 
-interface CachedQuotes {
+interface CachedThemeAssets {
   quotes: Quote[];
+  icons: { [character: string]: string };
   timestamp: number;
   theme: string;
 }
@@ -28,15 +30,15 @@ const isCacheValid = (timestamp: number): boolean => {
   return cacheAge < expiryTime;
 };
 
-const getCachedQuotes = async (theme: string): Promise<Quote[] | null> => {
+const getCachedThemeAssets = async (theme: string): Promise<CachedThemeAssets | null> => {
   try {
     const cacheKey = getCacheKey(theme);
     const cachedData = await AsyncStorage.getItem(cacheKey);
 
     if (cachedData) {
-      const parsed: CachedQuotes = JSON.parse(cachedData);
+      const parsed: CachedThemeAssets = JSON.parse(cachedData);
       if (parsed.theme === theme && isCacheValid(parsed.timestamp)) {
-        return parsed.quotes;
+        return parsed;
       } else {
         // Cache is stale or for different theme, remove it
         await AsyncStorage.removeItem(cacheKey);
@@ -44,32 +46,42 @@ const getCachedQuotes = async (theme: string): Promise<Quote[] | null> => {
     }
     return null;
   } catch (error) {
-    console.error('Error reading quotes cache:', error);
+    console.error('Error reading theme assets cache:', error);
     return null;
   }
 };
 
-const setCachedQuotes = async (theme: string, quotes: Quote[]): Promise<void> => {
+const setCachedThemeAssets = async (theme: string, quotes: Quote[]): Promise<void> => {
   try {
     const cacheKey = getCacheKey(theme);
-    const cacheData: CachedQuotes = {
+
+    // Create icons map from quotes
+    const icons: { [character: string]: string } = {};
+    quotes.forEach(quote => {
+      if (quote.icon) {
+        icons[quote.character] = quote.icon;
+      }
+    });
+
+    const cacheData: CachedThemeAssets = {
       quotes,
+      icons,
       timestamp: Date.now(),
       theme
     };
     await AsyncStorage.setItem(cacheKey, JSON.stringify(cacheData));
   } catch (error) {
-    console.error('Error writing quotes cache:', error);
+    console.error('Error writing theme assets cache:', error);
   }
 };
 
 export const fetchQuotesByTheme = async (theme: string): Promise<Quote[]> => {
   try {
     // First try to get from cache
-    const cachedQuotes = await getCachedQuotes(theme);
-    if (cachedQuotes) {
-      console.log(`Using cached quotes for theme: ${theme}`);
-      return cachedQuotes;
+    const cachedAssets = await getCachedThemeAssets(theme);
+    if (cachedAssets) {
+      console.log(`Using cached theme assets for theme: ${theme}`);
+      return cachedAssets.quotes;
     }
 
     // Cache miss or expired, fetch from Supabase
@@ -91,9 +103,9 @@ export const fetchQuotesByTheme = async (theme: string): Promise<Quote[]> => {
 
     const quotes = data || [];
 
-    // Cache the fetched quotes
+    // Cache the fetched theme assets
     if (quotes.length > 0) {
-      await setCachedQuotes(theme, quotes);
+      await setCachedThemeAssets(theme, quotes);
     }
 
     return quotes;
@@ -116,6 +128,17 @@ export const fetchRandomQuote = async (theme: string): Promise<Quote | null> => 
   }
 };
 
+// Function to get cached theme icons
+export const getCachedThemeIcons = async (theme: string): Promise<{ [character: string]: string } | null> => {
+  try {
+    const cachedAssets = await getCachedThemeAssets(theme);
+    return cachedAssets ? cachedAssets.icons : null;
+  } catch (error) {
+    console.error('Error getting cached theme icons:', error);
+    return null;
+  }
+};
+
 // Function to clear cache when credits are added (voucher redemption)
 export const clearQuotesCache = async (): Promise<void> => {
   try {
@@ -124,9 +147,9 @@ export const clearQuotesCache = async (): Promise<void> => {
 
     if (cacheKeys.length > 0) {
       await AsyncStorage.multiRemove(cacheKeys);
-      console.log(`Cleared ${cacheKeys.length} cached quote sets`);
+      console.log(`Cleared ${cacheKeys.length} cached theme asset sets`);
     }
   } catch (error) {
-    console.error('Error clearing quotes cache:', error);
+    console.error('Error clearing theme assets cache:', error);
   }
 };

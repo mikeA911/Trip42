@@ -6,6 +6,8 @@ import { useNotes } from '../hooks/useNotes';
 import { Note, generateNoteId } from '../utils/storage';
 import { deductCredits, CREDIT_PRICING, checkCreditsAndNotify } from '../utils/credits';
 import { useToast } from '../contexts/ToastContext';
+import { getPrompt, getThemeCharacter, getCharacterForPromptType } from '../services/promptService';
+import { supabase } from '../supabase';
 
 interface ChatbotModalProps {
   visible: boolean;
@@ -13,9 +15,11 @@ interface ChatbotModalProps {
   systemPrompt?: string;
   chatbotName?: string;
   chatbotAvatar?: any;
+  theme?: string;
+  initialMode?: string;
 }
 
-type ChatbotMode = 'arthur' | 'zaphod' | 'ford';
+type ChatbotMode = string; // Dynamic based on theme
 
 interface Message {
   id: string;
@@ -276,9 +280,10 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
   onClose,
   systemPrompt,
   chatbotName = 'Ford Pretext',
-  chatbotAvatar = require('../public/icons/fordPretext.png')
+  chatbotAvatar = require('../public/icons/fordPretext.png'),
+  theme = 'h2g2',
+  initialMode
 }) => {
-  const [currentMode, setCurrentMode] = useState<ChatbotMode>('ford');
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -288,50 +293,278 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
   const [showSavePrompt, setShowSavePrompt] = useState(false);
   const [pendingSaveMode, setPendingSaveMode] = useState<ChatbotMode | null>(null);
   const [pendingZaphodNote, setPendingZaphodNote] = useState<Note | null>(null);
-  const { addNote } = useNotes();
+  const { notes, addNote } = useNotes();
   const { showError, showSuccess } = useToast();
 
-  const avatars = {
-    arthur: require('../public/icons/arturBent.png'),
-    zaphod: require('../public/icons/zaphodBabblefish.png'),
-    ford: chatbotAvatar
+  // Get theme-specific character data
+  const [themeCharacters, setThemeCharacters] = useState<Array<{ character?: string; avatar?: string; promptType?: string }>>([]);
+  const [currentMode, setCurrentMode] = useState<string>('arthur');
+
+  // Load theme character data when theme changes
+  useEffect(() => {
+    const loadThemeCharacters = async () => {
+      console.log('🔍 Loading theme characters for theme:', theme);
+      console.log('📊 Current themeCharacters before load:', themeCharacters.length);
+      console.log('🎯 Current currentMode before load:', currentMode);
+
+      // Always use fallback for now since Supabase might not have data
+      console.log('🔄 Using fallback mappings for theme:', theme);
+
+      // Fallback to hardcoded mappings
+      const fallbackMappings: { [theme: string]: Array<{ character?: string; avatar?: string; promptType?: string }> } = {
+        'h2g2': [
+          { character: 'Arthur', avatar: 'arturBent.png', promptType: 'chatbotFaq' },
+          { character: 'Zaphod', avatar: 'zaphodBabblefish.png', promptType: 'chatbotQuickNote' },
+          { character: 'Ford', avatar: 'fordPretext.png', promptType: 'chatbotBored' }
+        ],
+        'QT-GR': [
+          { character: 'Jules', avatar: 'jules.png', promptType: 'chatbotFaq' },
+          { character: 'Mia', avatar: 'mia.png', promptType: 'chatbotQuickNote' },
+          { character: 'Vincent', avatar: 'vincent.png', promptType: 'chatbotBored' }
+        ],
+        'TP': [
+          { character: 'Colon', avatar: 'colon.png', promptType: 'chatbotFaq' },
+          { character: 'Nobbs', avatar: 'nobbs.png', promptType: 'chatbotQuickNote' },
+          { character: 'Vimes', avatar: 'vimes.png', promptType: 'chatbotBored' }
+        ]
+      };
+
+      const characters = fallbackMappings[theme] || fallbackMappings['h2g2'];
+      console.log('✅ Using fallback characters:', characters);
+      console.log('📊 Fallback characters count:', characters.length);
+
+      setThemeCharacters(characters);
+      const defaultMode = characters[0].character?.toLowerCase() || 'arthur';
+      console.log('🎯 Setting fallback default mode to:', defaultMode);
+      setCurrentMode(defaultMode);
+
+      // Try Supabase but don't fail if it doesn't work
+      try {
+        if (!supabase) {
+          console.log('⚠️ Supabase client not available, using fallback');
+          return;
+        }
+
+        console.log('🔗 Also trying Supabase for theme:', theme);
+        // Load all prompts for this theme
+        const { data, error } = await supabase
+          .from('ai_prompts')
+          .select('character, avatar, prompt_type')
+          .eq('theme', theme)
+          .eq('is_active', true)
+          .order('version', { ascending: false });
+
+        if (error) {
+          console.log('⚠️ Supabase query error, sticking with fallback:', error);
+          return;
+        }
+
+        console.log('📦 Supabase data (if any):', data);
+        console.log('📊 Number of Supabase records:', data?.length || 0);
+
+        if (data && data.length > 0) {
+          // Group by prompt_type to get unique characters
+          const characterMap = new Map<string, { character?: string; avatar?: string; promptType: string }>();
+          console.log('🔄 Processing Supabase character data...');
+
+          data.forEach((prompt: any, index: number) => {
+            console.log(`   ${index + 1}. Processing Supabase prompt:`, {
+              character: prompt.character,
+              avatar: prompt.avatar,
+              prompt_type: prompt.prompt_type
+            });
+
+            if (prompt.prompt_type && !characterMap.has(prompt.prompt_type)) {
+              characterMap.set(prompt.prompt_type, {
+                character: prompt.character,
+                avatar: prompt.avatar,
+                promptType: prompt.prompt_type
+              });
+              console.log(`   ✅ Added Supabase character for ${prompt.prompt_type}:`, prompt.character);
+            } else {
+              console.log(`   ⏭️ Skipped duplicate Supabase prompt_type:`, prompt.prompt_type);
+            }
+          });
+
+          // Convert to array and sort by prompt type priority
+          const supabaseCharacters = Array.from(characterMap.values()).sort((a, b) => {
+            const order = ['chatbotFaq', 'chatbotQuickNote', 'chatbotBored'];
+            return order.indexOf(a.promptType) - order.indexOf(b.promptType);
+          });
+
+          console.log('🎉 Final Supabase processed characters:', supabaseCharacters);
+          console.log('📊 Total Supabase characters loaded:', supabaseCharacters.length);
+
+          if (supabaseCharacters.length > 0) {
+            setThemeCharacters(supabaseCharacters);
+            const supabaseDefaultMode = supabaseCharacters[0].character?.toLowerCase() || 'arthur';
+            console.log('🎯 Overriding with Supabase default mode to:', supabaseDefaultMode);
+            setCurrentMode(supabaseDefaultMode);
+          }
+        }
+      } catch (error) {
+        console.log('⚠️ Supabase loading failed, keeping fallback:', error);
+      }
+    };
+    loadThemeCharacters();
+  }, [theme]);
+
+  const getAvatar = (characterName: string) => {
+    // Find the character in themeCharacters array
+    const character = themeCharacters.find(char => char.character?.toLowerCase() === characterName.toLowerCase());
+    if (character?.avatar) {
+      // For Supabase URLs, return as URI object
+      if (character.avatar.startsWith('http')) {
+        return { uri: character.avatar };
+      }
+      // For local files, use existing mapping
+      const avatarMap: { [key: string]: any } = {
+        'arturBent.png': require('../public/icons/arturBent.png'),
+        'zaphodBabblefish.png': require('../public/icons/zaphodBabblefish.png'),
+        'fordPretext.png': require('../public/icons/fordPretext.png'),
+      };
+      return avatarMap[character.avatar] || require('../public/icons/arturBent.png');
+    }
+    // Fallback based on character name
+    const fallbackMap: { [key: string]: any } = {
+      'arthur': require('../public/icons/arturBent.png'),
+      'zaphod': require('../public/icons/zaphodBabblefish.png'),
+      'ford': chatbotAvatar,
+      'jules': require('../public/icons/arturBent.png'),
+      'mia': require('../public/icons/zaphodBabblefish.png'),
+      'vincent': chatbotAvatar,
+      'colon': require('../public/icons/arturBent.png'),
+      'nobbs': require('../public/icons/zaphodBabblefish.png'),
+      'vimes': chatbotAvatar,
+    };
+    return fallbackMap[characterName.toLowerCase()] || require('../public/icons/arturBent.png');
   };
 
-  const modeTitles = {
-    arthur: "Where's my towel?",
-    zaphod: 'Quick Note',
-    ford: chatbotName
+  const getModeTitle = (characterName: string) => {
+    const character = themeCharacters.find(char => char.character?.toLowerCase() === characterName.toLowerCase());
+    return character?.character || characterName;
   };
+
+  const getCurrentAvatar = () => getAvatar(currentMode);
+  const getCurrentTitle = () => getModeTitle(currentMode);
 
   useEffect(() => {
     if (visible && messages.length === 0) {
-      // Add initial greeting based on mode
-      const greeting = getInitialGreeting(currentMode);
-      setMessages([{
-        id: '1',
-        text: greeting,
-        isUser: false,
-        timestamp: new Date()
-      }]);
-    }
-  }, [visible, currentMode]);
+      // Set initial mode if provided
+      if (initialMode) {
+        console.log('🎯 Initial mode provided:', initialMode, 'for theme:', theme);
 
-  const getInitialGreeting = (mode: ChatbotMode): string => {
+        // Map selector modes to character names based on theme
+        const getCharacterForMode = (mode: string, theme: string) => {
+          const themeMappings: { [theme: string]: { [mode: string]: string } } = {
+            'h2g2': {
+              'faq': 'arthur',
+              'quicknote': 'zaphod',
+              'bored': 'ford'
+            },
+            'QT-GR': {
+              'faq': 'jules',
+              'quicknote': 'mia',
+              'bored': 'vincent'
+            },
+            'TP': {
+              'faq': 'colon',
+              'quicknote': 'nobbs',
+              'bored': 'vimes'
+            }
+          };
+
+          const themeMap = themeMappings[theme] || themeMappings['h2g2'];
+          const character = themeMap[mode] || mode;
+          console.log('🎭 Mapped mode', mode, 'to character', character, 'for theme', theme);
+          return character;
+        };
+
+        const mappedMode = getCharacterForMode(initialMode, theme);
+        console.log('🎯 Setting currentMode to:', mappedMode);
+        setCurrentMode(mappedMode);
+      }
+
+      // Add initial greeting based on mode
+      const loadGreeting = async () => {
+        const greeting = await getInitialGreeting(currentMode);
+        setMessages([{
+          id: '1',
+          text: greeting,
+          isUser: false,
+          timestamp: new Date()
+        }]);
+      };
+      loadGreeting();
+    }
+  }, [visible, currentMode, initialMode, theme]);
+
+  const getInitialGreeting = async (mode: ChatbotMode): Promise<string> => {
     if (systemPrompt) {
       // Use the custom system prompt for Ford mode
       return `Ah, hello there. ${chatbotName} at your service. I see you're looking at your location on the map. What are you curious about discovering in this area?`;
     }
 
+    // Map mode to prompt type
+    const promptTypeMap: { [key in ChatbotMode]: string } = {
+      'arthur': 'chatbotFaq',
+      'zaphod': 'chatbotQuickNote',
+      'ford': 'chatbotBored',
+      'colon': 'chatbotFaq',
+      'nobbs': 'chatbotQuickNote',
+      'vimes': 'chatbotBored',
+      'jules': 'chatbotFaq',
+      'mia': 'chatbotQuickNote',
+      'vincent': 'chatbotBored'
+    };
+
+    const promptType = promptTypeMap[mode];
+
+    // Try to get character-specific initial greeting from database
+    try {
+      const characterData = await getCharacterForPromptType(theme, promptType);
+      if (characterData.initialGreeting) {
+        console.log(`🎯 Using ${characterData.character} initial greeting for ${mode}:`, characterData.initialGreeting);
+        return characterData.initialGreeting;
+      }
+    } catch (error) {
+      console.log('⚠️ Could not load character greeting, using fallback');
+    }
+
+    // Fallback greetings
     switch (mode) {
       case 'arthur':
         return "Hello! I'm Artur Bent, your Trip42 guide. I'm here to help you navigate this rather confusing app. What would you like to know about Trip42?";
       case 'zaphod':
         return "Hey there! Zaphod Babblefish here, President of the Galaxy and your Quick Note handler. Got some messy thoughts to turn into something hoopy? Fire away!";
       case 'ford':
+        // Load theme-specific chatbotBored prompt
+        const themePrompt = await getPrompt(theme, 'chatbotBored');
+        if (themePrompt) {
+          return themePrompt.split('\n')[0] || "Ah, hello there. Ford Pretext at your service. I see you're feeling a bit bored. Care to tell me about your journey? I've got some stories that might make it more interesting.";
+        }
         return "Ah, hello there. Ford Pretext at your service. I see you're feeling a bit bored. Care to tell me about your journey? I've got some stories that might make it more interesting.";
       default:
         return "Hello!";
     }
+  };
+
+  const getRecentNotesContext = (): string => {
+    // Get all notes except Ford chat notes, sorted by timestamp (most recent first)
+    const userNotes = notes
+      .filter(note => note.noteType !== 'ford_note')
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 7); // Take the last 7 notes
+
+    if (userNotes.length === 0) {
+      return '';
+    }
+
+    const context = userNotes.map(note =>
+      `Note: ${note.title}\nText: ${note.text}\nTags: ${note.tags.join(', ')}\nDate: ${new Date(note.timestamp).toLocaleDateString()}`
+    ).join('\n\n---\n\n');
+
+    return `\n\nRecent Notes Context:\n${context}\n\n---\n\n`;
   };
 
   const handleSendMessage = async () => {
@@ -349,66 +582,78 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
     setIsLoading(true);
 
     try {
-      // Check credits for chatbot interactions (except for Ford mode which is free)
-      if (currentMode !== 'ford') {
-        const hasCredits = await checkCreditsAndNotify(5, 'Chatbot Interaction'); // 5 credits for chatbot
-        if (!hasCredits) {
-          showError('You need 5 credits for chatbot interactions, but you don\'t have enough.');
-          return;
-        }
-
-        // Deduct credits for chatbot interaction
-        const creditDeducted = await deductCredits(5, 'Chatbot Interaction');
-        if (!creditDeducted) {
-          showError('Failed to process credits. Please try again.');
-          return;
-        }
-      }
-
       let response: string;
 
-      if (currentMode === 'zaphod') {
-        // Zaphod returns JSON and prepares a note for review
-        const prompt = `${CHATBOT_PROMPTS.zaphod}\n\nUser input: "${inputText}"`;
-        const aiResponse = await translateTextWithGemini(prompt, 'en', 'en', undefined, prompt);
-        // Clean the response by removing markdown code blocks
-        let cleanResponse = aiResponse.text.trim();
-        if (cleanResponse.startsWith('```json')) {
-          cleanResponse = cleanResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-        } else if (cleanResponse.startsWith('```')) {
-          cleanResponse = cleanResponse.replace(/^```\s*/, '').replace(/\s*```$/, '');
-        }
-        const parsedResponse = JSON.parse(cleanResponse);
+      // Find the current character data
+    const currentCharacter = themeCharacters.find(char => char.character?.toLowerCase() === currentMode.toLowerCase());
 
-        // Create the note but don't save it yet
-        const newNote: Note = {
-          id: generateNoteId(),
-          title: parsedResponse.title,
-          text: parsedResponse.text,
-          timestamp: new Date().toISOString(),
-          tags: parsedResponse.tags,
-          translations: {},
-          attachedMedia: [],
-          noteType: 'zaphod_note',
-          originalText: inputText, // Save the original user input
-          polishedText: parsedResponse.text, // Save the AI-polished version
-        };
-
-        // Store the note for review instead of saving immediately
-        setPendingZaphodNote(newNote);
-        response = `Here's your polished note for review:\n\n**${parsedResponse.title}**\n${parsedResponse.text}\n\nTags: ${parsedResponse.tags.join(', ')}\n\n${parsedResponse.commentary || ''}\n\n*Review and save or discard below*`;
-
-        // Show save/cancel prompt for Zaphod
-        setPendingSaveMode('zaphod');
-        setShowSavePrompt(true);
-      } else {
-        // Arthur and Ford return conversational responses
-        const prompt = systemPrompt
-          ? `${systemPrompt}\n\nUser: ${inputText}\n\nRespond as ${chatbotName}:`
-          : `${CHATBOT_PROMPTS[currentMode]}\n\nUser: ${inputText}\n\nRespond as ${currentMode === 'arthur' ? 'Artur Bent' : 'Ford Pretext'}:`;
-        const aiResponse = await translateTextWithGemini(prompt, 'en', 'en', undefined, prompt);
-        response = aiResponse.text;
+    if (currentCharacter?.promptType === 'chatbotQuickNote') {
+      // Zaphod-style quick note
+      const prompt = `${CHATBOT_PROMPTS.zaphod}\n\nUser input: "${inputText}"`;
+      const aiResponse = await translateTextWithGemini(prompt, 'en', 'en', undefined, prompt);
+      // Clean the response by removing markdown code blocks
+      let cleanResponse = aiResponse.text.trim();
+      if (cleanResponse.startsWith('```json')) {
+        cleanResponse = cleanResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleanResponse.startsWith('```')) {
+        cleanResponse = cleanResponse.replace(/^```\s*/, '').replace(/\s*```$/, '');
       }
+      const parsedResponse = JSON.parse(cleanResponse);
+
+      // Create the note but don't save it yet
+      const newNote: Note = {
+        id: generateNoteId(),
+        title: parsedResponse.title,
+        text: parsedResponse.text,
+        timestamp: new Date().toISOString(),
+        tags: parsedResponse.tags,
+        translations: {},
+        attachedMedia: [],
+        noteType: 'zaphod_note',
+        originalText: inputText, // Save the original user input
+        polishedText: parsedResponse.text, // Save the AI-polished version
+      };
+
+      // Store the note for review instead of saving immediately
+      setPendingZaphodNote(newNote);
+      response = `Here's your polished note for review:\n\n**${parsedResponse.title}**\n${parsedResponse.text}\n\nTags: ${parsedResponse.tags.join(', ')}\n\n${parsedResponse.commentary || ''}\n\n*Review and save or discard below*`;
+
+      // Show save/cancel prompt for Zaphod
+      setPendingSaveMode(currentMode);
+      setShowSavePrompt(true);
+    } else {
+      // Get the prompt based on promptType
+      let prompt: string;
+      if (currentCharacter?.promptType) {
+        const themePrompt = await getPrompt(theme, currentCharacter.promptType as any);
+        if (themePrompt) {
+          if (currentCharacter.promptType === 'chatbotBored') {
+            // For bored mode, include recent notes context
+            const notesContext = getRecentNotesContext();
+            prompt = `${themePrompt}${notesContext}\n\nUser: ${inputText}\n\nRespond as ${currentCharacter.character}:`;
+          } else {
+            prompt = `${themePrompt}\n\nUser: ${inputText}\n\nRespond as ${currentCharacter.character}:`;
+          }
+        } else {
+          // Fallback to static prompts
+          const fallbackPrompts: { [key: string]: string } = {
+            'chatbotFaq': CHATBOT_PROMPTS.arthur,
+            'chatbotBored': CHATBOT_PROMPTS.ford,
+            'chatbotQuickNote': CHATBOT_PROMPTS.zaphod
+          };
+          const basePrompt = fallbackPrompts[currentCharacter.promptType] || CHATBOT_PROMPTS.arthur;
+          prompt = `${basePrompt}\n\nUser: ${inputText}\n\nRespond as ${currentCharacter.character}:`;
+        }
+      } else {
+        // Fallback for system prompt
+        prompt = systemPrompt
+          ? `${systemPrompt}\n\nUser: ${inputText}\n\nRespond as ${chatbotName}:`
+          : `${CHATBOT_PROMPTS.arthur}\n\nUser: ${inputText}\n\nRespond as Artur Bent:`;
+      }
+
+      const aiResponse = await translateTextWithGemini(prompt, 'en', 'en', undefined, prompt);
+      response = aiResponse.text;
+    }
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -625,39 +870,18 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
 
           {/* Header */}
           <View style={styles.header}>
-            <Image source={avatars[currentMode]} style={styles.avatar} />
-            <Text style={styles.title}>{modeTitles[currentMode]}</Text>
+            <Image source={getCurrentAvatar()} style={styles.avatar} />
+            <Text style={styles.title}>{getCurrentTitle()}</Text>
             <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
               <Text style={styles.closeButtonText}>×</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Mode Buttons */}
-          <View style={styles.modeButtons}>
-            <TouchableOpacity
-              style={[styles.modeButton, currentMode === 'arthur' && styles.modeButtonActive]}
-              onPress={() => handleModeChange('arthur')}
-            >
-              <Text style={[styles.modeButtonText, currentMode === 'arthur' && styles.modeButtonTextActive]}>
-                Arthur
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modeButton, currentMode === 'zaphod' && styles.modeButtonActive]}
-              onPress={() => handleModeChange('zaphod')}
-            >
-              <Text style={[styles.modeButtonText, currentMode === 'zaphod' && styles.modeButtonTextActive]}>
-                Zaphod
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modeButton, currentMode === 'ford' && styles.modeButtonActive]}
-              onPress={() => handleModeChange('ford')}
-            >
-              <Text style={[styles.modeButtonText, currentMode === 'ford' && styles.modeButtonTextActive]}>
-                Ford
-              </Text>
-            </TouchableOpacity>
+          {/* Character Name Display */}
+          <View style={styles.characterNameContainer}>
+            <Text style={styles.characterName}>
+              {getCurrentTitle()}
+            </Text>
           </View>
 
           {/* Messages */}
@@ -684,7 +908,7 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
                 onPress={() => setInputMode('text')}
               >
                 <Text style={[styles.inputModeButtonText, inputMode === 'text' && styles.inputModeButtonTextActive]}>
-                  T{'\n'}✏️ Text
+                  ✏️
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -692,50 +916,43 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
                 onPress={() => setInputMode('voice')}
               >
                 <Text style={[styles.inputModeButtonText, inputMode === 'voice' && styles.inputModeButtonTextActive]}>
-                  V{'\n'}🎤 Voice
+                  🎤
                 </Text>
               </TouchableOpacity>
             </View>
 
-            {inputMode === 'text' ? (
-              <>
-                <TextInput
-                  style={styles.input}
-                  value={inputText}
-                  onChangeText={setInputText}
-                  placeholder="Type your message..."
-                  multiline
-                  maxLength={500}
-                />
+            <View style={styles.inputRow}>
+              {inputMode === 'text' ? (
+                <>
+                  <TextInput
+                    style={styles.input}
+                    value={inputText}
+                    onChangeText={setInputText}
+                    placeholder="Type your message..."
+                    multiline
+                    maxLength={500}
+                  />
+                  <TouchableOpacity
+                    style={[styles.sendButton, (!inputText.trim() || isLoading) && styles.sendButtonDisabled]}
+                    onPress={handleSendMessage}
+                    disabled={!inputText.trim() || isLoading}
+                  >
+                    <Text style={[styles.sendButtonText, (!inputText.trim() || isLoading) && styles.sendButtonTextDisabled]}>
+                      Send
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
                 <TouchableOpacity
-                  style={[styles.sendButton, (!inputText.trim() || isLoading) && styles.sendButtonDisabled]}
-                  onPress={handleSendMessage}
-                  disabled={!inputText.trim() || isLoading}
+                  style={styles.recordingButton}
+                  onPress={isRecording ? stopVoiceRecording : startVoiceRecording}
                 >
-                  <Text style={[styles.sendButtonText, (!inputText.trim() || isLoading) && styles.sendButtonTextDisabled]}>
-                    Send
+                  <Text style={styles.recordingButtonText}>
+                    {isRecording ? '⏹️ Stop Recording' : '🎤 Start Recording'}
                   </Text>
                 </TouchableOpacity>
-              </>
-            ) : (
-              <View style={styles.voiceInputContainer}>
-                {isRecording ? (
-                  <TouchableOpacity
-                    style={styles.voiceStopButton}
-                    onPress={stopVoiceRecording}
-                  >
-                    <Text style={styles.voiceStopButtonText}>⏹️ Stop Recording</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.voiceStartButton}
-                    onPress={startVoiceRecording}
-                  >
-                    <Text style={styles.voiceStartButtonText}>🎤 Start Voice Input</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
+              )}
+            </View>
           </View>
         </View>
       </View>
@@ -817,6 +1034,19 @@ const styles = StyleSheet.create({
   modeButtonTextActive: {
     color: '#000',
   },
+  characterNameContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#374151',
+    alignItems: 'center',
+  },
+  characterName: {
+    color: '#f59e0b',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
   messagesContainer: {
     flex: 1,
     padding: 16,
@@ -856,7 +1086,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   inputContainer: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: '#374151',
@@ -891,12 +1121,11 @@ const styles = StyleSheet.create({
   },
   inputModeButtons: {
     flexDirection: 'row' as const,
-    marginBottom: 8,
   },
   inputModeButton: {
     flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
     marginHorizontal: 2,
     borderRadius: 6,
     backgroundColor: '#374151',
@@ -906,41 +1135,28 @@ const styles = StyleSheet.create({
   },
   inputModeButtonText: {
     color: '#9ca3af',
-    fontSize: 14,
+    fontSize: 16,
     textAlign: 'center' as const,
     fontWeight: 'bold' as const,
   },
   inputModeButtonTextActive: {
     color: '#000',
   },
-  voiceInputContainer: {
+  inputRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+  },
+  recordingButton: {
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
     flex: 1,
     justifyContent: 'center' as const,
     alignItems: 'center' as const,
   },
-  voiceStartButton: {
-    backgroundColor: '#f59e0b',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center' as const,
-  },
-  voiceStartButtonText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: 'bold' as const,
-  },
-  voiceStopButton: {
-    backgroundColor: '#ef4444',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center' as const,
-  },
-  voiceStopButtonText: {
+  recordingButtonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold' as const,
+    fontSize: 14,
   },
   savePromptOverlay: {
     position: 'absolute' as const,

@@ -3,6 +3,13 @@ import { View, Text, TouchableOpacity, ScrollView, TextInput, Alert } from 'reac
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sharedStyles } from '../styles';
 import { useToast } from '../contexts/ToastContext';
+import { fetchQuotesByTheme } from '../services/quotesService';
+
+// Add callback prop to notify parent of theme changes
+interface SettingsPageProps {
+  onBack: () => void;
+  onThemeChange?: (newTheme: string) => void;
+}
 
 interface SettingsPageProps {
   onBack: () => void;
@@ -163,14 +170,11 @@ const CURRENCIES = [
 
 const AI_THEMES = [
   { code: 'h2g2', name: 'Hitchhiker\'s Guide to the Galaxy', description: 'Marvin the Paranoid Android' },
-  { code: 'QT-GR', name: 'Quentin Tarantino/Guy Ritchie Films', description: 'Full functionality coming soon...' },
-  { code: 'Epic', name: 'Greek & Norse Mythology', description: 'Full functionality coming soon...' },
-  { code: 'ikigai', name: 'Ikigai Philosophy', description: 'Full functionality coming soon...' },
-  { code: 'lotr', name: 'Lord of the Rings', description: 'Full functionality coming soon...' },
-  { code: 'TP-GG', name: 'Terry Pratchett Guards! Guards!', description: 'Full functionality coming soon...' }
+  { code: 'QT-GR', name: 'Quentin Tarantino/Guy Ritchie Films', description: 'Quentin Tarantino/Guy Ritchie Films' },
+  { code: 'TP', name: 'Terry Pratchett Guards! Guards!', description: 'Terry Pratchett Guards! Guards!' }
 ];
 
-const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
+const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, onThemeChange }) => {
   const [settings, setSettings] = useState<UserSettings>({
     uiLanguage: 'en',
     userCurrency: 'USD',
@@ -449,6 +453,32 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
               </ScrollView>
             </View>
           )}
+
+          {/* Save Button for Theme Changes */}
+          <View style={sharedStyles.actionButtonsContainer}>
+            <TouchableOpacity
+              style={[sharedStyles.actionButton, sharedStyles.saveButton]}
+              onPress={async () => {
+                console.log('💾 Saving theme:', settings.aiTheme);
+
+                // C. When the user selects a new theme:
+                // 1. download quotes based on theme keep persistent
+                console.log('📜 Downloading quotes for new theme:', settings.aiTheme);
+                await fetchQuotesByTheme(settings.aiTheme);
+
+                // Notify parent component of theme change
+                if (onThemeChange) {
+                  console.log('🔄 Notifying parent of theme change:', settings.aiTheme);
+                  onThemeChange(settings.aiTheme);
+                }
+
+                // Theme changes are already saved immediately when selected
+                showSuccess('Theme updated successfully!');
+              }}
+            >
+              <Text style={sharedStyles.saveButtonText}>Save Theme</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Languages to Display */}

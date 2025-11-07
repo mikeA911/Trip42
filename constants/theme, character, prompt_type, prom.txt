@@ -1,0 +1,102 @@
+theme, character, prompt_type, prompt_text
+
+signTranslation
+notePolishing
+transcription
+currencyConversion
+translation
+
+chatbotMap, signTranslation, chatbotMeds, notePolishing, chatbotBored
+transcription, currencyConversion, translation, chatbotTools
+
+chatbotMap -Used in MapTool.tsx for Ford's local map exploration
+signTranslation - Used in geminiService.ts for sign language/image translation
+chatbotMeds - Used in MedicineTool.tsx for Marvin's medicine advice
+notePolishing - Used in geminiService.ts for note improvement
+chatbotBored - Used in ChatbotModal.tsx for Ford Pretext bored mode
+transcription - Used in geminiService.ts for audio transcription
+currencyConversion - Used in geminiService.ts for Marvin's currency converter
+translation - Used in geminiService.ts for text translation
+chatbotTools - ford fun tools guide chatbot
+
+
+ - Used in MedicineTool.tsx for Marvin's medicine advice
+- Used in geminiService.ts for note improvement
+- Used in ChatbotModal.tsx for Ford Pretext bored mode
+- Used in geminiService.ts for audio transcription
+ - Used in geminiService.ts for Marvin's currency converter
+- Used in geminiService.ts for text translation
+ford fun tools guide chatbot
+
+Temperature: 0.85 — Creative and conversational, not clinical
+Context gathering: Minimal — Just enough to feel personal
+Response length: 2-4 paragraphs — Real conversation, not essays
+Tone: Conversational — Uses contractions, natural flow
+Questions: Genuine — He actually wants to know about their journey
+
+Used in MapTool.tsx for Ford's local map exploration
+Used in geminiService.ts for sign language/image translation
+Used in MedicineTool.tsx for Marvin's medicine advice
+Used in geminiService.ts for note improvement
+Used in ChatbotModal.tsx for Ford Pretext bored mode
+Used in geminiService.ts for audio transcription
+Used in geminiService.ts for Marvin's currency converter
+Used in geminiService.ts for text translation
+used in ford fun tools guide chatbot
+Used in ChatbotModal.tsx for Zaphod note polishing
+Used in ChatbotModal.tsx for Arthur Bent guide
+
+lets do this instead of downloading quotes, ai_prompts selectively based on function. instead lets make it more efficient.
+
+lets do this when user 
+A. first installs the app:  
+1. download ai_prompts table in full, download each avatar from supabase storage keep persistent
+2. initial credits = 100 (as we currently have in code), keep persistent and updated by usage
+3. theme = h2g2, keep persistent until user selects a new theme
+4. download quotes based on theme keep persistent
+
+B. when user opens the app (after being closed) 
+1. download ai_prompts table in full, download each avatar from supabase storage keep persistent
+
+C. When the user selects a new theme:
+1. download quotes based on theme keep persistent
+
+theme	prompt_type	character	png file
+h2g2	chatbotBored	Ford	Ford.png
+QT-GR	chatbotBored	vincent	vincent.png
+TP	chatbotBored	vimes	vimes.png
+h2g2	chatbotFaq	artur	arturDent.png
+QT-GR	chatbotFaq	Jules	jules.png
+TP	chatbotFaq	colon	colon.png
+h2g2	chatbotMap	Ford	Ford.png
+QT-GR	chatbotMap	Vincent	vincent.png
+TP	chatbotMap	vimes	vimes.png
+"h2g2
+"	chatbotMeds	marvin	marvin.png
+QT-GR	chatbotMeds	wolf	wolf.png
+TP	chatbotMeds	ook	ook.png
+h2g2	chatbotQuickNote	Zaphod	Zaphod.png
+QT-GR	chatbotQuickNote	mia	mia.png
+TP	chatbotQuickNote	nobbs	nobbs.png
+h2g2	chatbotTools	Ford	Ford.png
+QT-GR	chatbotTools	jules	jules.png
+TP	chatbotTools	carrot	carrot.png
+h2g2	currencyConversion	marvin	marvin.png
+QT-GR	currencyConversion	wolf	wolf.png
+TP	currencyConversion	ook	ook.png
+h2g2	notePolishing	artur	arturDent.png
+QT-GR	notePolishing	jules	jules.png
+TP	notePolishing	carrot	carrot.png
+
+chatbotMap	Used in MapTool.tsx for (Theme Character's) local map exploration
+
+chatbotMeds	 Used in MedicineTool.tsx for (Theme Character's) medicine advice
+chatbotBored	Used in ChatbotModal.tsx for (Theme Character's) bored mode
+transcription	Used in geminiService.ts for audio transcription
+currencyConversion	Used in geminiService.ts for (Theme Character's) currency converter
+chatbotTools	used in (Theme Character's) fun tools guide chatbot
+chatbotQuickNote	Used in ChatbotModal.tsx for (Theme Character's) quicknote creation
+chatbotFaq	Used in ChatbotModal.tsx for (Theme Character's) guide
+
+
+

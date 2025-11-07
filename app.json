@@ -2,7 +2,7 @@
   "expo": {
     "name": "Trip42",
     "slug": "mike-a",
-    "version": "0.4",
+    "version": "0.5",
     "owner": "mikeatpp",
     "orientation": "portrait",
     "icon": "./assets/trip42.png",
@@ -85,6 +85,42 @@
           "messagingSenderId": "123456789",
           "appId": "1:123456789:web:abcdef123456"
         }
+      },
+      "pwa": {
+        "dest": "public",
+        "register": true,
+        "skipWaiting": true,
+        "disable": false,
+        "buildId": "build-%npm_package_version%",
+        "additionalManifestEntries": [
+          {
+            "name": "Trip42",
+            "short_name": "Trip42",
+            "description": "AI-powered travel companion app",
+            "start_url": "/",
+            "display": "standalone",
+            "theme_color": "#000000",
+            "background_color": "#000000",
+            "orientation": "portrait",
+            "scope": "/",
+            "lang": "en",
+            "categories": ["travel", "productivity", "utilities"],
+            "icons": [
+              {
+                "src": "/icons/icon-192.png",
+                "sizes": "192x192",
+                "type": "image/png",
+                "purpose": "any maskable"
+              },
+              {
+                "src": "/icons/icon-512.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any maskable"
+              }
+            ]
+          }
+        ]
       }
     },
     "plugins": [

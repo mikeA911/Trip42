@@ -1,16 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, Alert, Linking, Image, StyleSheet } from 'react-native';
 import { sharedStyles as styles } from '../styles';
 import { translateTextWithGemini } from '../services/geminiService';
 import { deductCredits, CREDIT_PRICING } from '../utils/credits';
 import { useNotes } from '../hooks/useNotes';
 import { Note, generateNoteId } from '../utils/storage';
+import { getPrompt, getCharacterForPromptType } from '../services/promptService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface MedicineToolProps {
   onBack?: () => void;
+  theme?: string;
 }
 
-const MedicineTool: React.FC<MedicineToolProps> = ({ onBack }) => {
+const MedicineTool: React.FC<MedicineToolProps> = ({ onBack, theme = 'h2g2' }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -19,7 +22,56 @@ const MedicineTool: React.FC<MedicineToolProps> = ({ onBack }) => {
   const [marvinMessages, setMarvinMessages] = useState<Array<{text: string, isUser: boolean, timestamp: Date}>>([]);
   const [marvinInput, setMarvinInput] = useState('');
   const [isMarvinLoading, setIsMarvinLoading] = useState(false);
+  const [medicineCharacter, setMedicineCharacter] = useState<{ character?: string; avatar?: string; initialGreeting?: string }>({});
   const { addNote } = useNotes();
+
+  // Load theme character for medicine consultation when theme changes
+  useEffect(() => {
+    const loadMedicineCharacter = async () => {
+      try {
+        const characterData = await getCharacterForPromptType(theme, 'chatbotMeds');
+        setMedicineCharacter(characterData);
+        console.log('🎯 Loaded medicine character:', characterData.character);
+      } catch (error) {
+        console.log('⚠️ Could not load medicine character, using fallback');
+        // Fallback to theme-specific defaults
+        const fallbackCharacters: { [theme: string]: { character?: string; avatar?: string; initialGreeting?: string } } = {
+          'h2g2': { character: 'Marvin', avatar: 'marvin.png', initialGreeting: "I Suppose You're Ill Again" },
+          'QT-GR': { character: 'Vincent', avatar: 'vincent.png', initialGreeting: "You Look Like You Need Some Pulp Fiction Medicine" },
+          'TP': { character: 'Vimes', avatar: 'vimes.png', initialGreeting: "Guards! Guards! Someone's Not Feeling Well" }
+        };
+        setMedicineCharacter(fallbackCharacters[theme] || fallbackCharacters['h2g2']);
+      }
+    };
+    loadMedicineCharacter();
+  }, [theme]);
+
+  const getMedicineAvatar = () => {
+    if (medicineCharacter.avatar?.startsWith('http')) {
+      return { uri: medicineCharacter.avatar };
+    }
+    // Fallback mapping for local avatars
+    const avatarMap: { [key: string]: any } = {
+      'marvin.png': require('../public/icons/marvin.png'),
+      'vincent.png': require('../public/icons/vincent.png'),
+      'vimes.png': require('../public/icons/vimes.png'),
+    };
+    return avatarMap[medicineCharacter.avatar || 'marvin.png'] || require('../public/icons/marvin.png');
+  };
+
+  const getMedicineGreeting = () => {
+    // Use initialGreeting from character data if available
+    if (medicineCharacter.initialGreeting) {
+      return medicineCharacter.initialGreeting;
+    }
+    // Fallback to theme-specific defaults
+    const greetings: { [theme: string]: string } = {
+      'h2g2': "I Suppose You're Ill Again",
+      'QT-GR': "You Look Like You Need Some Pulp Fiction Medicine",
+      'TP': "Guards! Guards! Someone's Not Feeling Well"
+    };
+    return greetings[theme] || "I Suppose You're Ill Again";
+  };
 
   const countries = [
     'Thailand', 'Vietnam', 'Cambodia', 'Laos', 'Myanmar',
@@ -444,13 +496,10 @@ When the user exits - prompt user if they want to save the chat dialogue.  if ye
     setIsMarvinLoading(true);
 
     try {
-      // Deduct credits for Marvin chat
-      const creditDeducted = await deductCredits(CREDIT_PRICING.TEXT_TRANSLATION, 'Marvin Medicine Chat');
-      if (!creditDeducted) {
-        return;
-      }
-
-      const prompt = `${marvinPrompt}\n\nUser: ${marvinInput}\n\nRespond as Marvin:`;
+      // Get theme-specific chatbotMeds prompt
+      const themePrompt = await getPrompt(theme, 'chatbotMeds');
+      const systemPrompt = themePrompt || marvinPrompt;
+      const prompt = `${systemPrompt}\n\nUser: ${marvinInput}\n\nRespond as Marvin:`;
       const aiResponse = await translateTextWithGemini(prompt, 'en', 'en', undefined, prompt);
 
       const marvinMessage = {
@@ -527,8 +576,8 @@ When the user exits - prompt user if they want to save the chat dialogue.  if ye
           // Marvin Chat Mode
           <>
             <View style={marvinStyles.marvinHeader}>
-              <Image source={require('../public/icons/marvin.png')} style={marvinStyles.marvinAvatar} />
-              <Text style={marvinStyles.marvinGreeting}>"I Suppose You're Ill Again"</Text>
+              <Image source={getMedicineAvatar()} style={marvinStyles.marvinAvatar} />
+              <Text style={marvinStyles.marvinGreeting}>"{getMedicineGreeting()}"</Text>
             </View>
 
             <ScrollView style={marvinStyles.marvinChatContainer}>
@@ -541,7 +590,7 @@ When the user exits - prompt user if they want to save the chat dialogue.  if ye
               ))}
               {isMarvinLoading && (
                 <View style={marvinStyles.marvinLoading}>
-                  <Text style={marvinStyles.marvinLoadingText}>Marvin is contemplating your mortality...</Text>
+                  <Text style={marvinStyles.marvinLoadingText}>{medicineCharacter.character || 'Marvin'} is contemplating your mortality...</Text>
                 </View>
               )}
             </ScrollView>
@@ -584,9 +633,9 @@ When the user exits - prompt user if they want to save the chat dialogue.  if ye
               style={marvinStyles.marvinModeButton}
               onPress={() => setIsMarvinMode(true)}
             >
-              <Image source={require('../public/icons/marvin.png')} style={marvinStyles.marvinModeIcon} />
+              <Image source={getMedicineAvatar()} style={marvinStyles.marvinModeIcon} />
               <View style={marvinStyles.marvinModeTextContainer}>
-                <Text style={marvinStyles.marvinModeTitle}>Ask Marvin the Medicine Expert</Text>
+                <Text style={marvinStyles.marvinModeTitle}>Ask {medicineCharacter.character || 'Marvin'} the Medicine Expert</Text>
                 <Text style={marvinStyles.marvinModeDescription}>Get personalized medicine advice for Southeast Asia travel</Text>
               </View>
             </TouchableOpacity>

@@ -4,7 +4,8 @@ import { PanGestureHandler, State, PanGestureHandlerGestureEvent, PanGestureHand
 import { QUOTES } from '../constants/quotes';
 import { ChatbotModal } from './ChatbotModal';
 import CalendarModal from './CalendarModal';
-import { fetchRandomQuote, Quote } from '../services/quotesService';
+import { fetchRandomQuote, Quote, getCachedThemeIcons, fetchQuotesByTheme } from '../services/quotesService';
+import { downloadAndCacheAllPrompts } from '../services/promptService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
@@ -40,7 +41,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarDate, setCalendarDate] = useState(new Date());
-  const [showChatbot, setShowChatbot] = useState(false);
+  const [showChatbot, setShowChatbot] = useState<{ visible: boolean; mode: string }>({ visible: false, mode: '' });
+  const [showChatbotSelector, setShowChatbotSelector] = useState(false);
   const [isQuoteMode, setIsQuoteMode] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteTitle, setNoteTitle] = useState('');
@@ -50,6 +52,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [showPwaInfoModal, setShowPwaInfoModal] = useState(false);
   const [userCredits, setUserCredits] = useState(0);
   const [purchasedThemes, setPurchasedThemes] = useState<string[]>(['h2g2']);
+  const [themeIcons, setThemeIcons] = useState<{ [character: string]: string }>({});
 
   const spinValue = useRef(new Animated.Value(0)).current;
   const pulsateValue = useRef(new Animated.Value(1)).current;
@@ -67,28 +70,99 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Load user credits and purchased themes
+  // Load user credits, purchased themes, and theme icons
   useEffect(() => {
     const loadUserData = async () => {
       try {
-        const creditsData = await AsyncStorage.getItem('userCredits');
-        const themes = await AsyncStorage.getItem('purchasedThemes');
+        console.log('🚀 Loading user data on app start');
 
-        if (creditsData) {
+        // Check if this is first install by looking for credits
+        const creditsData = await AsyncStorage.getItem('userCredits');
+        const isFirstInstall = !creditsData;
+
+        if (isFirstInstall) {
+          console.log('🎁 First install detected - setting up initial data');
+
+          // A. First install setup
+          // 1. Download ai_prompts table in full, avatars are already in public/icons directory
+          console.log('📥 Downloading AI prompts...');
+          await downloadAndCacheAllPrompts();
+
+          // 2. initial credits = 100 (as we currently have in code), keep persistent and updated by usage
+          console.log('💰 Setting initial credits to 100');
+          await AsyncStorage.setItem('userCredits', JSON.stringify({ balance: 100, transactions: [] }));
+          setUserCredits(100);
+
+          // 3. theme = h2g2, keep persistent until user selects a new theme
+          console.log('🎭 Setting default theme to h2g2');
+          await AsyncStorage.setItem('purchasedThemes', JSON.stringify(['h2g2']));
+          setPurchasedThemes(['h2g2']);
+
+          // 4. download quotes based on theme keep persistent
+          console.log('📜 Downloading quotes for h2g2 theme');
+          await fetchQuotesByTheme('h2g2');
+
+          // Set default settings
+          console.log('🔧 Setting default settings');
+          const defaultSettings = {
+            uiLanguage: 'en',
+            userCurrency: 'USD',
+            customTags: [],
+            locationPermission: 'prompt' as const,
+            enabledTags: [],
+            enabledLanguages: [],
+            aiTheme: 'h2g2'
+          };
+          await AsyncStorage.setItem('userSettings', JSON.stringify(defaultSettings));
+        } else {
+          console.log('🔄 App reopen - loading existing data');
+
+          // B. App reopen setup
+          // 1. download ai_prompts table in full, avatars are already in public/icons directory
+          console.log('📥 Refreshing AI prompts...');
+          await downloadAndCacheAllPrompts();
+
+          // Load existing credits
           const parsedCredits = JSON.parse(creditsData);
           setUserCredits(parsedCredits.balance || 0);
+          console.log('💰 Loaded credits:', parsedCredits.balance || 0);
+
+          // Load existing themes
+          const themes = await AsyncStorage.getItem('purchasedThemes');
+          if (themes) {
+            setPurchasedThemes(JSON.parse(themes));
+            console.log('🎨 Loaded purchased themes:', JSON.parse(themes));
+          }
         }
 
-        if (themes) {
-          setPurchasedThemes(JSON.parse(themes));
+        // Load theme icons for the selected theme
+        console.log('🎨 Loading theme icons for:', aiTheme);
+        const icons = await getCachedThemeIcons(aiTheme);
+        if (icons) {
+          console.log('✅ Theme icons loaded from cache');
+          setThemeIcons(icons);
+        } else {
+          console.log('🔄 Fetching theme icons from Supabase');
+          // If not cached, fetch and cache theme assets
+          const quotes = await fetchRandomQuote(aiTheme);
+          if (quotes) {
+            // This will trigger caching of theme assets
+            await fetchRandomQuote(aiTheme);
+            // Try to get icons again after caching
+            const newIcons = await getCachedThemeIcons(aiTheme);
+            if (newIcons) {
+              console.log('✅ Theme icons cached and loaded');
+              setThemeIcons(newIcons);
+            }
+          }
         }
       } catch (error) {
-        console.error('Error loading user data:', error);
+        console.error('❌ Error loading user data:', error);
       }
     };
 
     loadUserData();
-  }, []);
+  }, [aiTheme]);
 
   // Pulsating animation for the red dot
   useEffect(() => {
@@ -210,39 +284,51 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       setCurrentImageIndex(nextIndex);
       setIsSpinning(false);
 
-      // Show random quote after 2-5 spins (more frequent)
-      const minSpins = 2;
-      const maxSpins = 5;
+      // Show random quote after 4-10 spins (less frequent)
+      const minSpins = 4;
+      const maxSpins = 10;
       const randomSpinThreshold = Math.floor(Math.random() * (maxSpins - minSpins + 1)) + minSpins;
 
       if (spinCount >= randomSpinThreshold - 1) {
+        // Check theme access logic
+        const deadline = new Date('2026-04-02T00:00:00.000Z');
+        const now = new Date();
+        const isBeforeDeadline = now < deadline;
+
         // Check if theme is purchased or is h2g2 (free)
         const isThemePurchased = purchasedThemes.includes(aiTheme) || aiTheme === 'h2g2';
 
-        if (isThemePurchased) {
-          // Fetch quote from Supabase
+        if (isThemePurchased || isBeforeDeadline) {
+          // Allow access if purchased or before deadline
           const quote = await fetchRandomQuote(aiTheme);
           if (quote) {
             setCurrentQuote(quote);
             setSpinCount(0);
-            // Change to random avatar when quote is displayed
-            const avatarIndices = [1, 2, 3, 4]; // Indices of avatar images (excluding trip42)
-            const randomAvatarIndex = avatarIndices[Math.floor(Math.random() * avatarIndices.length)];
-            setCurrentImageIndex(randomAvatarIndex);
+            // Change to character icon when quote is displayed
+            if (quote.icon) {
+              // Use character icon from database
+              setCurrentImageIndex(-1); // Special index to indicate using remote icon
+            } else {
+              // Fallback to random avatar if no icon in database
+              const avatarIndices = [1, 2, 3, 4]; // Indices of avatar images (excluding trip42)
+              const randomAvatarIndex = avatarIndices[Math.floor(Math.random() * avatarIndices.length)];
+              setCurrentImageIndex(randomAvatarIndex);
+            }
             setIsQuoteMode(true);
           }
         } else {
-          // Trial mode - show message about purchasing theme
+          // After deadline - require purchase for new themes
+          const creditCost = 250;
           Alert.alert(
             'Theme Not Purchased',
-            `The ${aiTheme} theme requires purchase (200 credits). Would you like to purchase it?`,
+            `The ${aiTheme} theme requires purchase (${creditCost} credits). Would you like to purchase it?`,
             [
               { text: 'Cancel', style: 'cancel' },
               {
                 text: 'Purchase',
                 onPress: async () => {
-                  if (userCredits >= 200) {
-                    const newCredits = userCredits - 200;
+                  if (userCredits >= creditCost) {
+                    const newCredits = userCredits - creditCost;
                     const newPurchasedThemes = [...purchasedThemes, aiTheme];
 
                     try {
@@ -256,7 +342,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       Alert.alert('Error', 'Failed to complete purchase');
                     }
                   } else {
-                    Alert.alert('Insufficient Credits', 'You need 200 credits to purchase this theme.');
+                    Alert.alert('Insufficient Credits', `You need ${creditCost} credits to purchase this theme.`);
                   }
                 }
               }
@@ -488,7 +574,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       >
         <TouchableOpacity
           style={styles.dotTouchable}
-          onPress={() => setShowChatbot(true)}
+          onPress={() => setShowChatbotSelector(true)}
         >
           <View style={styles.pulsatingDot} />
         </TouchableOpacity>
@@ -510,9 +596,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         style={styles.versionContainer}
         onPress={() => Platform.OS === 'web' && setShowPwaInfoModal(true)}
       >
-        <Text style={styles.versionText}>v0.5</Text>
+        <Text style={styles.versionText}>v0.6</Text>
         {Platform.OS === 'web' && (
-          <Text style={styles.pwaIndicatorText}>PWA v0.2</Text>
+          <Text style={styles.pwaIndicatorText}>PWA v0.3</Text>
         )}
       </TouchableOpacity>
 
@@ -526,21 +612,39 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             disabled={isSpinning}
           >
             <View style={styles.logoTouchable}>
-              <Animated.Image
-                source={LANDING_IMAGES[currentImageIndex]}
-                style={[
-                  styles.logo,
-                  {
-                    transform: [{
-                      rotateY: spinValue.interpolate({
-                        inputRange: [0, 2160],
-                        outputRange: ['0deg', '2160deg']
-                      })
-                    }]
-                  }
-                ]}
-                resizeMode="contain"
-              />
+              {currentImageIndex === -1 && currentQuote?.icon ? (
+                <Animated.Image
+                  source={{ uri: currentQuote.icon }}
+                  style={[
+                    styles.logo,
+                    {
+                      transform: [{
+                        rotateY: spinValue.interpolate({
+                          inputRange: [0, 2160],
+                          outputRange: ['0deg', '2160deg']
+                        })
+                      }]
+                    }
+                  ]}
+                  resizeMode="contain"
+                />
+              ) : (
+                <Animated.Image
+                  source={LANDING_IMAGES[currentImageIndex]}
+                  style={[
+                    styles.logo,
+                    {
+                      transform: [{
+                        rotateY: spinValue.interpolate({
+                          inputRange: [0, 2160],
+                          outputRange: ['0deg', '2160deg']
+                        })
+                      }]
+                    }
+                  ]}
+                  resizeMode="contain"
+                />
+              )}
             </View>
           </TouchableOpacity>
         </View>
@@ -548,7 +652,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {currentQuote && (
         <View style={styles.quoteContainer}>
-          <Text style={styles.quoteSourceText}>{currentQuote.Source} - {currentQuote.character}</Text>
+          <Text style={styles.quoteSourceText}>{currentQuote.source} - {currentQuote.character}</Text>
           <Text style={styles.quoteText}>"{currentQuote.quote}"</Text>
         </View>
       )}
@@ -561,9 +665,75 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         onNavigateToNotes={onNavigateToNotes}
       />
 
+      {/* Chatbot Selector Modal */}
+      <Modal
+        visible={showChatbotSelector}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowChatbotSelector(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.noteModalContent}>
+            <Text style={styles.chatbotSelectorTitle}>What can I help you with?</Text>
+
+            <TouchableOpacity
+              style={styles.chatbotOption}
+              onPress={() => {
+                setShowChatbotSelector(false);
+                setShowChatbot({ mode: 'faq', visible: true });
+              }}
+            >
+              <Text style={styles.chatbotOptionEmoji}>❓</Text>
+              <View style={styles.chatbotOptionText}>
+                <Text style={styles.chatbotOptionTitle}>Wut?</Text>
+                <Text style={styles.chatbotOptionDesc}>Get help with Trip42 features</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.chatbotOption}
+              onPress={() => {
+                console.log('🎯 Selected Quick Note for theme:', aiTheme);
+                setShowChatbotSelector(false);
+                setShowChatbot({ mode: 'quicknote', visible: true });
+              }}
+            >
+              <Text style={styles.chatbotOptionEmoji}>📝</Text>
+              <View style={styles.chatbotOptionText}>
+                <Text style={styles.chatbotOptionTitle}>Quick Note</Text>
+                <Text style={styles.chatbotOptionDesc}>Turn messy thoughts into notes</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.chatbotOption}
+              onPress={() => {
+                setShowChatbotSelector(false);
+                setShowChatbot({ mode: 'bored', visible: true });
+              }}
+            >
+              <Text style={styles.chatbotOptionEmoji}>😴</Text>
+              <View style={styles.chatbotOptionText}>
+                <Text style={styles.chatbotOptionTitle}>Bored</Text>
+                <Text style={styles.chatbotOptionDesc}>Chat and explore your journey</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.chatbotCancelButton}
+              onPress={() => setShowChatbotSelector(false)}
+            >
+              <Text style={styles.chatbotCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <ChatbotModal
-        visible={showChatbot}
-        onClose={() => setShowChatbot(false)}
+        visible={showChatbot.visible}
+        onClose={() => setShowChatbot({ mode: '', visible: false })}
+        theme={aiTheme}
+        initialMode={showChatbot.mode}
       />
 
       <Modal
@@ -735,6 +905,50 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  chatbotSelectorTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  chatbotOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#374151',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  chatbotOptionEmoji: {
+    fontSize: 24,
+    marginRight: 15,
+  },
+  chatbotOptionText: {
+    flex: 1,
+  },
+  chatbotOptionTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  chatbotOptionDesc: {
+    color: '#9ca3af',
+    fontSize: 14,
+  },
+  chatbotCancelButton: {
+    backgroundColor: '#6b7280',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  chatbotCancelText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   dateTimeContainer: {
     position: 'absolute',

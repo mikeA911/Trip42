@@ -1,14 +1,126 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert, Image, Modal } from 'react-native';
+import { getCharacterForPromptType } from '../services/promptService';
 
 interface FunToolsTabProps {
   onNavigateToTool: (toolId: string) => void;
   onNavigateToScreen: (screen: string) => void;
+  theme?: string;
 }
 
-const FunToolsTab: React.FC<FunToolsTabProps> = ({ onNavigateToTool, onNavigateToScreen }) => {
+const FunToolsTab: React.FC<FunToolsTabProps> = ({ onNavigateToTool, onNavigateToScreen, theme = 'h2g2' }) => {
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [toolsGuideCharacter, setToolsGuideCharacter] = useState<{ character?: string; avatar?: string }>({});
+
+  // Load theme-specific tools guide character
+  useEffect(() => {
+    const loadToolsGuideCharacter = async () => {
+      console.log(`🎯 Loading tools guide character for theme: ${theme}`);
+
+      try {
+        // First try to get from chatbotTools (specific tools guide character)
+        const characterData = await getCharacterForPromptType(theme, 'chatbotTools');
+        console.log('🎯 chatbotTools result:', characterData);
+
+        if (characterData.character) {
+          setToolsGuideCharacter(characterData);
+          console.log('🎯 SUCCESS: Loaded tools guide character from chatbotTools:', characterData.character);
+        } else {
+          // Fallback to chatbotGuide (legacy tools guide character)
+          console.log('⚠️ No chatbotTools character found, trying chatbotGuide');
+          const guideCharacterData = await getCharacterForPromptType(theme, 'chatbotGuide');
+          console.log('🎯 chatbotGuide result:', guideCharacterData);
+
+          if (guideCharacterData.character) {
+            setToolsGuideCharacter(guideCharacterData);
+            console.log('🎯 SUCCESS: Loaded tools guide character from chatbotGuide:', guideCharacterData.character);
+          } else {
+            // Final fallback to chatbotFaq (main theme character)
+            console.log('⚠️ No character data found, trying chatbotFaq');
+            const faqCharacterData = await getCharacterForPromptType(theme, 'chatbotFaq');
+            console.log('🎯 chatbotFaq result:', faqCharacterData);
+
+            if (faqCharacterData.character) {
+              setToolsGuideCharacter(faqCharacterData);
+              console.log('🎯 SUCCESS: Loaded tools guide character from chatbotFaq:', faqCharacterData.character);
+            } else {
+              // Final fallback to theme-specific defaults
+              console.log('⚠️ No character data found, using hardcoded fallback');
+              const fallbackCharacters: { [theme: string]: { character?: string; avatar?: string } } = {
+                'h2g2': { character: 'Ford', avatar: 'fordPretext.png' },
+                'QT-GR': { character: 'Vincent', avatar: 'vincent.png' },
+                'TP': { character: 'Vimes', avatar: 'vimes.png' }
+              };
+              setToolsGuideCharacter(fallbackCharacters[theme] || fallbackCharacters['h2g2']);
+              console.log('🎯 FALLBACK: Using hardcoded character:', fallbackCharacters[theme]?.character || 'Ford');
+            }
+          }
+        }
+      } catch (error) {
+        console.log('⚠️ Could not load tools guide character, using fallback:', error);
+        // Fallback to theme-specific defaults
+        const fallbackCharacters: { [theme: string]: { character?: string; avatar?: string } } = {
+          'h2g2': { character: 'Ford', avatar: 'fordPretext.png' },
+          'QT-GR': { character: 'Vincent', avatar: 'vincent.png' },
+          'TP': { character: 'Vimes', avatar: 'vimes.png' }
+        };
+        setToolsGuideCharacter(fallbackCharacters[theme] || fallbackCharacters['h2g2']);
+        console.log('🎯 ERROR FALLBACK: Using hardcoded character:', fallbackCharacters[theme]?.character || 'Ford');
+      }
+    };
+    loadToolsGuideCharacter();
+  }, [theme]);
+
+  const getAvatarSource = () => {
+    console.log('🎯 Getting avatar source for character:', toolsGuideCharacter.character, 'avatar:', toolsGuideCharacter.avatar);
+
+    // Character to local avatar mapping based on your database mapping
+    const characterAvatarMap: { [key: string]: any } = {
+      // H2G2 theme - chatbotTools
+      'Ford': require('../public/icons/Ford.png'),
+
+      // QT-GR theme - chatbotTools
+      'jules': require('../public/icons/jules.png'),
+
+      // TP theme - chatbotTools
+      'carrot': require('../public/icons/carrot.png'),
+
+      // Other characters from your mapping
+      'marvin': require('../public/icons/marvin.png'),
+      'artur': require('../public/icons/arturDent.png'),
+      'vincent': require('../public/icons/vincent.png'),
+      'wolf': require('../public/icons/wolf.png'),
+      'mia': require('../public/icons/mia.png'),
+      'vimes': require('../public/icons/vimes.png'),
+      'colon': require('../public/icons/colon.png'),
+      'ook': require('../public/icons/ook.png'),
+      'nobbs': require('../public/icons/nobbs.png'),
+
+      // Legacy mappings for backward compatibility
+      'Vincent': require('../public/icons/vincent.png'),
+      'Vimes': require('../public/icons/vimes.png'),
+      'Marvin': require('../public/icons/marvin.png'),
+      'Arthur': require('../public/icons/arturBent.png'),
+      'Zaphod': require('../public/icons/Zaphod.png'),
+    };
+
+    // Map by character name first
+    if (toolsGuideCharacter.character && characterAvatarMap[toolsGuideCharacter.character]) {
+      console.log('🎯 Using character-based avatar mapping:', toolsGuideCharacter.character);
+      return characterAvatarMap[toolsGuideCharacter.character];
+    }
+
+    // Fallback to Ford if no character match
+    console.log('🎯 No character match found, using Ford fallback');
+    return require('../public/icons/Ford.png');
+  };
+
+  const getToolsGuideText = () => {
+    // Try to get theme-specific tools guide text from database
+    // For now, return empty string to remove "Right Then"
+    return '';
+  };
 
   const tools = [
     {
@@ -52,12 +164,13 @@ const FunToolsTab: React.FC<FunToolsTabProps> = ({ onNavigateToTool, onNavigateT
   return (
     <ScrollView style={styles.tabContent}>
       <TouchableOpacity style={styles.avatarContainer} onPress={() => setShowModal(true)}>
-        <Image source={require('../public/icons/fordPretext.png')} style={styles.avatar} />
+        <Image source={getAvatarSource()} style={styles.avatar} />
       </TouchableOpacity>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Ford Pretext's Guide</Text>
+        <Text style={styles.sectionTitle}>Tools Guide</Text>
+        <Text style={styles.characterName}>{toolsGuideCharacter.character || 'Guide'}</Text>
         <Text style={styles.sectionDescription}>
-          Right Then
+          {getToolsGuideText()}
         </Text>
 
         {tools.map((tool) => (
@@ -82,7 +195,7 @@ const FunToolsTab: React.FC<FunToolsTabProps> = ({ onNavigateToTool, onNavigateT
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <ScrollView style={styles.modalScroll}>
-              <Text style={styles.modalTitle}>Tool Introductions (Ford's Way)</Text>
+              <Text style={styles.modalTitle}>Tools Introduction</Text>
               <Text style={styles.modalText}>
                 1. <Text style={styles.linkText} onPress={() => { setShowModal(false); onNavigateToScreen('record'); }}>TRANSLATION Mode</Text>{"\n"}
                 "When you need to actually communicate with someone—and I mean REALLY{"\n"}
@@ -273,6 +386,13 @@ const styles = {
     color: '#000',
     fontSize: 16,
     fontWeight: 'bold' as const,
+  },
+  characterName: {
+    fontSize: 16,
+    color: '#f59e0b',
+    textAlign: 'center' as const,
+    marginBottom: 10,
+    fontStyle: 'italic' as const,
   },
 };
 

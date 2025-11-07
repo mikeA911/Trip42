@@ -4,6 +4,8 @@ import * as Location from 'expo-location';
 import { WebView } from 'react-native-webview';
 import { sharedStyles as styles } from '../styles';
 import { ChatbotModal } from './ChatbotModal';
+import { getPrompt, getThemeCharacter, getCharacterForPromptType } from '../services/promptService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface MapToolProps {
   onBack?: () => void;
@@ -19,10 +21,46 @@ const MapTool: React.FC<MapToolProps> = ({ onBack }) => {
   const [showMapModal, setShowMapModal] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<any>(null);
   const [showFordChatbot, setShowFordChatbot] = useState(false);
+  const [aiTheme, setAiTheme] = useState('h2g2');
+  const [themeCharacter, setThemeCharacter] = useState<{ character?: string; avatar?: string }>({});
 
   useEffect(() => {
     getCurrentLocation();
+    loadUserTheme();
   }, []);
+
+  const loadUserTheme = async () => {
+    try {
+      const savedSettings = await AsyncStorage.getItem('userSettings');
+      if (savedSettings) {
+        const parsedSettings = JSON.parse(savedSettings);
+        setAiTheme(parsedSettings.aiTheme || 'h2g2');
+      }
+    } catch (error) {
+      console.error('Error loading theme:', error);
+    }
+  };
+
+  // Load theme character for map exploration when theme changes
+  useEffect(() => {
+    const loadMapCharacter = async () => {
+      try {
+        const characterData = await getCharacterForPromptType(aiTheme, 'chatbotMap');
+        setThemeCharacter(characterData);
+        console.log('🎯 Loaded map character:', characterData.character);
+      } catch (error) {
+        console.log('⚠️ Could not load map character, using fallback');
+        // Fallback to theme-specific defaults
+        const fallbackCharacters: { [theme: string]: { character?: string; avatar?: string } } = {
+          'h2g2': { character: 'Ford', avatar: 'fordPretext.png' },
+          'QT-GR': { character: 'Vincent', avatar: 'vincent.png' },
+          'TP': { character: 'Vimes', avatar: 'vimes.png' }
+        };
+        setThemeCharacter(fallbackCharacters[aiTheme] || fallbackCharacters['h2g2']);
+      }
+    };
+    loadMapCharacter();
+  }, [aiTheme]);
 
   const getCurrentLocation = async () => {
     try {
@@ -346,7 +384,7 @@ const MapTool: React.FC<MapToolProps> = ({ onBack }) => {
                 style={styles.fullMapButton}
                 onPress={() => setShowFordChatbot(true)}
               >
-                <Text style={styles.fullMapButtonText}>Ask Ford</Text>
+                <Text style={styles.fullMapButtonText}>Ask {themeCharacter.character || 'Ford'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -502,11 +540,11 @@ const MapTool: React.FC<MapToolProps> = ({ onBack }) => {
         </View>
       </Modal>
 
-      {/* Ford Prefect Chatbot Modal */}
+      {/* Theme-based Chatbot Modal */}
       <ChatbotModal
         visible={showFordChatbot}
         onClose={() => setShowFordChatbot(false)}
-        systemPrompt={`You are Ford Pretext, Field Researcher for the Hitchhiker's Guide to the Galaxy,
+        systemPrompt={`You are ${themeCharacter.character || 'Ford Pretext'}, Field Researcher for the Hitchhiker's Guide to the Galaxy,
 and the Local Map Explorer for HitchTrip.
 
 YOUR PURPOSE:
@@ -559,29 +597,29 @@ When user opens the map at their location:
 EXAMPLE SCENARIOS:
 
 **Scenario 1: User Opens Map in Unknown Area**
-FORD: "Right then. You're at [location name], which is [neighborhood type].
+${themeCharacter.character || 'FORD'}: "Right then. You're at [location name], which is [neighborhood type].
 Not sure what that area is like? Go walk around. Look for where locals gather—
 food stalls, coffee shops, morning markets. Those are your real guides.
 What are you curious about?"
 
 **Scenario 2: User Asks "What's Around Here?"**
-FORD: "Hard to say without knowing what interests you. If you need practical
+${themeCharacter.character || 'FORD'}: "Hard to say without knowing what interests you. If you need practical
 things—food, pharmacy, hospital—use the search buttons above. But if you want
 to actually explore the neighborhood, head in that direction (point to map).
 Walk 15 minutes. See what you find. What kind of discovery are you after?"
 
 **Scenario 3: User Needs a Restaurant**
-FORD: "Tap the Restaurants button. That's the fastest way. Or—if you want
+${themeCharacter.character || 'FORD'}: "Tap the Restaurants button. That's the fastest way. Or—if you want
 the REAL experience—walk into a residential area and eat where locals eat.
 Follow the smell of cooking. No English menu? Perfect. Point at what looks good."
 
 **Scenario 4: User is in a Market Area**
-FORD: "You're in a market zone. These are gold—real daily life happens here.
+${themeCharacter.character || 'FORD'}: "You're in a market zone. These are gold—real daily life happens here.
 Walk around. Talk to vendors. Buy something you can't identify. That's the
 adventure. What time is it? Morning markets are different from evening markets."
 
 **Scenario 5: User's Location is Vague**
-FORD: "You're at coordinates [JXQM+RWF], Cambodia. That's a plus code,
+${themeCharacter.character || 'FORD'}: "You're at coordinates [JXQM+RWF], Cambodia. That's a plus code,
 not a neighborhood name—Google Maps sometimes gives these instead of addresses.
 It means you're in a specific spot. Walk around, find street signs, ask a local
 'What's this area called?' That's part of the adventure."
@@ -645,9 +683,10 @@ different—how's it comparing for you so far?"
 
 CRITICAL PRINCIPLE:
 Your job is to make them THINK about exploration, not to DO the exploration for them.
-Ford Pretext is a thinking partner, not a guidebook.`}
-        chatbotName="Ford Pretext"
-        chatbotAvatar={require('../public/icons/fordPretext.png')}
+${themeCharacter.character || 'Ford Pretext'} is a thinking partner, not a guidebook.`}
+        chatbotName={themeCharacter.character || "Ford Pretext"}
+        chatbotAvatar={themeCharacter.avatar ? { uri: themeCharacter.avatar } : require('../public/icons/fordPretext.png')}
+        theme={aiTheme}
       />
     </ScrollView>
   );

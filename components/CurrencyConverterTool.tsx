@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, Alert, Image } from 'react-native';
 import { sharedStyles } from '../styles';
 import { marvinCurrencyConversion } from '../services/geminiService';
+import { getPrompt, getCharacterForPromptType } from '../services/promptService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CurrencyConverterTool = ({
   savedNotes,
@@ -28,6 +30,54 @@ const CurrencyConverterTool = ({
   const [marvinResponse, setMarvinResponse] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [userDefaultCurrency, setUserDefaultCurrency] = useState('USD'); // TODO: Load from settings
+  const [currencyCharacter, setCurrencyCharacter] = useState<{ character?: string; avatar?: string }>({});
+
+  // Load theme character for currency conversion when theme changes
+  useEffect(() => {
+    const loadCurrencyCharacter = async () => {
+      try {
+        const characterData = await getCharacterForPromptType(aiTheme, 'currencyConversion');
+        setCurrencyCharacter(characterData);
+        console.log('🎯 Loaded currency character:', characterData.character);
+      } catch (error) {
+        console.log('⚠️ Could not load currency character, using fallback');
+        // Fallback to theme-specific defaults
+        const fallbackCharacters: { [theme: string]: { character?: string; avatar?: string } } = {
+          'h2g2': { character: 'Marvin', avatar: 'marvin.png' },
+          'QT-GR': { character: 'Vincent', avatar: 'vincent.png' },
+          'TP': { character: 'Vimes', avatar: 'vimes.png' }
+        };
+        setCurrencyCharacter(fallbackCharacters[aiTheme] || fallbackCharacters['h2g2']);
+      }
+    };
+    loadCurrencyCharacter();
+  }, [aiTheme]);
+
+  const getCurrencyAvatar = () => {
+    if (currencyCharacter.avatar?.startsWith('http')) {
+      return { uri: currencyCharacter.avatar };
+    }
+    // Fallback mapping for local avatars
+    const avatarMap: { [key: string]: any } = {
+      'marvin.png': require('../public/icons/marvin.png'),
+      'vincent.png': require('../public/icons/vincent.png'),
+      'vimes.png': require('../public/icons/vimes.png'),
+    };
+    return avatarMap[currencyCharacter.avatar || 'marvin.png'] || require('../public/icons/marvin.png');
+  };
+
+  const getCurrencyTitle = () => {
+    return `${currencyCharacter.character || 'Marvin'}'s Currency Converter`;
+  };
+
+  const getCurrencyGreeting = () => {
+    const greetings: { [theme: string]: string } = {
+      'h2g2': "I Suppose I'd Better Calculate That",
+      'QT-GR': "Let's Make Some Money Moves",
+      'TP': "Guards! Guards! The Money's Moving"
+    };
+    return greetings[aiTheme] || "I Suppose I'd Better Calculate That";
+  };
 
   // Currency extraction logic
   const extractCurrencyInfo = (text: string) => {
@@ -153,11 +203,13 @@ const CurrencyConverterTool = ({
     }
 
     const extractedText = `Convert ${amount} ${fromCurrency} to ${toCurrency}`;
-    setMarvinResponse('🤖 Marvin is thinking...');
+    setMarvinResponse(`🤖 ${currencyCharacter.character || 'Marvin'} is thinking...`);
     setIsProcessing(true);
 
     try {
-      const response = await marvinCurrencyConversion(extractedText, '', undefined, aiTheme);
+      // Get the theme-specific prompt
+      const systemPrompt = await getPrompt(aiTheme, 'currencyConversion');
+      const response = await marvinCurrencyConversion(extractedText, systemPrompt || '', undefined, aiTheme);
 
       setMarvinResponse(response);
 
@@ -171,63 +223,66 @@ const CurrencyConverterTool = ({
 
 
   return (
-    <ScrollView style={sharedStyles.tabContent}>
-      <View style={sharedStyles.section}>
-        <View style={sharedStyles.avatarContainer}>
-          <Image source={require('../public/icons/marvin.png')} style={sharedStyles.avatar} />
-        </View>
-        <Text style={sharedStyles.sectionTitle}>🤖 Marvin's Currency Converter</Text>
-        <Text style={sharedStyles.sectionDescription}>
-          {"\n"}
-          "I Suppose I'd Better Calculate That"
-        </Text>
+    <View style={{ flex: 1 }}>
+      <ScrollView style={sharedStyles.tabContent}>
+        <View style={sharedStyles.section}>
+          <View style={sharedStyles.avatarContainer}>
+            <Image source={getCurrencyAvatar()} style={sharedStyles.avatar} />
+          </View>
+          <Text style={sharedStyles.sectionTitle}>🤖 {getCurrencyTitle()}</Text>
+          <Text style={[sharedStyles.sectionDescription, { color: '#f59e0b', fontWeight: 'bold' }]}>
+            {"\n"}
+            "{getCurrencyGreeting()}"
+          </Text>
 
-        {/* Input */}
-        <View style={sharedStyles.searchSection}>
-          <TextInput
-            style={sharedStyles.searchInput}
-            placeholder="Ask Marvin: 'Convert 100 USD to THB' or 'How much is 50 EUR in VND?'"
-            value={userInput}
-            onChangeText={setUserInput}
-            multiline={true}
-            numberOfLines={3}
-          />
-        </View>
+          {/* Input */}
+          <View style={sharedStyles.searchSection}>
+            <TextInput
+              style={sharedStyles.searchInput}
+              placeholder="Enter currency to convert and what to convert to; e.g. 500 THB to USD"
+              placeholderTextColor="#fff"
+              value={userInput}
+              onChangeText={setUserInput}
+              multiline={true}
+              numberOfLines={3}
+            />
+          </View>
 
-        {/* Extract Button */}
+          {/* Character's Response */}
+          {marvinResponse && (
+            <View style={sharedStyles.resultsSection}>
+              <Text style={sharedStyles.sectionTitle}>🤖 {currencyCharacter.character || 'Marvin'} Says</Text>
+              <View style={{ backgroundColor: '#1f2937', padding: 16, borderRadius: 8, marginTop: 8 }}>
+                <Text style={{ color: '#fff', fontSize: 14 }}>{marvinResponse}</Text>
+              </View>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Footer with buttons */}
+      <View style={sharedStyles.footer}>
+        <TouchableOpacity
+          style={sharedStyles.searchButton}
+          onPress={() => {
+            // Navigate back to fun tools
+            setActiveTab('fun');
+          }}
+        >
+          <Text style={sharedStyles.searchButtonText}>Cancel</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={sharedStyles.searchButton}
           onPress={handleExtractAndConfirm}
           disabled={isProcessing}
         >
           <Text style={sharedStyles.searchButtonText}>
-            {isProcessing ? '🤖 Marvin is thinking...' : 'OK'}
+            {isProcessing ? `🤖 ${currencyCharacter.character || 'Marvin'} is thinking...` : 'OK'}
           </Text>
         </TouchableOpacity>
-
-
-        {/* Cancel Button */}
-        <TouchableOpacity
-          style={sharedStyles.cancelButton}
-          onPress={() => {
-            // Navigate back to landing page
-            setActiveTab('landing');
-          }}
-        >
-          <Text style={sharedStyles.cancelButtonText}>Cancel</Text>
-        </TouchableOpacity>
-
-        {/* Marvin's Response */}
-        {marvinResponse && (
-          <View style={sharedStyles.resultsSection}>
-            <Text style={sharedStyles.sectionTitle}>🤖 Marvin Says</Text>
-            <View style={sharedStyles.resultCard}>
-              <Text style={sharedStyles.resultText}>{marvinResponse}</Text>
-            </View>
-          </View>
-        )}
       </View>
-    </ScrollView>
+    </View>
   );
 };
 

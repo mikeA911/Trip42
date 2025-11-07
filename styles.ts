@@ -361,6 +361,7 @@ const stylesObject = {
     color: '#fff',
     fontSize: 16,
     marginBottom: 10,
+    placeholderTextColor: '#fff',
   },
   searchButton: {
     backgroundColor: '#f59e0b',
@@ -1137,6 +1138,13 @@ const stylesObject = {
     color: '#fff',
     fontSize: 16,
     marginBottom: 8,
+  },
+  footer: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    backgroundColor: '#000',
   },
 };
 
