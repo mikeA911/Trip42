@@ -18,26 +18,29 @@ import SettingsPage from './components/SettingsPage';
 import { useNotes } from './hooks/useNotes';
 import { Note } from './utils/storage';
 import { initializeCredits } from './utils/credits';
+import { logEvent } from './services/loggingService';
 
+import { ToastProvider } from './contexts/ToastContext';
 type AppScreen = 'landing' | 'notes' | 'record' | 'manageNotes' | 'credits' | 'fun' | 'map' | 'medicine' | 'calculator' | 'currency' | 'tetris' | 'settings';
 
-export default function App() {
+function AppContent() {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('landing');
   const { notes, addNote, removeNote, loading } = useNotes();
   const [aiTheme, setAiTheme] = useState('h2g2');
 
   // Initialize credits on app start
   useEffect(() => {
-    const initCredits = async () => {
+    const initApp = async () => {
       try {
         await initializeCredits();
         console.log('Credits initialized successfully');
+        await logEvent({ event_type: 'app_start' });
       } catch (error) {
-        console.error('Failed to initialize credits:', error);
+        console.error('Failed to initialize app:', error);
       }
     };
 
-    initCredits();
+    initApp();
   }, []);
 
   // Auto-navigate to record screen when landing page logo is pressed
@@ -218,6 +221,14 @@ export default function App() {
         </SafeAreaView>
       </GestureHandlerRootView>
     </SafeAreaProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
   );
 }
 

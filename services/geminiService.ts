@@ -295,7 +295,10 @@ export const polishNoteWithGemini = async (
     let prompt: string;
     const themePrompt = await getPrompt(theme, 'notePolishing');
     if (themePrompt) {
-      prompt = themePrompt.replace('{transcription}', transcription);
+      // Ensure we replace both placeholders
+      prompt = themePrompt
+        .replace('{transcription}', transcription)
+        .replace('(original transcription)', transcription);
     } else {
       prompt = `Please polish and improve this note, then give it a good title. Format your response as:
 
