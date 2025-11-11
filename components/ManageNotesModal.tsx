@@ -177,7 +177,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = `trip42_notes_${new Date().toISOString().split('T')[0]}.ike`;
+          a.download = `trip42_notes_${new Date().toISOString().split('T')[0]}.t42`;
           a.click();
           URL.revokeObjectURL(url);
           Alert.alert('Success', `${processedNotes.length} notes exported as collection!`);
@@ -187,7 +187,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         if (processedNotes.length === 1) {
           // Single note - save as .ike file
           const noteJson = JSON.stringify(processedNotes[0], null, 2);
-          const fileName = `${processedNotes[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.ike`;
+          const fileName = `${processedNotes[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.t42`;
 
           try {
             const documentsDir = FileSystem.documentDirectory;
@@ -248,14 +248,14 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         // For web, use file input
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = '.ike';
+        input.accept = '.t42';
         input.multiple = true;
         input.onchange = async (event) => {
           const files = (event.target as HTMLInputElement).files;
           if (files) {
             for (let i = 0; i < files.length; i++) {
               const file = files[i];
-              if (file.name.endsWith('.ike')) {
+              if (file.name.endsWith('.t42')) {
                 const text = await file.text();
                 try {
                   const importedNote: Note = JSON.parse(text);
@@ -284,7 +284,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
 
         if (!result.canceled && result.assets) {
           for (const asset of result.assets) {
-            if (asset.name?.endsWith('.ike')) {
+            if (asset.name?.endsWith('.t42')) {
               const text = await FileSystem.readAsStringAsync(asset.uri);
               try {
                 const importedNote: Note = JSON.parse(text);
@@ -542,7 +542,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
 
       const noteJson = JSON.stringify(exportNote, null, 2);
 
-      const fileName = `${selectedNote.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.ike`;
+      const fileName = `${selectedNote.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.t42`;
 
       if (Platform.OS === 'web') {
         // For web, download the file
