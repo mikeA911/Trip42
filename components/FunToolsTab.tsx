@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, Image, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, Image, Modal, Platform } from 'react-native';
 import { getCharacterForPromptType } from '../services/promptService';
+import { Note, saveNote } from '../utils/storage';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 
 interface FunToolsTabProps {
   onNavigateToTool: (toolId: string) => void;
@@ -107,13 +110,108 @@ const FunToolsTab: React.FC<FunToolsTabProps> = ({ onNavigateToTool, onNavigateT
       title: 'Stacker',
       description: 'Classic block-stacking puzzle game',
       icon: '🧩'
+    },
+    {
+      id: 'import_notes',
+      title: 'Import Notes',
+      description: 'Import notes from .ike files',
+      icon: '📥'
+    },
+    {
+      id: 'notes_archive',
+      title: 'Where do notes go when they die?',
+      description: 'Explore the afterlife of your notes',
+      icon: '💀'
     }
   ];
 
   const handleToolSelect = (toolId: string) => {
     setSelectedTool(toolId);
     // Navigate to specific tool implementation
-    onNavigateToTool(toolId);
+    if (toolId === 'import_notes') {
+      // Handle import notes directly
+      handleImportNotes();
+    } else if (toolId === 'notes_archive') {
+      // Open the notes archive website
+      const url = 'https://ikeweb-eight.vercel.app';
+      if (Platform.OS === 'web') {
+        window.open(url, '_blank');
+      } else {
+        // For mobile, use Linking
+        import('react-native').then(({ Linking }) => {
+          Linking.openURL(url);
+        });
+      }
+    } else {
+      onNavigateToTool(toolId);
+    }
+  };
+
+  const handleImportNotes = async () => {
+    try {
+      if (Platform.OS === 'web') {
+        // For web, use file input
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.ike';
+        input.multiple = true;
+        input.onchange = async (event) => {
+          const files = (event.target as HTMLInputElement).files;
+          if (files) {
+            for (let i = 0; i < files.length; i++) {
+              const file = files[i];
+              if (file.name.endsWith('.ike')) {
+                const text = await file.text();
+                try {
+                  const importedNote: Note = JSON.parse(text);
+                  // Validate the imported note has required fields
+                  if (importedNote.id && importedNote.title && importedNote.text && importedNote.timestamp) {
+                    await saveNote(importedNote);
+                    Alert.alert('Success', `Imported note: ${importedNote.title}`);
+                  } else {
+                    Alert.alert('Error', `Invalid note format in ${file.name}`);
+                  }
+                } catch (parseError) {
+                  Alert.alert('Error', `Failed to parse ${file.name}`);
+                }
+              }
+            }
+            // Refresh notes somehow - this would need to be passed as a prop or handled differently
+            Alert.alert('Import Complete', 'Notes imported successfully!');
+          }
+        };
+        input.click();
+      } else {
+        // For native, use DocumentPicker
+        const result = await DocumentPicker.getDocumentAsync({
+          type: 'application/json',
+          multiple: true,
+        });
+
+        if (!result.canceled && result.assets) {
+          for (const asset of result.assets) {
+            if (asset.name?.endsWith('.ike')) {
+              const text = await FileSystem.readAsStringAsync(asset.uri);
+              try {
+                const importedNote: Note = JSON.parse(text);
+                // Validate the imported note has required fields
+                if (importedNote.id && importedNote.title && importedNote.text && importedNote.timestamp) {
+                  await saveNote(importedNote);
+                  Alert.alert('Success', `Imported note: ${importedNote.title}`);
+                } else {
+                  Alert.alert('Error', `Invalid note format in ${asset.name}`);
+                }
+              } catch (parseError) {
+                Alert.alert('Error', `Failed to parse ${asset.name}`);
+              }
+            }
+          }
+          Alert.alert('Import Complete', 'Notes imported successfully!');
+        }
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to import notes');
+    }
   };
 
   return (

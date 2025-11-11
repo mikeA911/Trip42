@@ -53,6 +53,8 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
 
   const [themeCharacters, setThemeCharacters] = useState<Array<{ character?: string; avatar?: string; promptType?: string }>>([]);
   const [currentMode, setCurrentMode] = useState<string>('arthur');
+  const [currentPromptType, setCurrentPromptType] = useState<string>('chatbotFaq');
+  const { notes } = useNotes();
 
   const fallbackMappings: { [theme: string]: Array<{ character?: string; avatar?: string; promptType?: string }> } = {
     'h2g2': [
@@ -77,14 +79,17 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
     setThemeCharacters(characters);
 
     let mode = initialMode;
+    let promptType = 'chatbotFaq';
     if (mode) {
         const char = characters.find(c => c.promptType === mode);
         if (char) {
             mode = char.character?.toLowerCase();
+            promptType = char.promptType || 'chatbotFaq';
         }
     }
-    
+
     setCurrentMode(mode || characters[0]?.character?.toLowerCase() || 'arthur');
+    setCurrentPromptType(promptType);
 
   }, [theme, initialMode]);
 
@@ -139,7 +144,47 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
     return "Hello!";
   };
   
-  const getRecentNotesContext = (): string => "";
+  const getRecentNotesContext = (promptType: string): string => {
+    if (promptType === 'chatbotBored') {
+      // Collect last 7 notes: original text, location, tags
+      const sortedNotes = notes
+        .filter(note => note.timestamp)
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, 7);
+
+      if (sortedNotes.length === 0) return '';
+
+      const context = sortedNotes.map(note => {
+        const locationStr = note.location
+          ? `Location: ${note.location.latitude.toFixed(4)}, ${note.location.longitude.toFixed(4)}`
+          : 'Location: Not available';
+        const tagsStr = note.tags.length > 0 ? `Tags: ${note.tags.join(', ')}` : 'Tags: None';
+        const originalText = note.originalText || note.text;
+        return `Note: ${originalText}\n${locationStr}\n${tagsStr}`;
+      }).join('\n\n');
+
+      return `\n\nRecent Notes Context:\n${context}\n\n`;
+    } else if (promptType === 'chatbotFaq') {
+      // Collect last 7 notes with tag = FAQ: chat conversation, location, tags
+      const faqNotes = notes
+        .filter(note => note.tags.includes('FAQ') && note.timestamp)
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, 7);
+
+      if (faqNotes.length === 0) return '';
+
+      const context = faqNotes.map(note => {
+        const locationStr = note.location
+          ? `Location: ${note.location.latitude.toFixed(4)}, ${note.location.longitude.toFixed(4)}`
+          : 'Location: Not available';
+        const tagsStr = note.tags.length > 0 ? `Tags: ${note.tags.join(', ')}` : 'Tags: None';
+        return `FAQ Chat: ${note.text}\n${locationStr}\n${tagsStr}`;
+      }).join('\n\n');
+
+      return `\n\nRecent FAQ Chats Context:\n${context}\n\n`;
+    }
+    return '';
+  };
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
@@ -176,7 +221,7 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
       } else {
         const themePrompt = await getPrompt(theme, promptType as any);
         const basePrompt = promptType === 'chatbotFaq' ? CHATBOT_PROMPTS.arthur : CHATBOT_PROMPTS.ford;
-        const prompt = `${themePrompt || basePrompt}${getRecentNotesContext()}\n\nUser: ${inputText}\n\nRespond as ${currentCharacter?.character}:`;
+        const prompt = `${themePrompt || basePrompt}${getRecentNotesContext(promptType || 'chatbotFaq')}\n\nUser: ${inputText}\n\nRespond as ${currentCharacter?.character}:`;
         const aiResponse = await translateTextWithGemini(prompt, 'en', 'en', undefined, prompt);
         response = aiResponse.text;
         if(messages.length >= 1) setShowChatSaveButtons(true);
@@ -209,12 +254,13 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
       } else if (messages.length > 1) {
         const chatCharacter = getCurrentTitle();
         const chatContent = messages.map(msg => `${msg.isUser ? 'You' : chatCharacter}: ${msg.text}`).join('\n\n');
+        const tags = currentPromptType === 'chatbotFaq' ? ['chat', currentMode, 'FAQ'] : ['chat', currentMode];
         const newNote: Note = {
           id: generateNoteId(),
           title: `${chatCharacter} Chat - ${new Date().toLocaleDateString()}`,
           text: chatContent,
           timestamp: new Date().toISOString(),
-          tags: ['chat', currentMode],
+          tags: tags,
           noteType: `${currentMode}_note` as any,
           translations: {},
           attachedMedia: [],

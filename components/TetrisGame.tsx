@@ -595,7 +595,7 @@ const TetrisGame = ({
     >
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         {/* Header with Menu, Times, and Next Piece */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', padding: 15, backgroundColor: '#1f2937', paddingTop: 50 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', padding: 10, backgroundColor: '#1f2937', paddingTop: 40 }}>
           <TouchableOpacity
             style={{ padding: 8 }}
             onPress={() => {
@@ -665,30 +665,41 @@ const TetrisGame = ({
         </View>
 
         {/* Main Game Area */}
-        <View style={{ flex: 1, padding: 20 }}>
+        <View style={{ flex: 1, padding: 10 }}>
           {/* Game Info */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 20 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 10 }}>
             <View style={{ alignItems: 'center' }}>
-              <Text style={{ color: '#fff', fontSize: 14 }}>Score</Text>
-              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{score}</Text>
+              <Text style={{ color: '#fff', fontSize: 12 }}>Score</Text>
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{score}</Text>
             </View>
             <View style={{ alignItems: 'center' }}>
-              <Text style={{ color: '#fff', fontSize: 14 }}>High Score</Text>
-              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{highScore}</Text>
+              <Text style={{ color: '#fff', fontSize: 12 }}>High Score</Text>
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{highScore}</Text>
             </View>
             <View style={{ alignItems: 'center' }}>
-              <Text style={{ color: '#fff', fontSize: 14 }}>Level</Text>
-              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{level}</Text>
+              <Text style={{ color: '#fff', fontSize: 12 }}>Level</Text>
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{level}</Text>
             </View>
             <View style={{ alignItems: 'center' }}>
-              <Text style={{ color: '#fff', fontSize: 14 }}>Lines</Text>
-              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{lines}</Text>
+              <Text style={{ color: '#fff', fontSize: 12 }}>Lines</Text>
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{lines}</Text>
             </View>
           </View>
 
-          {/* Game Board - Full Width */}
+          {/* Game Board - Modal Style */}
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <View style={{ backgroundColor: '#1f2937', padding: 10, borderRadius: 10 }}>
+            <View style={{
+              backgroundColor: 'rgba(31, 41, 55, 0.95)',
+              padding: 15,
+              borderRadius: 15,
+              borderWidth: 2,
+              borderColor: '#f59e0b',
+              shadowColor: '#f59e0b',
+              shadowOffset: { width: 0, height: 0 },
+              shadowOpacity: 0.3,
+              shadowRadius: 10,
+              elevation: 10
+            }}>
               {renderBoard()}
             </View>
           </View>
@@ -696,7 +707,7 @@ const TetrisGame = ({
         </View>
 
         {/* Footer Controls */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-around', padding: 20, backgroundColor: '#1f2937' }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-around', padding: 15, backgroundColor: '#1f2937' }}>
           <TouchableOpacity style={{ backgroundColor: '#374151', borderRadius: 10, width: 50, height: 50, justifyContent: 'center', alignItems: 'center' }} onPress={movePieceLeft}>
             <Text style={{ color: '#fff', fontSize: 24 }}>←</Text>
           </TouchableOpacity>

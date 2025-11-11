@@ -13,7 +13,8 @@ import {
   Platform,
   Linking
 } from 'react-native';
-import { Note, getSettings, saveSettings, saveNote } from '../utils/storage';
+import { Note, saveNote } from '../utils/storage';
+import { getOrCreateSettings, saveSettings } from '../utils/settings';
 import { LANGUAGES } from '../components/SettingsPage';
 import { useNotes } from '../hooks/useNotes';
 import * as ImagePicker from 'expo-image-picker';
@@ -29,65 +30,17 @@ interface ManageNotesModalProps {
   onClose: () => void;
 }
 
-interface FilterOptions {
-  dateRange: 'all' | 'today' | 'before' | 'after';
-  tags: string[];
-  noteType: Note['noteType'] | 'all';
-}
-
-interface SortOptions {
-  field: 'date' | 'title' | 'tag';
-  direction: 'asc' | 'desc';
-}
-
 const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose }) => {
   const { notes, removeNote, editNote, refreshNotes } = useNotes();
   const [selectedNotes, setSelectedNotes] = useState<Set<string>>(new Set());
-  const [filters, setFilters] = useState<FilterOptions>({
-    dateRange: 'all',
-    tags: [],
-    noteType: 'all'
-  });
-  const [filteredNotes, setFilteredNotes] = useState<Note[]>([]);
   const [showNoteDetail, setShowNoteDetail] = useState(false);
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
-  const [tagFilterText, setTagFilterText] = useState('');
-  const [showTagSelector, setShowTagSelector] = useState(false);
-  const [showPeriodSelector, setShowPeriodSelector] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [allTags, setAllTags] = useState<string[]>([
-    'vitals', 'medicine', 'events', 'activities', 'habits',
-    'Work', 'Personal', 'Ideas', 'Health', 'Fitness', 'Nutrition', 'Sleep', 'Mood', 'Energy', 'Focus', 'Creativity'
-  ]);
-  const [enabledLanguages, setEnabledLanguages] = useState<string[]>([]);
-  const [enabledTags, setEnabledTags] = useState<string[]>([]);
   const [showTagSelectorModal, setShowTagSelectorModal] = useState(false);
   const [selectedTagsForNote, setSelectedTagsForNote] = useState<string[]>([]);
   const [showMoreOptionsModal, setShowMoreOptionsModal] = useState(false);
   const [showEditPolishedTextModal, setShowEditPolishedTextModal] = useState(false);
   const [editingPolishedText, setEditingPolishedText] = useState('');
   const [isCreatingPolishedNote, setIsCreatingPolishedNote] = useState(false);
-  // Always sort by date newest first
-  const sortOptions = { field: 'date' as const, direction: 'desc' as const };
-  const [searchText, setSearchText] = useState('');
-
-  // Function to save custom tags to settings
-  const saveCustomTag = async (tag: string) => {
-    try {
-      const currentSettings = await getSettings();
-      const customTags = currentSettings.customTags || [];
-      if (!customTags.includes(tag)) {
-        const updatedSettings = {
-          ...currentSettings,
-          customTags: [...customTags, tag]
-        };
-        await saveSettings(updatedSettings);
-      }
-    } catch (error) {
-      console.error('Error saving custom tag:', error);
-    }
-  };
 
   useEffect(() => {
     if (visible) {
@@ -95,134 +48,14 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       setSelectedNotes(new Set());
       setShowNoteDetail(false);
       setSelectedNote(null);
-      setSearchText('');
-      // Load custom tags from settings and merge with default tags
-      loadCustomTags();
-      // Load enabled languages from settings
-      loadEnabledLanguages();
-      // Load enabled tags from settings
-      loadEnabledTags();
     }
-  }, [visible]); // Remove notes from dependency array to prevent infinite loop
-
-  const loadCustomTags = async () => {
-    try {
-      const settings = await getSettings();
-      const customTags = settings.customTags || [];
-      const uniqueTags = Array.from(new Set(notes.flatMap(note => note.tags || [])));
-      const defaultTags = [
-        'vitals', 'medicine', 'events', 'activities', 'habits',
-        'Work', 'Personal', 'Ideas', 'Health', 'Fitness', 'Nutrition', 'Sleep', 'Mood', 'Energy', 'Focus', 'Creativity'
-      ];
-      const allUniqueTags = Array.from(new Set([...defaultTags, ...uniqueTags, ...customTags]));
-      setAllTags(allUniqueTags);
-    } catch (error) {
-      // Fallback to default behavior
-      const uniqueTags = Array.from(new Set(notes.flatMap(note => note.tags || [])));
-      const defaultTags = [
-        'vitals', 'medicine', 'events', 'activities', 'habits',
-        'Work', 'Personal', 'Ideas', 'Health', 'Fitness', 'Nutrition', 'Sleep', 'Mood', 'Energy', 'Focus', 'Creativity'
-      ];
-      const allUniqueTags = Array.from(new Set([...defaultTags, ...uniqueTags]));
-      setAllTags(allUniqueTags);
-    }
-  };
-
-  const loadEnabledLanguages = async () => {
-    try {
-      const settings = await getSettings();
-      setEnabledLanguages(settings.enabledLanguages || ['en', 'lo', 'km', 'th', 'vi', 'zh', 'ja', 'ko', 'uk', 'fil']);
-    } catch (error) {
-      setEnabledLanguages(['en', 'lo', 'km', 'th', 'vi', 'zh', 'ja', 'ko', 'uk', 'fil']);
-    }
-  };
-
-  const loadEnabledTags = async () => {
-    try {
-      const settings = await getSettings();
-      setEnabledTags(settings.enabledTags || []);
-    } catch (error) {
-      setEnabledTags([]);
-    }
-  };
-
-  useEffect(() => {
-    applyFiltersAndSort();
-  }, [notes, filters, searchText]); // Removed sortOptions from dependencies since it's now constant
-
-  const applyFiltersAndSort = () => {
-    let filtered = [...notes];
-
-    // Search filter - find closest matches
-    if (searchText.trim()) {
-      const searchLower = searchText.toLowerCase();
-      const scoredNotes = filtered.map(note => {
-        const titleIndex = note.title.toLowerCase().indexOf(searchLower);
-        const textIndex = note.text.toLowerCase().indexOf(searchLower);
-
-        // Calculate relevance score (lower is better)
-        let score = 999;
-        if (titleIndex !== -1) {
-          score = titleIndex; // Exact title matches get priority
-        } else if (textIndex !== -1) {
-          score = 100 + textIndex; // Content matches get lower priority
-        }
-
-        return { note, score };
-      }).filter(item => item.score < 999) // Only include matches
-        .sort((a, b) => a.score - b.score); // Sort by relevance
-
-      filtered = scoredNotes.map(item => item.note);
-    }
-
-    // Date filter
-    if (filters.dateRange !== 'all') {
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-      filtered = filtered.filter(note => {
-        const noteDate = new Date(note.timestamp);
-
-        switch (filters.dateRange) {
-          case 'today':
-            return noteDate >= today;
-          case 'before':
-            return noteDate < today;
-          case 'after':
-            return noteDate >= today;
-          default:
-            return true;
-        }
-      });
-    }
-
-    // Tag filter
-    if (filters.tags.length > 0) {
-      filtered = filtered.filter(note =>
-        filters.tags.some(tag => (note.tags || []).includes(tag))
-      );
-    }
-
-    // Note type filter
-    if (filters.noteType !== 'all') {
-      filtered = filtered.filter(note => note.noteType === filters.noteType);
-    }
-
-    // Always sort by date newest first
-    filtered.sort((a, b) => {
-      const aTime = new Date(a.timestamp).getTime();
-      const bTime = new Date(b.timestamp).getTime();
-      return bTime - aTime;
-    });
-
-    setFilteredNotes(filtered);
-  };
+  }, [visible]);
 
   const handleSelectAll = () => {
-    if (selectedNotes.size === filteredNotes.length) {
+    if (selectedNotes.size === notes.length) {
       setSelectedNotes(new Set());
     } else {
-      setSelectedNotes(new Set(filteredNotes.map(note => note.id)));
+      setSelectedNotes(new Set(notes.map(note => note.id)));
     }
   };
 
@@ -473,8 +306,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
 
   const handleNotePress = (note: Note) => {
     if (selectedNotes.size > 0) {
-      // In select mode, only checkbox should select/deselect
-      // Do nothing on note press - user must tap checkbox specifically
+      handleNoteSelect(note.id);
     } else {
       setSelectedNote(note);
       setShowNoteDetail(true);
@@ -566,7 +398,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       // Include location if available and user preference allows
       if (selectedNote.location) {
         // Check location permission setting
-        const settings = await getSettings();
+        const settings = await getOrCreateSettings();
         if (settings.locationPermission === 'always') {
           message += `\n\nLocation: ${selectedNote.location.latitude.toFixed(4)}, ${selectedNote.location.longitude.toFixed(4)}`;
         }
@@ -850,34 +682,35 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
     return (
       <TouchableOpacity
         style={[styles.noteItem, isSelected && styles.noteItemSelected]}
-        onPress={() => handleNotePress(item)}
+        onPress={() => handleNoteSelect(item.id)} // Changed to select/deselect on press
+        activeOpacity={0.7}
       >
         <View style={styles.noteHeader}>
           <TouchableOpacity
             style={styles.checkbox}
-            onPress={() => handleNoteSelect(item.id)}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleNoteSelect(item.id);
+            }}
           >
             <Text style={styles.checkboxText}>{isSelected ? '☑' : '□'}</Text>
           </TouchableOpacity>
 
-          <View style={styles.noteInfo}>
-            <View style={styles.noteTitleRow}>
-              <Text style={styles.typeIcon}>{getTypeIcon(item.noteType)}</Text>
-              <Text style={styles.noteTitle} numberOfLines={1}>
-                {item.title}
-              </Text>
+          <View style={styles.noteContent}>
+            <View style={styles.noteInfo}>
+              <View style={styles.noteTitleRow}>
+                <Text style={styles.typeIcon}>{getTypeIcon(item.noteType)}</Text>
+                <Text style={styles.noteTitle} numberOfLines={1}>
+                  {item.title}
+                </Text>
+              </View>
+              <Text style={styles.noteDate}>{formatDate(item.timestamp)}</Text>
             </View>
-            <Text style={styles.noteDate}>{formatDate(item.timestamp)}</Text>
-          </View>
 
-          <TouchableOpacity
-            style={styles.mediaIndicator}
-            onPress={() => handleNotePress(item)}
-          >
             <Text style={styles.mediaText}>
               {item.attachedMedia && item.attachedMedia.length > 0 ? `📎 ${item.attachedMedia.length}` : '📄'}
             </Text>
-          </TouchableOpacity>
+          </View>
         </View>
 
         <Text style={styles.notePreview} numberOfLines={2}>
@@ -1079,189 +912,36 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
           <View />
         </View>
 
-        {/* Search */}
-        <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by title or content..."
-            placeholderTextColor="#6b7280"
-            value={searchText}
-            onChangeText={setSearchText}
-          />
-        </View>
-
-        {/* Filters */}
-        <View style={styles.filtersContainer}>
-          <View style={styles.filtersRow}>
-            {/* Period Filter Dropdown */}
-            <TouchableOpacity
-              style={styles.filterDropdown}
-              onPress={() => {
-                setShowPeriodSelector(!showPeriodSelector);
-                setShowTagSelector(false);
-              }}
-            >
-              <Text style={styles.filterDropdownText}>
-                {filters.dateRange === 'all' ? 'All Periods' :
-                 filters.dateRange === 'today' ? 'Today' :
-                 filters.dateRange === 'before' ? `Before ${selectedDate.toLocaleDateString()}` :
-                 filters.dateRange === 'after' ? `After ${selectedDate.toLocaleDateString()}` : 'All Periods'}
-              </Text>
-              <Text style={styles.filterDropdownArrow}>{!showPeriodSelector ? '▼' : '▲'}</Text>
-            </TouchableOpacity>
-
-            {/* Tags Filter Dropdown */}
-            <TouchableOpacity
-              style={styles.filterDropdown}
-              onPress={() => {
-                setShowTagSelector(!showTagSelector);
-                setShowPeriodSelector(false);
-              }}
-            >
-              <Text style={styles.filterDropdownText}>
-                {filters.tags.length > 0 ? `${filters.tags.length} tags selected` : 'All Tags'}
-              </Text>
-              <Text style={styles.filterDropdownArrow}>{!showTagSelector ? '▼' : '▲'}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {showTagSelector && (
-            <View style={styles.tagSelectorDropdown}>
-              <ScrollView style={styles.tagList}>
-                {/* Period Options */}
-                <TouchableOpacity
-                  style={[styles.tagOption, filters.dateRange === 'all' && styles.tagOptionSelected]}
-                  onPress={() => setFilters(prev => ({ ...prev, dateRange: 'all' }))}
-                >
-                  <Text style={[styles.tagOptionText, filters.dateRange === 'all' && styles.tagOptionTextSelected]}>
-                    📅 All Periods
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.tagOption, filters.dateRange === 'today' && styles.tagOptionSelected]}
-                  onPress={() => setFilters(prev => ({ ...prev, dateRange: 'today' }))}
-                >
-                  <Text style={[styles.tagOptionText, filters.dateRange === 'today' && styles.tagOptionTextSelected]}>
-                    📆 Today
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.tagOption, filters.dateRange === 'before' && styles.tagOptionSelected]}
-                  onPress={() => setFilters(prev => ({ ...prev, dateRange: 'before' }))}
-                >
-                  <Text style={[styles.tagOptionText, filters.dateRange === 'before' && styles.tagOptionTextSelected]}>
-                    ⏪ Before
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.tagOption, filters.dateRange === 'after' && styles.tagOptionSelected]}
-                  onPress={() => setFilters(prev => ({ ...prev, dateRange: 'after' }))}
-                >
-                  <Text style={[styles.tagOptionText, filters.dateRange === 'after' && styles.tagOptionTextSelected]}>
-                    ⏩ After
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Separator */}
-                <View style={styles.filterSeparator} />
-
-                {/* Tag Options */}
-                {allTags.map(tag => {
-                  // Define icons for permanent tags
-                  const permanentTagIcons: { [key: string]: string } = {
-                    'vitals': '❤️',
-                    'medicine': '💊',
-                    'events': '📅',
-                    'activities': '🏃',
-                    'habits': '🎯',
-                    'Work': '💼',
-                    'Personal': '🏠',
-                    'Ideas': '💡',
-                    'Health': '🏥',
-                    'Fitness': '💪',
-                    'Nutrition': '🥗',
-                    'Sleep': '😴',
-                    'Mood': '😊',
-                    'Energy': '⚡',
-                    'Focus': '🎯',
-                    'Creativity': '🎨'
-                  };
-
-                  const icon = permanentTagIcons[tag] || '🏷️';
-
-                  return (
-                    <TouchableOpacity
-                      key={`tag-${tag}`}
-                      style={[styles.tagOption, filters.tags.includes(tag) && styles.tagOptionSelected, !enabledTags.includes(tag) && { backgroundColor: '#2d3748', opacity: 0.5 }]}
-                      onPress={() => {
-                        const newTags = filters.tags.includes(tag)
-                          ? filters.tags.filter(t => t !== tag)
-                          : [...filters.tags, tag];
-                        setFilters(prev => ({ ...prev, tags: newTags }));
-                      }}
-                      disabled={!enabledTags.includes(tag)}
-                    >
-                      <Text style={[styles.tagOptionText, filters.tags.includes(tag) && styles.tagOptionTextSelected, !enabledTags.includes(tag) && { color: '#6b7280' }]}>
-                        {icon} {tag}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-              <TextInput
-                style={styles.customTagInput}
-                placeholder="Add custom tag"
-                placeholderTextColor="#6b7280"
-                value={tagFilterText}
-                onChangeText={setTagFilterText}
-                onSubmitEditing={() => {
-                  if (tagFilterText.trim()) {
-                    const newTag = tagFilterText.trim();
-                    if (!allTags.includes(newTag)) {
-                      setAllTags(prev => [...prev, newTag]);
-                      // Save custom tag to settings
-                      saveCustomTag(newTag);
-                    }
-                    if (!filters.tags.includes(newTag)) {
-                      setFilters(prev => ({ ...prev, tags: [...prev.tags, newTag] }));
-                    }
-                    setTagFilterText('');
-                  }
-                }}
-              />
-            </View>
-          )}
-        </View>
-
         {/* Selection Header */}
         <View style={styles.selectionHeader}>
-          <TouchableOpacity style={styles.importButton} onPress={handleImportNotes}>
-            <Text style={styles.importText}>Import</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={styles.selectButton} onPress={handleSelectAll}>
             <Text style={styles.selectText}>
-              {selectedNotes.size === filteredNotes.length && filteredNotes.length > 0 ? '☑' : '□'} Select ({filteredNotes.length})
+              {selectedNotes.size === notes.length && notes.length > 0 ? '☑' : '□'} Select All
             </Text>
           </TouchableOpacity>
+          <Text style={styles.selectedCountText}>
+            {selectedNotes.size} selected
+          </Text>
           {selectedNotes.size > 0 && (
-            <>
-              <TouchableOpacity style={styles.actionButton} onPress={handleExportSelected}>
-                <Text style={styles.actionButtonText}>📤 Export ({selectedNotes.size})</Text>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity style={styles.iconButton} onPress={handleExportSelected}>
+                <Text style={styles.actionButtonText}>📤</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton} onPress={handleDeleteSelected}>
-                <Text style={styles.actionButtonText}>🗑️ Delete ({selectedNotes.size})</Text>
+              <TouchableOpacity style={styles.iconButton} onPress={handleDeleteSelected}>
+                <Text style={styles.actionButtonText}>🗑️</Text>
               </TouchableOpacity>
-            </>
+            </View>
           )}
         </View>
 
         {/* Notes List */}
         <FlatList
-          data={filteredNotes}
+          data={notes}
           renderItem={renderNoteItem}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
+          style={{ flex: 1 }}
         />
 
         {renderNoteDetail()}
@@ -1386,69 +1066,11 @@ const styles = {
     fontWeight: 'bold' as const,
     color: '#fff',
   },
-  filtersContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#374151',
-  },
-  filtersScroll: {
-    marginBottom: 10,
-  },
-  filterButton: {
-    backgroundColor: '#374151',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 10,
-  },
-  filterButtonActive: {
-    backgroundColor: '#f59e0b',
-  },
-  filterText: {
-    color: '#d1d5db',
-    fontSize: 14,
-  },
-  filterTextActive: {
-    color: '#000',
-    fontWeight: 'bold' as const,
-  },
-  filterInputs: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-  },
-  tagInput: {
-    flex: 1,
-    backgroundColor: '#374151',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    color: '#fff',
-    fontSize: 14,
-    marginRight: 10,
-  },
-  typeFilter: {
-    backgroundColor: '#374151',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  typeFilterActive: {
-    backgroundColor: '#f59e0b',
-  },
-  typeFilterText: {
-    color: '#d1d5db',
-    fontSize: 14,
-  },
-  typeFilterTextActive: {
-    color: '#000',
-    fontWeight: 'bold' as const,
-  },
   selectionHeader: {
     flexDirection: 'row' as const,
     justifyContent: 'space-between' as const,
     alignItems: 'center' as const,
-    paddingHorizontal: 20,
+    paddingHorizontal: 15,
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#374151',
@@ -1473,6 +1095,12 @@ const styles = {
     fontSize: 16,
     fontWeight: 'bold' as const,
   },
+  selectedCountText: {
+    color: '#f59e0b',
+    fontSize: 14,
+    fontWeight: 'bold' as const,
+    marginLeft: 10,
+  },
   actionButtons: {
     flexDirection: 'row' as const,
   },
@@ -1485,8 +1113,14 @@ const styles = {
   },
   actionButtonText: {
     color: '#f59e0b',
-    fontSize: 14,
+    fontSize: 20,
     fontWeight: 'bold' as const,
+  },
+  iconButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginLeft: 8,
   },
   deleteButton: {
     backgroundColor: '#dc2626',
@@ -1502,8 +1136,8 @@ const styles = {
     borderRadius: 12,
     padding: 15,
     marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#374151',
+    borderWidth: 2,
+    borderColor: '#4b5563',
   },
   noteItemSelected: {
     borderColor: '#f59e0b',
@@ -1519,9 +1153,15 @@ const styles = {
   },
   checkboxText: {
     fontSize: 18,
+    color: '#f59e0b',
   },
   noteInfo: {
     flex: 1,
+  },
+  noteContent: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
   },
   noteTitleRow: {
     flexDirection: 'row' as const,
@@ -1733,49 +1373,6 @@ const styles = {
     fontSize: 14,
     margin: 10,
   },
-  searchContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#374151',
-  },
-  searchInput: {
-    backgroundColor: '#374151',
-    borderRadius: 8,
-    padding: 12,
-    color: '#fff',
-    fontSize: 16,
-  },
-  sortContainer: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    flexWrap: 'wrap' as const,
-  },
-  sortLabel: {
-    color: '#f59e0b',
-    fontSize: 14,
-    fontWeight: 'bold' as const,
-    marginRight: 10,
-  },
-  sortButton: {
-    backgroundColor: '#374151',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    marginRight: 8,
-    marginBottom: 4,
-  },
-  sortButtonActive: {
-    backgroundColor: '#f59e0b',
-  },
-  sortButtonText: {
-    color: '#d1d5db',
-    fontSize: 12,
-    fontWeight: 'bold' as const,
-  },
-  sortButtonTextActive: {
-    color: '#000',
-  },
   section: {
     marginBottom: 20,
   },
@@ -1897,35 +1494,6 @@ const styles = {
     color: '#fff',
     fontSize: 14,
     fontWeight: 'bold' as const,
-  },
-  filtersRow: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
-  },
-  filterDropdown: {
-    flex: 1,
-    backgroundColor: '#374151',
-    borderRadius: 8,
-    padding: 12,
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
-    marginHorizontal: 5,
-  },
-  filterDropdownText: {
-    color: '#f59e0b',
-    fontSize: 14,
-  },
-  filterDropdownArrow: {
-    color: '#f59e0b',
-    fontSize: 14,
-    fontWeight: 'bold' as const,
-  },
-  filterSeparator: {
-    height: 1,
-    backgroundColor: '#374151',
-    marginVertical: 10,
   },
   tagSelectorItem: {
     flex: 1,
@@ -2236,7 +1804,7 @@ const TagSelectorModal: React.FC<{
 
   const loadAvailableTags = async () => {
     try {
-      const settings = await getSettings();
+      const settings = await getOrCreateSettings();
       const enabledTags = settings.enabledTags || [];
       const customTags = settings.customTags || [];
       const defaultTags = [
@@ -2255,7 +1823,7 @@ const TagSelectorModal: React.FC<{
 
   const saveCustomTag = async (tag: string) => {
     try {
-      const currentSettings = await getSettings();
+      const currentSettings = await getOrCreateSettings();
       const customTags = currentSettings.customTags || [];
       if (!customTags.includes(tag)) {
         const updatedSettings = {

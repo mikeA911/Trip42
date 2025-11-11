@@ -620,7 +620,7 @@ When the user exits - prompt user if they want to save the chat dialogue.  if ye
                 onPress={handleMarvinChat}
                 disabled={!marvinInput.trim() || isMarvinLoading}
               >
-                <Text style={marvinStyles.marvinSendButtonText}>Consult Marvin</Text>
+                <Text style={marvinStyles.marvinSendButtonText}>Consult</Text>
               </TouchableOpacity>
             </View>
 
