@@ -144,7 +144,6 @@ export const shareNoteWithImages = async (shareText, platform, selectedNote) => 
       shareText += `\n\n⚠️ ${failedCount} image${failedCount > 1 ? 's' : ''} failed to upload`;
     }
 
-    
 
     // Now share the text with image URLs
     await shareNoteTextOnly(shareText, platform);

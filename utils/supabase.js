@@ -10,7 +10,7 @@ const debugNetworkRequest = (url, method, headers, body) => {};
 const debugNetworkResponse = (url, status, headers, result) => {};
 
 // Helper function to convert blob to base64
-const blobToBase64 = (blob) => {
+export const blobToBase64 = (blob) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {

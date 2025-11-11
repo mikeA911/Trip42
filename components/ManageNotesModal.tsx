@@ -22,13 +22,24 @@ import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
-import { supabase, uploadImageForSharing } from '../supabase';
+import { supabase, uploadImageForSharing, blobToBase64 } from '../utils/supabase'; // Corrected import path
 import { polishNoteWithGemini } from '../services/geminiService';
-
 interface ManageNotesModalProps {
   visible: boolean;
   onClose: () => void;
 }
+
+// Helper function to determine MIME type from URI
+const getMimeType = (uri: string): string => {
+  if (uri.includes('.mp3')) return 'audio/mpeg';
+  if (uri.includes('.wav')) return 'audio/wav';
+  if (uri.includes('.m4a')) return 'audio/m4a';
+  if (uri.includes('.jpg') || uri.includes('.jpeg')) return 'image/jpeg';
+  if (uri.includes('.png')) return 'image/png';
+  if (uri.includes('.gif')) return 'image/gif';
+  // Default to image/jpeg if type cannot be determined
+  return 'image/jpeg';
+};
 
 const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose }) => {
   const { notes, removeNote, editNote, refreshNotes } = useNotes();
@@ -125,22 +136,29 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
                 const blob = await response.blob();
                 base64Data = await new Promise((resolve, reject) => {
                   const reader = new FileReader();
-                  reader.onload = () => resolve(reader.result as string);
+                  reader.onload = () => {
+                    const dataUrl = reader.result as string;
+                    // Extract raw base64 data (remove "data:mime/type;base64," prefix)
+                    base64Data = dataUrl.split(',')[1];
+                    resolve(base64Data);
+                  };
                   reader.onerror = () => reject(new Error('FileReader failed'));
                   reader.readAsDataURL(blob);
                 });
+                const mimeType = getMimeType(mediaUri); // Use the new getMimeType helper
+                base64Data = `data:${mimeType};base64,${base64Data}`;
               } else {
                 // For native, read file as base64
                 const rawBase64 = await FileSystem.readAsStringAsync(mediaUri, {
                   encoding: FileSystem.EncodingType.Base64,
                 });
-                const isAudio = mediaUri.includes('.mp3') || mediaUri.includes('.wav') || mediaUri.includes('.m4a');
-                const mimeType = isAudio ? 'audio/mpeg' : 'image/jpeg';
+                const mimeType = getMimeType(mediaUri); // Use the new getMimeType helper
                 base64Data = `data:${mimeType};base64,${rawBase64}`;
               }
 
               processedMedia.push(base64Data);
             } catch (mediaError) {
+              console.error('Error processing media:', mediaError);
               processedMedia.push(mediaUri); // Keep original URI if processing fails
             }
           }
@@ -560,22 +578,24 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               base64Data = await new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = () => {
-                  resolve(reader.result as string);
+                  const dataUrl = reader.result as string;
+                  // Extract raw base64 data (remove "data:mime/type;base64," prefix)
+                  base64Data = dataUrl.split(',')[1];
+                  resolve(base64Data);
                 };
                 reader.onerror = () => {
                   reject(new Error('FileReader failed'));
                 };
                 reader.readAsDataURL(blob);
               });
+              const mimeType = getMimeType(mediaUri); // Use the new getMimeType helper
+              base64Data = `data:${mimeType};base64,${base64Data}`;
             } else {
               // For native, read file as base64
               const rawBase64 = await FileSystem.readAsStringAsync(mediaUri, {
                 encoding: FileSystem.EncodingType.Base64,
               });
-
-              // Add data URL prefix based on file type
-              const isAudio = mediaUri.includes('.mp3') || mediaUri.includes('.wav') || mediaUri.includes('.m4a');
-              const mimeType = isAudio ? 'audio/mpeg' : 'image/jpeg';
+              const mimeType = getMimeType(mediaUri); // Use the new getMimeType helper
               base64Data = `data:${mimeType};base64,${rawBase64}`;
             }
 
@@ -1417,7 +1437,7 @@ const styles = {
   tagOptionText: {
     color: '#d1d5db',
     fontSize: 14,
-  },
+    },
   tagOptionTextSelected: {
     color: '#000',
     fontWeight: 'bold' as const,
@@ -1548,7 +1568,6 @@ const styles = {
   },
   deleteActionButton: {
     backgroundColor: '#dc2626',
-    borderRadius: 6,
   },
   deleteActionText: {
     color: '#fff',
@@ -1717,6 +1736,7 @@ const styles = {
   },
   tagSelectorOptionTextSelected: {
     color: '#000',
+    fontWeight: 'bold' as const,
   },
   disabledButton: {
     opacity: 0.5,
