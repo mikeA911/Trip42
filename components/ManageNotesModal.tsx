@@ -153,7 +153,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       const processedNotes = await Promise.all(exportPromises);
 
       if (Platform.OS === 'web') {
-        // For web, create individual .ike files or a zip
+        // For web, use File System Access API to let user choose save location
         if (processedNotes.length === 1) {
           // Single note - download as .ike file
           const noteJson = JSON.stringify(processedNotes[0], null, 2);
