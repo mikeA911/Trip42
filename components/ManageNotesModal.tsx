@@ -41,6 +41,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   const [showEditPolishedTextModal, setShowEditPolishedTextModal] = useState(false);
   const [editingPolishedText, setEditingPolishedText] = useState('');
   const [isCreatingPolishedNote, setIsCreatingPolishedNote] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -99,6 +100,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   const handleExportSelected = async () => {
     if (selectedNotes.size === 0) return;
 
+    setIsExporting(true);
     try {
       const notesToExport = notes.filter(note => selectedNotes.has(note.id));
 
@@ -219,6 +221,8 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to export notes');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -924,8 +928,14 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
           </Text>
           {selectedNotes.size > 0 && (
             <View style={styles.actionButtons}>
-              <TouchableOpacity style={styles.iconButton} onPress={handleExportSelected}>
-                <Text style={styles.actionButtonText}>📤</Text>
+              <TouchableOpacity
+                style={[styles.iconButton, isExporting && styles.disabledButton]}
+                onPress={handleExportSelected}
+                disabled={isExporting}
+              >
+                <Text style={[styles.actionButtonText, isExporting && styles.disabledText]}>
+                  {isExporting ? '⏳' : '📤'}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.iconButton} onPress={handleDeleteSelected}>
                 <Text style={styles.actionButtonText}>🗑️</Text>
