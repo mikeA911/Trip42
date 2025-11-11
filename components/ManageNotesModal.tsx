@@ -100,6 +100,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   const handleExportSelected = async () => {
     if (selectedNotes.size === 0) return;
 
+    console.log('Starting export for', selectedNotes.size, 'notes');
     setIsExporting(true);
     try {
       const notesToExport = notes.filter(note => selectedNotes.has(note.id));
@@ -153,7 +154,8 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       const processedNotes = await Promise.all(exportPromises);
 
       if (Platform.OS === 'web') {
-        // For web, use File System Access API to let user choose save location
+        console.log('Exporting to web platform');
+        // For web, use traditional download
         if (processedNotes.length === 1) {
           // Single note - download as .ike file
           const noteJson = JSON.stringify(processedNotes[0], null, 2);
@@ -164,7 +166,20 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
           a.download = `${processedNotes[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.t42`;
           a.click();
           URL.revokeObjectURL(url);
-          Alert.alert('Success', `Note exported as ${processedNotes[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.t42`);
+          console.log('Web export completed successfully');
+          Alert.alert(
+            'Success',
+            `Note exported as ${processedNotes[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.t42\n\nFile saved to Downloads folder.`,
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  console.log('Clearing selections after export');
+                  setSelectedNotes(new Set());
+                }
+              }
+            ]
+          );
         } else {
           // Multiple notes - create a collection file
           const collectionData = {
@@ -180,9 +195,21 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
           a.download = `trip42_notes_${new Date().toISOString().split('T')[0]}.t42`;
           a.click();
           URL.revokeObjectURL(url);
-          Alert.alert('Success', `${processedNotes.length} notes exported as collection!`);
+          Alert.alert(
+            'Success',
+            `${processedNotes.length} notes exported as collection!\n\nFile saved to Downloads folder.`,
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  setSelectedNotes(new Set());
+                }
+              }
+            ]
+          );
         }
       } else {
+        console.log('Exporting to native platform');
         // For native platforms
         if (processedNotes.length === 1) {
           // Single note - save as .ike file
@@ -196,7 +223,18 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               await FileSystem.writeAsStringAsync(fileUri, noteJson, {
                 encoding: FileSystem.EncodingType.UTF8,
               });
-              Alert.alert('Success', `Note saved to Documents as ${fileName}`);
+              Alert.alert(
+                'Success',
+                `Note saved to Documents as ${fileName}\n\nLocation: ${fileUri}`,
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      setSelectedNotes(new Set());
+                    }
+                  }
+                ]
+              );
             } else {
               throw new Error('No documents directory available');
             }
@@ -216,10 +254,22 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             message: jsonBlob,
             title: `Trip42 Notes Export - ${processedNotes.length} notes`
           });
-          Alert.alert('Success', `${processedNotes.length} notes exported!`);
+          Alert.alert(
+            'Success',
+            `${processedNotes.length} notes exported!\n\nFiles saved to Documents directory.`,
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  setSelectedNotes(new Set());
+                }
+              }
+            ]
+          );
         }
       }
     } catch (error) {
+      console.error('Export error:', error);
       Alert.alert('Error', 'Failed to export notes');
     } finally {
       setIsExporting(false);
