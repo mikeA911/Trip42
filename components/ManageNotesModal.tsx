@@ -161,10 +161,10 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = `${processedNotes[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.ike`;
+          a.download = `${processedNotes[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.t42`;
           a.click();
           URL.revokeObjectURL(url);
-          Alert.alert('Success', `Note exported as ${processedNotes[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.ike`);
+          Alert.alert('Success', `Note exported as ${processedNotes[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.t42`);
         } else {
           // Multiple notes - create a collection file
           const collectionData = {
