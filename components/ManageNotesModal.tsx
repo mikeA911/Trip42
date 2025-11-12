@@ -472,17 +472,24 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   };
 
   const handlePhotoOptions = () => {
+    console.log('DEBUG: handlePhotoOptions called');
     Alert.alert(
-      'Attach Photo',
+      'DEBUG: Attach Photo Button Pressed',
       'Choose photo source:',
       [
         {
           text: '📷 Take Photo',
-          onPress: () => handleAddMediaToNote('camera')
+          onPress: () => {
+            console.log('DEBUG: Camera option selected');
+            handleAddMediaToNote('camera');
+          }
         },
         {
           text: '🖼️ Choose from Gallery',
-          onPress: () => handleAddMediaToNote('gallery')
+          onPress: () => {
+            console.log('DEBUG: Gallery option selected');
+            handleAddMediaToNote('gallery');
+          }
         },
         { text: 'Cancel', style: 'cancel' }
       ]
@@ -490,12 +497,32 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   };
 
   const handleAddMediaToNote = async (source: 'camera' | 'gallery' = 'gallery') => {
-    if (!selectedNote) return;
+    if (!selectedNote) {
+      console.log('DEBUG: No selected note found');
+      Alert.alert('Error', 'No note selected');
+      return;
+    }
 
+    console.log('DEBUG: handleAddMediaToNote called with source:', source);
+    console.log('DEBUG: Platform.OS:', Platform.OS);
+    
+    // Check if we're running in a PWA or web environment
+    const isWebPlatform = Platform.OS === 'web';
+    
+    if (isWebPlatform) {
+      console.log('DEBUG: Web platform detected, using file input fallback');
+      // Handle web/PWA environment with file input fallback
+      await handleWebMediaAttach();
+      return;
+    }
+
+    // Original native logic for iOS/Android
     try {
       let permissionStatus;
       let pickerFunction;
       let permissionMessage;
+
+      console.log('DEBUG: Requesting permissions for source:', source);
 
       if (source === 'camera') {
         permissionStatus = await ImagePicker.requestCameraPermissionsAsync();
@@ -507,17 +534,22 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         permissionMessage = 'Media library permission is required';
       }
 
+      console.log('DEBUG: Permission status:', permissionStatus.status);
+
       if (permissionStatus.status !== 'granted') {
         Alert.alert('Permission needed', permissionMessage);
         return;
       }
 
+      console.log('DEBUG: Launching camera/gallery picker');
       const result = await pickerFunction({
         mediaTypes: ImagePicker.MediaTypeOptions.All,
         allowsEditing: false,
         quality: 0.8,
         base64: true,
       });
+
+      console.log('DEBUG: Image picker result:', result);
 
       if (!result.canceled && result.assets[0]) {
         let mediaUriToSave = result.assets[0].uri;
@@ -553,8 +585,58 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         refreshNotes();
       }
     } catch (error) {
+      console.error('DEBUG: Error in handleAddMediaToNote:', error);
       Alert.alert('Error', 'Failed to add media');
     }
+  };
+
+  const handleWebMediaAttach = async () => {
+    console.log('DEBUG: Starting web media attach');
+    
+    return new Promise<void>((resolve) => {
+      // Create a hidden file input element for web/PWA
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*,video/*,audio/*';
+      input.setAttribute('capture', 'environment');
+      
+      console.log('DEBUG: File input created, clicking...');
+      
+      input.onchange = async (event) => {
+        const file = (event.target as HTMLInputElement).files?.[0];
+        console.log('DEBUG: File selected:', file?.name, file?.type);
+        
+        if (file) {
+          try {
+            // Convert file to base64 data URL for React Native compatibility
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+              const result = e.target?.result as string;
+              console.log('DEBUG: File converted to base64');
+              
+              const updatedNote = {
+                ...selectedNote!,
+                attachedMedia: [...selectedNote!.attachedMedia, result]
+              };
+
+              await editNote(updatedNote);
+              setSelectedNote(updatedNote);
+              refreshNotes();
+              Alert.alert('Success', 'Media attached successfully!');
+            };
+            reader.readAsDataURL(file);
+          } catch (error) {
+            console.error('DEBUG: Error processing file:', error);
+            Alert.alert('Error', 'Failed to process selected file');
+          }
+        } else {
+          console.log('DEBUG: No file selected');
+        }
+        resolve();
+      };
+
+      input.click();
+    });
   };
 
   const handleSaveMediaFromNote = async (mediaUri: string) => {
