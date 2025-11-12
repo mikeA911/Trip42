@@ -21,17 +21,47 @@ const TypingView: React.FC<TypingViewProps> = ({
   setAttachedMedia = () => {}
 }) => {
   const { showSuccess, showError } = useToast();
-  const handleAttachPhoto = async () => {
+  const handlePhotoOptions = () => {
+    Alert.alert(
+      'Attach Photo',
+      'Choose photo source:',
+      [
+        {
+          text: '📷 Take Photo',
+          onPress: () => handleAttachPhoto('camera')
+        },
+        {
+          text: '🖼️ Choose from Gallery',
+          onPress: () => handleAttachPhoto('gallery')
+        },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
+
+  const handleAttachPhoto = async (source: 'camera' | 'gallery' = 'camera') => {
     try {
-      // Request camera permissions
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Camera permission is required to attach photos');
+      let permissionStatus;
+      let pickerFunction;
+      let permissionMessage;
+
+      if (source === 'camera') {
+        permissionStatus = await ImagePicker.requestCameraPermissionsAsync();
+        pickerFunction = ImagePicker.launchCameraAsync;
+        permissionMessage = 'Camera permission is required to attach photos';
+      } else {
+        permissionStatus = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        pickerFunction = ImagePicker.launchImageLibraryAsync;
+        permissionMessage = 'Media library permission is required to attach photos';
+      }
+
+      if (permissionStatus.status !== 'granted') {
+        Alert.alert('Permission needed', permissionMessage);
         return;
       }
 
-      // Launch camera
-      const result = await ImagePicker.launchCameraAsync({
+      // Launch camera or gallery
+      const result = await pickerFunction({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
         quality: 0.8,
@@ -99,7 +129,7 @@ const TypingView: React.FC<TypingViewProps> = ({
         )}
 
         {/* Attach Photo Button */}
-        <TouchableOpacity style={styles.attachButton} onPress={handleAttachPhoto}>
+        <TouchableOpacity style={styles.attachButton} onPress={handlePhotoOptions}>
           <Text style={styles.attachButtonText}>📷 Attach Photo</Text>
         </TouchableOpacity>
       </ScrollView>

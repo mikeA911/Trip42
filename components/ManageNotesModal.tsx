@@ -25,6 +25,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { supabase, uploadImageForSharing, blobToBase64 } from '../utils/supabase'; // Corrected import path
 import { polishNoteWithGemini } from '../services/geminiService';
 import { Audio } from 'expo-av'; // Import Audio from expo-av
+import { getThemeCharacters } from '../services/promptService'; // Import getThemeCharacters
 
 interface ManageNotesModalProps {
   visible: boolean;
@@ -470,17 +471,48 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
     );
   };
 
-  const handleAddMediaToNote = async () => {
+  const handlePhotoOptions = () => {
+    Alert.alert(
+      'Attach Photo',
+      'Choose photo source:',
+      [
+        {
+          text: '📷 Take Photo',
+          onPress: () => handleAddMediaToNote('camera')
+        },
+        {
+          text: '🖼️ Choose from Gallery',
+          onPress: () => handleAddMediaToNote('gallery')
+        },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
+
+  const handleAddMediaToNote = async (source: 'camera' | 'gallery' = 'gallery') => {
     if (!selectedNote) return;
 
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Media library permission is required');
+      let permissionStatus;
+      let pickerFunction;
+      let permissionMessage;
+
+      if (source === 'camera') {
+        permissionStatus = await ImagePicker.requestCameraPermissionsAsync();
+        pickerFunction = ImagePicker.launchCameraAsync;
+        permissionMessage = 'Camera permission is required';
+      } else {
+        permissionStatus = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        pickerFunction = ImagePicker.launchImageLibraryAsync;
+        permissionMessage = 'Media library permission is required';
+      }
+
+      if (permissionStatus.status !== 'granted') {
+        Alert.alert('Permission needed', permissionMessage);
         return;
       }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
+      const result = await pickerFunction({
         mediaTypes: ImagePicker.MediaTypeOptions.All,
         allowsEditing: false,
         quality: 0.8,
@@ -812,7 +844,23 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
     setIsCreatingPolishedNote(true);
     try {
       const sourceText = selectedNote.originalText || selectedNote.text;
-      const result = await polishNoteWithGemini(sourceText);
+
+      // Get current AI theme from settings
+      const settings = await getOrCreateSettings();
+      const aiTheme = settings.aiTheme;
+
+      // Fetch characters for the current theme
+      const charactersInTheme = await getThemeCharacters(aiTheme);
+
+      let selectedCharacter: string | undefined;
+      if (charactersInTheme.length > 0) {
+        selectedCharacter = charactersInTheme[Math.floor(Math.random() * charactersInTheme.length)];
+      } else {
+        // Fallback if no characters found for the theme
+        selectedCharacter = undefined; // No default character if none found
+      }
+
+      const result = await polishNoteWithGemini(sourceText, selectedCharacter);
 
       const updatedNote = {
         ...selectedNote,
@@ -823,7 +871,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       await editNote(updatedNote);
       setSelectedNote(updatedNote);
       refreshNotes();
-      Alert.alert('Success', 'Polished note created!');
+      Alert.alert('Success', `Polished note created by ${selectedCharacter}!`);
     } catch (error) {
       Alert.alert('Error', 'Failed to create polished note');
     } finally {
@@ -1064,7 +1112,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
                 'Add to Note',
                 'Choose what to add:',
                 [
-                  { text: 'Photo', onPress: handleAddMediaToNote },
+                  { text: 'Photo', onPress: handlePhotoOptions },
                   { text: 'Tag', onPress: () => {
                     setSelectedTagsForNote(selectedNote?.tags || []);
                     setShowTagSelectorModal(true);
