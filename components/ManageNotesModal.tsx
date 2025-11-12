@@ -137,22 +137,34 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               let base64Data: string;
 
               if (Platform.OS === 'web') {
-                // For web, fetch the blob and convert to base64
-                const response = await fetch(mediaUri);
-                const blob = await response.blob();
-                base64Data = await new Promise((resolve, reject) => {
-                  const reader = new FileReader();
-                  reader.onload = () => {
-                    const dataUrl = reader.result as string;
-                    // Extract raw base64 data (remove "data:mime/type;base64," prefix)
-                    base64Data = dataUrl.split(',')[1];
-                    resolve(base64Data);
-                  };
-                  reader.onerror = () => reject(new Error('FileReader failed'));
-                  reader.readAsDataURL(blob);
-                });
-                const mimeType = getMimeType(mediaUri); // Use the new getMimeType helper
-                base64Data = `data:${mimeType};base64,${base64Data}`;
+                if (mediaUri.startsWith('data:')) {
+                  // Already a data URL (base64), use it directly
+                  base64Data = mediaUri;
+                } else if (mediaUri.startsWith('blob:')) {
+                  // Blob URL, fetch and convert to base64
+                  const response = await fetch(mediaUri);
+                  if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                  }
+                  const blob = await response.blob();
+                  const mimeType = blob.type; // Get MIME type from the blob
+
+                  base64Data = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      const dataUrl = reader.result as string;
+                      // Extract raw base64 data (remove "data:mime/type;base64," prefix)
+                      const rawBase64 = dataUrl.split(',')[1];
+                      resolve(rawBase64);
+                    };
+                    reader.onerror = (e) => reject(new Error('FileReader failed'));
+                    reader.readAsDataURL(blob);
+                  });
+                  base64Data = `data:${mimeType};base64,${base64Data}`;
+                } else {
+                  // Unknown URI type on web, keep original
+                  base64Data = mediaUri;
+                }
               } else {
                 // For native, read file as base64
                 const rawBase64 = await FileSystem.readAsStringAsync(mediaUri, {
@@ -163,9 +175,9 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               }
 
               processedMedia.push(base64Data);
-              console.log(`Debug Export: Processed ${getMimeType(mediaUri).split('/')[0]} media. First 50 chars: ${base64Data.substring(0, 50)}...`);
+              Alert.alert('Debug Export', `Processed ${getMimeType(mediaUri).split('/')[0]} media. First 50 chars: ${base64Data.substring(0, 50)}...`);
             } catch (mediaError) {
-              console.error('Error processing media:', mediaError);
+              console.error('Error processing media for export:', mediaError);
               processedMedia.push(mediaUri); // Keep original URI if processing fails
             }
           }
@@ -427,6 +439,38 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
     }
   };
 
+  const handleRemoveMediaFromNote = async (mediaUriToRemove: string) => {
+    if (!selectedNote) return;
+
+    Alert.alert(
+      'Remove Media',
+      'Are you sure you want to remove this media from the note? This will not delete the file from your device.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const updatedMedia = selectedNote.attachedMedia.filter(uri => uri !== mediaUriToRemove);
+              const updatedNote = {
+                ...selectedNote,
+                attachedMedia: updatedMedia
+              };
+              await editNote(updatedNote);
+              setSelectedNote(updatedNote);
+              refreshNotes();
+              Alert.alert('Success', 'Media removed from note.');
+            } catch (error) {
+              console.error('Error removing media:', error);
+              Alert.alert('Error', 'Failed to remove media from note.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleAddMediaToNote = async () => {
     if (!selectedNote) return;
 
@@ -642,9 +686,9 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             }
 
             processedMedia.push(base64Data);
-            console.log(`Debug Export: Processed ${getMimeType(mediaUri).split('/')[0]} media. First 50 chars: ${base64Data.substring(0, 50)}...`);
+            Alert.alert('Debug Export', `Processed ${getMimeType(mediaUri).split('/')[0]} media. First 50 chars: ${base64Data.substring(0, 50)}...`);
           } catch (mediaError) {
-            console.error('Error processing media:', mediaError);
+            console.error('Error processing media for export:', mediaError);
             // Keep original URI if processing fails
             processedMedia.push(mediaUri);
           }
@@ -864,14 +908,14 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               </TouchableOpacity>
 
               {/* Original Text if different */}
-              {selectedNote.originalText && selectedNote.originalText !== selectedNote.text && (
+              {(selectedNote.originalText && selectedNote.originalText !== selectedNote.text) || !selectedNote.polishedText ? (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Original:</Text>
-                  <TouchableOpacity onLongPress={() => handleCopyText(selectedNote.originalText!, 'Original text')}>
-                    <Text style={styles.originalText} selectable={true}>{selectedNote.originalText}</Text>
+                  <TouchableOpacity onLongPress={() => handleCopyText(selectedNote.originalText || selectedNote.text, 'Original text')}>
+                    <Text style={styles.originalText} selectable={true}>{selectedNote.originalText || selectedNote.text}</Text>
                   </TouchableOpacity>
                 </View>
-              )}
+              ) : null}
 
               {/* Polished Text Section */}
               <View style={styles.section}>
@@ -946,12 +990,20 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
                           onPress={() => handleImagePressForViewer(mediaUri)}
                         >
                           <Image source={{ uri: mediaUri }} style={styles.mediaImage} />
-                          <TouchableOpacity
-                            style={styles.saveMediaButton}
-                            onPress={() => handleSaveMediaFromNote(mediaUri)}
-                          >
-                            <Text style={styles.saveMediaText}>💾 Save</Text>
-                          </TouchableOpacity>
+                          <View style={styles.mediaActions}>
+                            <TouchableOpacity
+                              style={styles.downloadMediaButton}
+                              onPress={() => handleSaveMediaFromNote(mediaUri)}
+                            >
+                              <Text style={styles.downloadMediaText}>⬇️ Download</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.removeMediaButton}
+                              onPress={() => handleRemoveMediaFromNote(mediaUri)}
+                            >
+                              <Text style={styles.removeMediaText}>🗑️ Remove</Text>
+                            </TouchableOpacity>
+                          </View>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -1429,6 +1481,33 @@ const styles = {
   },
   saveMediaToLocalText: {
     color: '#f59e0b',
+    fontSize: 14,
+    fontWeight: 'bold' as const,
+  },
+  mediaActions: {
+    flexDirection: 'row' as const,
+    marginLeft: 10,
+    gap: 10,
+  },
+  downloadMediaButton: {
+    backgroundColor: '#374151',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  downloadMediaText: {
+    color: '#f59e0b',
+    fontSize: 14,
+    fontWeight: 'bold' as const,
+  },
+  removeMediaButton: {
+    backgroundColor: '#dc2626',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  removeMediaText: {
+    color: '#fff',
     fontSize: 14,
     fontWeight: 'bold' as const,
   },
