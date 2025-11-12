@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Modal, TextInput, ScrollView, Image, StyleSheet, Alert } from 'react-native';
 import { Audio } from 'expo-av';
+
 import { translateTextWithGemini, transcribeAudioWithGemini } from '../services/geminiService';
 import { useNotes } from '../hooks/useNotes';
 import { Note, generateNoteId } from '../utils/storage';
@@ -243,7 +244,77 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
     setCurrentMode('arthur');
     setShowChatSaveButtons(false);
     setPendingZaphodNote(null);
+    setIsRecording(false);
+    if (recording) {
+      recording.stopAndUnloadAsync();
+      setRecording(null);
+    }
     onClose();
+  };
+
+  const startRecording = async () => {
+    try {
+      const permission = await Audio.requestPermissionsAsync();
+      if (permission.status !== 'granted') {
+        showError('Microphone permission denied');
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+
+      const newRecording = new Audio.Recording();
+      await newRecording.prepareToRecordAsync({
+        android: {
+          extension: '.m4a',
+          outputFormat: 2,
+          audioEncoder: 3,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: '.m4a',
+          audioQuality: 127,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+        },
+        web: {},
+      });
+
+      await newRecording.startAsync();
+      setRecording(newRecording);
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      showError('Failed to start recording');
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!recording) return;
+
+    try {
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      if (uri) {
+        setIsLoading(true);
+        const transcribedText = await transcribeAudioWithGemini(uri);
+        setInputText(transcribedText);
+      }
+    } catch (error) {
+      console.error('Failed to stop recording:', error);
+      showError('Failed to process recording');
+    } finally {
+      setRecording(null);
+      setIsRecording(false);
+      setIsLoading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -345,17 +416,26 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
 
           {!showChatSaveButtons && (
             <View style={styles.inputContainer}>
-               <TextInput
+              <TouchableOpacity
+                style={[styles.voiceButton, isRecording && styles.voiceButtonRecording]}
+                onPress={isRecording ? stopRecording : startRecording}
+                disabled={isLoading}
+              >
+                <Text style={styles.voiceButtonText}>
+                  {isRecording ? '🛑' : '🎤'}
+                </Text>
+              </TouchableOpacity>
+              <TextInput
                 style={styles.input}
                 value={inputText}
                 onChangeText={setInputText}
-                placeholder="Type your message..."
+                placeholder={isRecording ? "Recording..." : "Type your message..."}
                 multiline
               />
               <TouchableOpacity
-                style={[styles.sendButton, (!inputText.trim() || isLoading) && styles.sendButtonDisabled]}
+                style={[styles.sendButton, (!inputText.trim() || isLoading || isRecording) && styles.sendButtonDisabled]}
                 onPress={handleSendMessage}
-                disabled={!inputText.trim() || isLoading}>
+                disabled={!inputText.trim() || isLoading || isRecording}>
                 <Text style={styles.sendButtonText}>Send</Text>
               </TouchableOpacity>
             </View>
@@ -394,4 +474,7 @@ const styles = StyleSheet.create({
     actionButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
     characterNameContainer: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#374151', alignItems: 'center' },
     characterName: { color: '#f59e0b', fontSize: 16, fontWeight: 'bold' },
+    voiceButton: { backgroundColor: '#6b7280', padding: 12, borderRadius: 8, marginRight: 8 },
+    voiceButtonRecording: { backgroundColor: '#ef4444' },
+    voiceButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
 });

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, Image, Alert, Modal, FlatList } from 'react-native';
 import { speakTextWithGoogleTTS, getVoiceForLanguage } from '../../services/googleTTSService';
-import { Note, getSettings, saveSettings } from '../../utils/storage';
+import { Note } from '../../utils/storage';
+import { getOrCreateSettings, saveSettings } from '../../utils/settings';
 
 interface Translation {
   text: string;
@@ -97,7 +98,7 @@ const TabsView: React.FC<TabsViewProps> = ({
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const settings = await getSettings();
+        const settings = await getOrCreateSettings();
         setTargetLanguage(settings.uiLanguage || 'en');
       } catch (error) {
         setTargetLanguage('en');
@@ -499,7 +500,7 @@ const TagSelectorModal: React.FC<{
 
   const loadAvailableTags = async () => {
     try {
-      const settings = await getSettings();
+      const settings = await getOrCreateSettings();
       const enabledTags = settings.enabledTags || [];
       const customTags = settings.customTags || [];
       const defaultTags = [
@@ -518,7 +519,7 @@ const TagSelectorModal: React.FC<{
 
   const loadEnabledTags = async () => {
     try {
-      const settings = await getSettings();
+      const settings = await getOrCreateSettings();
       const enabledTags = settings.enabledTags || [];
       setEnabledTags(enabledTags);
     } catch (error) {
@@ -528,7 +529,7 @@ const TagSelectorModal: React.FC<{
 
   const saveCustomTag = async (tag: string) => {
     try {
-      const currentSettings = await getSettings();
+      const currentSettings = await getOrCreateSettings();
       const customTags = currentSettings.customTags || [];
       if (!customTags.includes(tag)) {
         const updatedSettings = {
@@ -1071,6 +1072,7 @@ const styles = {
   checkboxText: {
     fontSize: 18,
     marginRight: 10,
+    color: '#f59e0b',
   },
   checkboxLabel: {
     color: '#fff',
@@ -1326,6 +1328,52 @@ const styles = {
     fontSize: 16,
     fontWeight: 'bold' as const,
     marginLeft: 6,
+  },
+  languageSelectionContainer: {
+    marginBottom: 20,
+  },
+  quickSelectLabel: {
+    color: '#fff',
+    fontSize: 16,
+    marginBottom: 10,
+  },
+  dropdownButton: {
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    marginBottom: 10,
+  },
+  dropdownButtonText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  dropdownList: {
+    backgroundColor: '#1f2937',
+    borderRadius: 8,
+    padding: 10,
+    maxHeight: 200,
+  },
+  dropdownItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#374151',
+  },
+  dropdownItemText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  enabledTagsList: {
+    marginBottom: 20,
+  },
+  tagSelectorItemDisabled: {
+    backgroundColor: '#2d3748',
+    opacity: 0.5,
+  },
+  tagSelectorItemTextDisabled: {
+    color: '#6b7280',
   },
 };
 

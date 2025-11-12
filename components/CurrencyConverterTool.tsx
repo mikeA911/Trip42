@@ -184,7 +184,7 @@ const CurrencyConverterTool = ({
     return { amount, fromCurrency, toCurrency };
   };
 
-  const handleExtractAndConfirm = async () => {
+  const handleCurrencyConversion = async () => {
     if (!userInput.trim()) {
       Alert.alert('Input Required', 'Please enter what you want to convert');
       return;
@@ -219,6 +219,18 @@ const CurrencyConverterTool = ({
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleSaveToNote = () => {
+    // Save the conversation to a note
+    const conversationText = `Currency Conversion Request:\n${userInput}\n\nConversion Result:\n${marvinResponse}`;
+    const noteTitle = `Currency Conversion - ${new Date().toLocaleDateString()}`;
+    
+    setTypedText(conversationText);
+    setNoteTitle(noteTitle);
+    setTags(['currency', 'finance']);
+    setActiveTab('record');
+    setRecordingViewMode('tabs');
   };
 
 
@@ -274,11 +286,11 @@ const CurrencyConverterTool = ({
 
         <TouchableOpacity
           style={sharedStyles.searchButton}
-          onPress={handleExtractAndConfirm}
+          onPress={marvinResponse ? handleSaveToNote : handleCurrencyConversion}
           disabled={isProcessing}
         >
           <Text style={sharedStyles.searchButtonText}>
-            {isProcessing ? `🤖 ${currencyCharacter.character || 'Marvin'} is thinking...` : 'OK'}
+            {isProcessing ? `🤖 ${currencyCharacter.character || 'Marvin'} is thinking...` : (marvinResponse ? 'Save to Note' : 'OK')}
           </Text>
         </TouchableOpacity>
       </View>
