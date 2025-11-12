@@ -24,6 +24,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import { supabase, uploadImageForSharing, blobToBase64 } from '../utils/supabase'; // Corrected import path
 import { polishNoteWithGemini } from '../services/geminiService';
+import { Audio } from 'expo-av'; // Import Audio from expo-av
+
 interface ManageNotesModalProps {
   visible: boolean;
   onClose: () => void;
@@ -53,6 +55,10 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   const [editingPolishedText, setEditingPolishedText] = useState('');
   const [isCreatingPolishedNote, setIsCreatingPolishedNote] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [showImageViewer, setShowImageViewer] = useState(false);
+  const [currentImageUri, setCurrentImageUri] = useState('');
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -157,6 +163,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               }
 
               processedMedia.push(base64Data);
+              console.log(`Debug Export: Processed ${getMimeType(mediaUri).split('/')[0]} media. First 50 chars: ${base64Data.substring(0, 50)}...`);
             } catch (mediaError) {
               console.error('Error processing media:', mediaError);
               processedMedia.push(mediaUri); // Keep original URI if processing fails
@@ -385,6 +392,41 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
     }
   };
 
+  const handleImagePressForViewer = (uri: string) => {
+    setCurrentImageUri(uri);
+    setShowImageViewer(true);
+  };
+
+  const handlePlayAudio = async (uri: string) => {
+    if (sound) {
+      await sound.unloadAsync();
+      setSound(null);
+      setIsPlayingAudio(false);
+      if (isPlayingAudio) return; // If it was playing and we stopped it, don't restart
+    }
+
+    try {
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: true },
+        (status) => {
+          if (status.isLoaded && status.didJustFinish) {
+            setIsPlayingAudio(false);
+            newSound.unloadAsync();
+            setSound(null);
+          }
+        }
+      );
+      setSound(newSound);
+      setIsPlayingAudio(true);
+      await newSound.playAsync();
+    } catch (error) {
+      console.error('Error playing audio:', error);
+      Alert.alert('Error', 'Failed to play audio.');
+      setIsPlayingAudio(false);
+    }
+  };
+
   const handleAddMediaToNote = async () => {
     if (!selectedNote) return;
 
@@ -600,6 +642,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             }
 
             processedMedia.push(base64Data);
+            console.log(`Debug Export: Processed ${getMimeType(mediaUri).split('/')[0]} media. First 50 chars: ${base64Data.substring(0, 50)}...`);
           } catch (mediaError) {
             console.error('Error processing media:', mediaError);
             // Keep original URI if processing fails
@@ -756,7 +799,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
     return (
       <TouchableOpacity
         style={[styles.noteItem, isSelected && styles.noteItemSelected]}
-        onPress={() => handleNoteSelect(item.id)} // Changed to select/deselect on press
+        onPress={() => handleNotePress(item)}
         activeOpacity={0.7}
       >
         <View style={styles.noteHeader}>
@@ -889,27 +932,27 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
                     <View key={index} style={styles.mediaItem}>
                       {mediaUri.includes('.mp3') || mediaUri.includes('.wav') ? (
                         <View style={styles.audioItem}>
-                          <Text style={styles.audioIndicator}>🎵 Audio File</Text>
+                          <Text style={styles.audioIndicator}>🔊 Audio</Text>
                           <TouchableOpacity
                             style={styles.playButton}
-                            onPress={() => {
-                              // TODO: Implement audio playback
-                              Alert.alert('Play', 'Audio playback not implemented yet');
-                            }}
+                            onPress={() => handlePlayAudio(mediaUri)}
                           >
-                            <Text style={styles.playButtonText}>▶️ Play</Text>
+                            <Text style={styles.playButtonText}>{isPlayingAudio ? '⏸️ Pause' : '▶️ Play'}</Text>
                           </TouchableOpacity>
                         </View>
                       ) : (
-                        <View style={styles.imageItem}>
+                        <TouchableOpacity
+                          style={styles.imageItem}
+                          onPress={() => handleImagePressForViewer(mediaUri)}
+                        >
                           <Image source={{ uri: mediaUri }} style={styles.mediaImage} />
                           <TouchableOpacity
                             style={styles.saveMediaButton}
                             onPress={() => handleSaveMediaFromNote(mediaUri)}
                           >
-                            <Text style={styles.saveMediaText}>💾 Save to local file</Text>
+                            <Text style={styles.saveMediaText}>💾 Save</Text>
                           </TouchableOpacity>
-                        </View>
+                        </TouchableOpacity>
                       )}
                     </View>
                   ))}
@@ -976,149 +1019,161 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   };
 
   return (
-    <Modal visible={visible} animationType="slide">
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={styles.closeButton}>✕</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>Manage Notes</Text>
-          <View />
-        </View>
-
-        {/* Selection Header */}
-        <View style={styles.selectionHeader}>
-          <TouchableOpacity style={styles.selectButton} onPress={handleSelectAll}>
-            <Text style={styles.selectText}>
-              {selectedNotes.size === notes.length && notes.length > 0 ? '☑' : '□'} Select All
-            </Text>
-          </TouchableOpacity>
-          <Text style={styles.selectedCountText}>
-            {selectedNotes.size} selected
-          </Text>
-          {selectedNotes.size > 0 && (
-            <View style={styles.actionButtons}>
-              <TouchableOpacity
-                style={[styles.iconButton, isExporting && styles.disabledButton]}
-                onPress={handleExportSelected}
-                disabled={isExporting}
-              >
-                <Text style={[styles.actionButtonText, isExporting && styles.disabledText]}>
-                  {isExporting ? '⏳' : '📤'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton} onPress={handleDeleteSelected}>
-                <Text style={styles.actionButtonText}>🗑️</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        {/* Notes List */}
-        <FlatList
-          data={notes}
-          renderItem={renderNoteItem}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          style={{ flex: 1 }}
-        />
-
-        {renderNoteDetail()}
-
-        {/* More Options Modal */}
-        <Modal visible={showMoreOptionsModal} animationType="fade" transparent={true}>
-          <View style={styles.moreOptionsModalOverlay}>
-            <View style={styles.moreOptionsModalContent}>
-              <Text style={styles.moreOptionsModalTitle}>More Options</Text>
-
-              <TouchableOpacity
-                style={styles.moreOptionButton}
-                onPress={() => {
-                  setShowMoreOptionsModal(false);
-                  handleExportNote();
-                }}
-              >
-                <Text style={styles.moreOptionText}>📤 Export Note</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.moreOptionButton, styles.deleteOptionButton]}
-                onPress={() => {
-                  setShowMoreOptionsModal(false);
-                  handleDeleteNote();
-                }}
-              >
-                <Text style={styles.moreOptionText}>🗑️ Delete Note</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.moreOptionCancelButton}
-                onPress={() => setShowMoreOptionsModal(false)}
-              >
-                <Text style={styles.moreOptionCancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
+    <>
+      <Modal visible={visible} animationType="slide">
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onClose}>
+              <Text style={styles.closeButton}>✕</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>Manage Notes</Text>
+            <View />
           </View>
-        </Modal>
 
-        {/* Edit Polished Text Modal - Using Alert for better modal stacking */}
-        {showEditPolishedTextModal && (
-          <Modal visible={true} animationType="fade" transparent={true} presentationStyle="overFullScreen">
-            <View style={styles.editModalOverlay}>
-              <View style={styles.editModalContent}>
-                <Text style={styles.editModalTitle}>Edit Polished Text</Text>
+          {/* Selection Header */}
+          <View style={styles.selectionHeader}>
+            <TouchableOpacity style={styles.selectButton} onPress={handleSelectAll}>
+              <Text style={styles.selectText}>
+                {selectedNotes.size === notes.length && notes.length > 0 ? '☑' : '□'} Select All
+              </Text>
+            </TouchableOpacity>
+            <Text style={styles.selectedCountText}>
+              {selectedNotes.size} selected
+            </Text>
+            {selectedNotes.size > 0 && (
+              <View style={styles.actionButtons}>
+                <TouchableOpacity
+                  style={[styles.iconButton, isExporting && styles.disabledButton]}
+                  onPress={handleExportSelected}
+                  disabled={isExporting}
+                >
+                  <Text style={[styles.actionButtonText, isExporting && styles.disabledText]}>
+                    {isExporting ? '⏳' : '📤'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.iconButton} onPress={handleDeleteSelected}>
+                  <Text style={styles.actionButtonText}>🗑️</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
 
-                <TextInput
-                  style={styles.editTextInput}
-                  multiline={true}
-                  value={editingPolishedText}
-                  onChangeText={setEditingPolishedText}
-                  placeholder="Enter polished text..."
-                  placeholderTextColor="#9ca3af"
-                  autoFocus={true}
-                />
+          {/* Notes List */}
+          <FlatList
+            data={notes}
+            renderItem={renderNoteItem}
+            keyExtractor={item => item.id}
+            contentContainerStyle={styles.listContainer}
+            showsVerticalScrollIndicator={false}
+            style={{ flex: 1 }}
+          />
 
-                <View style={styles.editModalButtons}>
-                  <TouchableOpacity
-                    style={styles.editModalCancelButton}
-                    onPress={() => setShowEditPolishedTextModal(false)}
-                  >
-                    <Text style={styles.editModalCancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.editModalSaveButton}
-                    onPress={handleSavePolishedText}
-                  >
-                    <Text style={styles.editModalSaveText}>Save</Text>
-                  </TouchableOpacity>
-                </View>
+          {renderNoteDetail()}
+
+          {/* More Options Modal */}
+          <Modal visible={showMoreOptionsModal} animationType="fade" transparent={true}>
+            <View style={styles.moreOptionsModalOverlay}>
+              <View style={styles.moreOptionsModalContent}>
+                <Text style={styles.moreOptionsModalTitle}>More Options</Text>
+
+                <TouchableOpacity
+                  style={styles.moreOptionButton}
+                  onPress={() => {
+                    setShowMoreOptionsModal(false);
+                    handleExportNote();
+                  }}
+                >
+                  <Text style={styles.moreOptionText}>📤 Export Note</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.moreOptionButton, styles.deleteOptionButton]}
+                  onPress={() => {
+                    setShowMoreOptionsModal(false);
+                    handleDeleteNote();
+                  }}
+                >
+                  <Text style={styles.moreOptionText}>🗑️ Delete Note</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.moreOptionCancelButton}
+                  onPress={() => setShowMoreOptionsModal(false)}
+                >
+                  <Text style={styles.moreOptionCancelText}>Cancel</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </Modal>
-        )}
 
-        {/* Tag Selector Modal - Rendered at the end to ensure it's on top */}
-        <TagSelectorModal
-          visible={showTagSelectorModal}
-          onClose={() => setShowTagSelectorModal(false)}
-          selectedTags={selectedTagsForNote}
-          onTagsChange={setSelectedTagsForNote}
-          onConfirm={(finalSelectedTags) => {
-            if (selectedNote) {
-              const updatedNote = {
-                ...selectedNote,
-                tags: finalSelectedTags
-              };
-              editNote(updatedNote);
-              setSelectedNote(updatedNote);
-              refreshNotes();
-              setShowTagSelectorModal(false);
-            }
-          }}
-        />
-      </View>
-    </Modal>
+          {/* Edit Polished Text Modal - Using Alert for better modal stacking */}
+          {showEditPolishedTextModal && (
+            <Modal visible={true} animationType="fade" transparent={true} presentationStyle="overFullScreen">
+              <View style={styles.editModalOverlay}>
+                <View style={styles.editModalContent}>
+                  <Text style={styles.editModalTitle}>Edit Polished Text</Text>
+
+                  <TextInput
+                    style={styles.editTextInput}
+                    multiline={true}
+                    value={editingPolishedText}
+                    onChangeText={setEditingPolishedText}
+                    placeholder="Enter polished text..."
+                    placeholderTextColor="#9ca3af"
+                    autoFocus={true}
+                  />
+
+                  <View style={styles.editModalButtons}>
+                    <TouchableOpacity
+                      style={styles.editModalCancelButton}
+                      onPress={() => setShowEditPolishedTextModal(false)}
+                    >
+                      <Text style={styles.editModalCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.editModalSaveButton}
+                      onPress={handleSavePolishedText}
+                    >
+                      <Text style={styles.editModalSaveText}>Save</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
+          )}
+
+          {/* Tag Selector Modal - Rendered at the end to ensure it's on top */}
+          <TagSelectorModal
+            visible={showTagSelectorModal}
+            onClose={() => setShowTagSelectorModal(false)}
+            selectedTags={selectedTagsForNote}
+            onTagsChange={setSelectedTagsForNote}
+            onConfirm={(finalSelectedTags) => {
+              if (selectedNote) {
+                const updatedNote = {
+                  ...selectedNote,
+                  tags: finalSelectedTags
+                };
+                editNote(updatedNote);
+                setSelectedNote(updatedNote);
+                refreshNotes();
+                setShowTagSelectorModal(false);
+              }
+            }}
+          />
+        </View>
+      </Modal>
+
+      {/* Image Viewer Modal */}
+      <Modal visible={showImageViewer} transparent={true} animationType="fade" onRequestClose={() => setShowImageViewer(false)}>
+        <View style={styles.imageViewerOverlay}>
+          <TouchableOpacity style={styles.imageViewerCloseButton} onPress={() => setShowImageViewer(false)}>
+            <Text style={styles.imageViewerCloseButtonText}>✕</Text>
+          </TouchableOpacity>
+          <Image source={{ uri: currentImageUri }} style={styles.fullScreenImage} resizeMode="contain" />
+        </View>
+      </Modal>
+    </>
   );
 };
 
@@ -1862,6 +1917,33 @@ const styles = {
   },
   deleteOptionButton: {
     backgroundColor: '#dc2626',
+  },
+  imageViewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
+  imageViewerCloseButton: {
+    position: 'absolute' as const,
+    top: 50,
+    right: 20,
+    zIndex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
+  imageViewerCloseButtonText: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold' as const,
+  },
+  fullScreenImage: {
+    width: '100%' as const,
+    height: '100%' as const,
   },
 };
 

@@ -1,0 +1,40 @@
+{
+  "version": "1.0",
+  "exportedAt": "2024-01-15T10:30:00.000Z",
+  "notes": [
+    {
+      "id": "note-sample-1",
+      "title": "Marvin the Paranoid Android",
+      "text": "Life? Don't talk to me about life. Here I am, brain the size of a planet, and they ask me to pick up a piece of paper.",
+      "timestamp": "2024-01-15T09:00:00.000Z",
+      "tags": ["marvin", "hitchhikers", "depressed"],
+      "attachedMedia": [
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAggAAAIICAYAAAAL/BZjAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAAzDAZfYpOkAAAKGSURBVHhe7Z0HTBRBF8f/"
+      ],
+      "noteType": "text_note"
+    },
+    {
+      "id": "note-sample-2",
+      "title": "Don't Panic!",
+      "text": "The answer to the ultimate question of life, the universe, and everything is 42.",
+      "timestamp": "2024-01-15T09:15:00.000Z",
+      "tags": ["hitchhikers", "42", "answer"],
+      "attachedMedia": [
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAAdgAAAHYBTnsmCAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAFYSURBVHic7Z"
+      ],
+      "noteType": "text_note"
+    },
+    {
+      "id": "note-sample-3",
+      "title": "Zaphod Beeblebrox",
+      "text": "I'm Zaphod Beeblebrox, President of the Galaxy, and I'm here to party!",
+      "timestamp": "2024-01-15T09:30:00.000Z",
+      "tags": ["zaphod", "president", "party"],
+      "attachedMedia": [
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAAdgAAAHYBTnsmCAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAFYSURBVHic7Z"
+      ],
+      "noteType": "zaphod_note",
+      "originalText": "I'm Zaphod Beeblebrox, the coolest guy in the galaxy."
+    }
+  ]
+}
