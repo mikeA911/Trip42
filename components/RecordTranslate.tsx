@@ -90,6 +90,43 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
   const recordingRef = useRef<Audio.Recording | null>(null);
 
+  const handleAutoSaveSignTranslation = async () => {
+    // Auto-save sign translation notes for better UX
+    if (!recordingCurrentNote.polishedNote.trim()) {
+      return;
+    }
+
+    try {
+      const note: Note = {
+        id: generateNoteId(),
+        title: `Sign Translation - ${new Date().toLocaleDateString()}`,
+        text: recordingCurrentNote.polishedNote,
+        timestamp: new Date().toISOString(),
+        tags: ['sign-translation'],
+        translations: {},
+        attachedMedia: attachedMedia,
+        noteType: 'sign_translation',
+      };
+
+      onSaveNote(note);
+
+      // Reset form
+      setRecordingViewMode('actions');
+      setRecordingCurrentNote({ rawTranscription: '', polishedNote: '', signImageUrl: undefined, audioUri: undefined });
+      setNoteTitle('');
+      setTypedText('');
+      setTranslatedText(null);
+      setMultipleTranslations({});
+      setTags([]);
+      setAttachedMedia([]);
+
+      showSuccess('Sign translation note saved automatically!');
+    } catch (error) {
+      console.error('Auto-save failed:', error);
+      // Don't show error to user as this is just an auto-save
+    }
+  };
+
   // Handler functions for the new component structure
   const handleSignTranslation = async () => {
     try {
@@ -163,6 +200,12 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
           setRecordingViewMode('tabs');
           setActiveRecordingTab('polished');
+          showSuccess('Sign translation completed! Note will be saved automatically.');
+
+          // Auto-save sign translation notes for better UX
+          setTimeout(() => {
+            handleAutoSaveSignTranslation();
+          }, 1500); // Give user 1.5 seconds to see the result before auto-saving
         }
       }
     } catch (error) {
@@ -210,6 +253,12 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
               setRecordingViewMode('tabs');
               setActiveRecordingTab('polished');
+              showSuccess('Sign translation completed! Note will be saved automatically.');
+
+              // Auto-save sign translation notes for better UX
+              setTimeout(() => {
+                handleAutoSaveSignTranslation();
+              }, 1500); // Give user 1.5 seconds to see the result before auto-saving
             };
             reader.readAsDataURL(file);
           } catch (error) {
