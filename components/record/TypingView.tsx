@@ -71,16 +71,20 @@ const TypingView: React.FC<TypingViewProps> = ({
   };
 
   const handleAttachPhoto = async (source: 'camera' | 'gallery' = 'camera') => {
+    console.log('DEBUG: handleAttachPhoto called, source:', source);
+    
     try {
       // Check if we're running in a PWA or web environment
       const isWebPlatform = Platform.OS === 'web';
       
       if (isWebPlatform) {
+        console.log('DEBUG: Web platform detected, using PWA file attachment');
         // Handle web/PWA environment with file input fallback
         handleWebPhotoAttach(source);
         return;
       }
 
+      console.log('DEBUG: Native platform detected');
       // Original native logic for iOS/Android
       let permissionStatus;
       let pickerFunction;
@@ -120,7 +124,7 @@ const TypingView: React.FC<TypingViewProps> = ({
     }
   };
 
-  const handleWebPhotoAttach = (source: 'camera' | 'gallery') => {
+  const handleWebPhotoAttach = async (source: 'camera' | 'gallery') => {
     console.log('DEBUG: handleWebPhotoAttach called, source:', source);
     
     try {
@@ -131,50 +135,64 @@ const TypingView: React.FC<TypingViewProps> = ({
         return;
       }
 
-      console.log('DEBUG: Creating file input element...');
+      console.log('DEBUG: Creating PWA-compatible file picker...');
       
-      // Create a hidden file input element for web/PWA
+      // For PWAs, we need a more direct approach
+      // Remove any existing file inputs first
+      const existingInputs = document.querySelectorAll('input[type="file"]');
+      console.log('DEBUG: Cleaning up existing inputs:', existingInputs.length);
+      existingInputs.forEach(el => el.remove());
+
+      // Create file input with PWA-compatible settings
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*,video/*,audio/*';
+      input.multiple = false;
+      
+      // Add capture attribute for camera if requested
       if (source === 'camera') {
         input.setAttribute('capture', 'environment');
+        console.log('DEBUG: Camera capture enabled');
+      } else {
+        input.setAttribute('capture', 'user');
+        console.log('DEBUG: Gallery mode (user camera) enabled');
       }
       
-      // Clean up any previous input elements to prevent conflicts
-      const existingInputs = document.querySelectorAll('input[type="file"]');
-      console.log('DEBUG: Found existing inputs:', existingInputs.length);
-      existingInputs.forEach(el => el.remove());
-      
-      // Apply styles to make it truly hidden but still functional
+      // Style to make it invisible but still clickable
       Object.assign(input.style, {
-        position: 'absolute',
-        left: '-9999px',
+        position: 'fixed',
+        top: '0',
+        left: '0',
+        width: '100%',
+        height: '100%',
         opacity: '0',
-        pointerEvents: 'none',
-        width: '1px',
-        height: '1px'
+        pointerEvents: 'auto',
+        zIndex: '9999'
       });
       
+      console.log('DEBUG: Appending input to body...');
       document.body.appendChild(input);
-      console.log('DEBUG: File input added to DOM');
-       
-      input.onchange = (event) => {
-        console.log('DEBUG: File input onchange triggered');
+      
+      // Set up event handlers
+      const handleFileSelection = (event: Event) => {
+        console.log('DEBUG: File input change event triggered');
         try {
-          const file = (event.target as HTMLInputElement).files?.[0];
+          const target = event.target as HTMLInputElement;
+          const file = target.files?.[0];
           
           if (!file) {
-            console.log('DEBUG: No file selected');
-            if (document.body.contains(input)) {
-              document.body.removeChild(input);
-            }
+            console.log('DEBUG: No file selected, cleaning up');
+            cleanup();
             return;
           }
           
-          console.log('DEBUG: File selected:', file.name, file.type, file.size);
+          console.log('DEBUG: File selected successfully:', {
+            name: file.name,
+            type: file.type,
+            size: file.size
+          });
           
-          // Convert file to base64 data URL for React Native compatibility
+          // Convert to base64
           const reader = new FileReader();
           reader.onload = (e) => {
             try {
@@ -186,59 +204,77 @@ const TypingView: React.FC<TypingViewProps> = ({
               console.error('ERROR: Error processing file:', processError);
               showError('Failed to process selected file');
             } finally {
-              // Clean up the input element
-              if (document.body.contains(input)) {
-                document.body.removeChild(input);
-              }
+              cleanup();
             }
           };
           
           reader.onerror = (error) => {
             console.error('ERROR: FileReader error:', error);
             showError('Failed to read selected file');
-            if (document.body.contains(input)) {
-              document.body.removeChild(input);
-            }
+            cleanup();
           };
           
           reader.readAsDataURL(file);
         } catch (error) {
-          console.error('ERROR: Error in file selection handler:', error);
+          console.error('ERROR: Error in file selection:', error);
           showError('Failed to handle file selection');
-          if (document.body.contains(input)) {
-            document.body.removeChild(input);
-          }
+          cleanup();
         }
       };
-
-      // Also handle cancel/ESC key scenarios
-      input.onabort = () => {
-        console.log('DEBUG: File selection cancelled/aborted');
+      
+      const handleCancel = () => {
+        console.log('DEBUG: File selection cancelled');
+        cleanup();
+      };
+      
+      const cleanup = () => {
+        console.log('DEBUG: Cleaning up file input');
         if (document.body.contains(input)) {
           document.body.removeChild(input);
         }
+        input.removeEventListener('change', handleFileSelection);
+        input.removeEventListener('cancel', handleCancel);
+        input.removeEventListener('abort', handleCancel);
       };
-
-      console.log('DEBUG: About to trigger file input click...');
       
-      // Use setTimeout to ensure DOM is ready
-      setTimeout(() => {
+      // Attach event listeners
+      input.addEventListener('change', handleFileSelection);
+      input.addEventListener('cancel', handleCancel);
+      input.addEventListener('abort', handleCancel);
+      
+      console.log('DEBUG: Triggering file input click...');
+      
+      // For PWA compatibility, try multiple approaches
+      try {
+        // Method 1: Direct click
+        input.click();
+        console.log('DEBUG: Direct click completed');
+      } catch (clickError) {
+        console.warn('DEBUG: Direct click failed, trying focus + click:', clickError);
         try {
-          console.log('DEBUG: Triggering input.click()');
-          input.click();
-          console.log('DEBUG: input.click() completed');
-        } catch (clickError) {
-          console.error('ERROR: Failed to trigger input.click():', clickError);
-          showError('Failed to open file picker');
-          if (document.body.contains(input)) {
-            document.body.removeChild(input);
-          }
+          input.focus();
+          setTimeout(() => {
+            input.click();
+            console.log('DEBUG: Focus + click completed');
+          }, 100);
+        } catch (focusError) {
+          console.error('ERROR: Both click methods failed:', focusError);
+          showError('Failed to open file picker - browser security restrictions may apply');
+          cleanup();
         }
-      }, 10);
+      }
+      
+      // Fallback cleanup timeout
+      setTimeout(() => {
+        if (document.body.contains(input)) {
+          console.log('DEBUG: Fallback cleanup triggered');
+          cleanup();
+        }
+      }, 10000); // 10 second timeout
       
     } catch (error) {
-      console.error('ERROR: Error opening file picker:', error);
-      showError('Failed to open file picker');
+      console.error('ERROR: Error in handleWebPhotoAttach:', error);
+      showError('Failed to initialize file picker');
     }
   };
 
