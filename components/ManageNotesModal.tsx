@@ -908,11 +908,15 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       const charactersInTheme = await getThemeCharacters(aiTheme);
 
       let selectedCharacter: string | undefined;
+      let characterDisplayName: string;
+      
       if (charactersInTheme.length > 0) {
         selectedCharacter = charactersInTheme[Math.floor(Math.random() * charactersInTheme.length)];
+        characterDisplayName = selectedCharacter;
       } else {
         // Fallback if no characters found for the theme
-        selectedCharacter = undefined; // No default character if none found
+        selectedCharacter = undefined;
+        characterDisplayName = 'AI Assistant';
       }
 
       const result = await polishNoteWithGemini(sourceText, selectedCharacter);
@@ -926,7 +930,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       await editNote(updatedNote);
       setSelectedNote(updatedNote);
       refreshNotes();
-      Alert.alert('Success', `Polished note created by ${selectedCharacter}!`);
+      Alert.alert('Success', `Polished note created by ${characterDisplayName}!`);
     } catch (error) {
       Alert.alert('Error', 'Failed to create polished note');
     } finally {

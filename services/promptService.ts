@@ -245,6 +245,18 @@ export const getCharacterForPromptType = async (theme: string, promptType: strin
 
 export const getThemeCharacters = async (theme: string): Promise<string[]> => {
   try {
+    const cachedPrompts = await getCachedPromptsForTheme(theme);
+    if (cachedPrompts) {
+      const characters = new Set<string>();
+      cachedPrompts.forEach((prompt: PromptData) => {
+        if (prompt.character && prompt.character.trim()) {
+          characters.add(prompt.character.trim());
+        }
+      });
+      return Array.from(characters);
+    }
+    
+    // Fallback to theme data if cache not available
     const themeData = await loadThemePrompts(theme);
     const characters = new Set<string>();
     for (const promptType in themeData.prompts) {
