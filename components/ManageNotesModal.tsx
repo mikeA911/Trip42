@@ -175,7 +175,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               }
 
               processedMedia.push(base64Data);
-              Alert.alert('Debug Export', `Processed ${getMimeType(mediaUri).split('/')[0]} media. First 50 chars: ${base64Data.substring(0, 50)}...`);
             } catch (mediaError) {
               console.error('Error processing media for export:', mediaError);
               processedMedia.push(mediaUri); // Keep original URI if processing fails
@@ -489,10 +488,32 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       });
 
       if (!result.canceled && result.assets[0]) {
-        const mediaUri = result.assets[0].uri;
+        let mediaUriToSave = result.assets[0].uri;
+
+        if (Platform.OS === 'web' && mediaUriToSave.startsWith('blob:')) {
+          // On web, if it's a blob URI, convert it to base64 for persistence
+          try {
+            const response = await fetch(mediaUriToSave);
+            const blob = await response.blob();
+            const mimeType = blob.type;
+            const base64 = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve((reader.result as string).split(',')[1]);
+              reader.onerror = (e) => reject(new Error('FileReader failed'));
+              reader.readAsDataURL(blob);
+            });
+            mediaUriToSave = `data:${mimeType};base64,${base64}`;
+            Alert.alert('Media Added', 'Blob media converted to Base64 for persistence.');
+          } catch (error) {
+            console.error('Error converting blob to base64:', error);
+            Alert.alert('Error', 'Failed to convert media to persistent format. Adding original URI.');
+            // Fallback to original URI if conversion fails
+          }
+        }
+
         const updatedNote = {
           ...selectedNote,
-          attachedMedia: [...selectedNote.attachedMedia, mediaUri]
+          attachedMedia: [...selectedNote.attachedMedia, mediaUriToSave]
         };
 
         await editNote(updatedNote);
@@ -686,7 +707,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             }
 
             processedMedia.push(base64Data);
-            Alert.alert('Debug Export', `Processed ${getMimeType(mediaUri).split('/')[0]} media. First 50 chars: ${base64Data.substring(0, 50)}...`);
           } catch (mediaError) {
             console.error('Error processing media for export:', mediaError);
             // Keep original URI if processing fails
