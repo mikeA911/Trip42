@@ -473,6 +473,10 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
 
   const handlePhotoOptions = () => {
     console.log('DEBUG: ManageNotesModal - handlePhotoOptions called');
+    
+    // Add immediate notification that button was clicked
+    Alert.alert('Notification', '📷 Attach Photo button clicked! PWA-Beta-03', [{ text: 'OK' }]);
+    
     Alert.alert(
       'Attach Photo',
       'Choose photo source:',
@@ -481,6 +485,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
           text: '📷 Take Photo',
           onPress: () => {
             console.log('DEBUG: ManageNotesModal - Take Photo option selected');
+            Alert.alert('PWA Notification', 'Camera option selected! PWA-Beta-03', [{ text: 'OK' }]);
             handleAddMediaToNote('camera')
           }
         },
@@ -488,6 +493,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
           text: '🖼️ Choose from Gallery',
           onPress: () => {
             console.log('DEBUG: ManageNotesModal - Choose from Gallery option selected');
+            Alert.alert('PWA Notification', 'Gallery option selected! PWA-Beta-03', [{ text: 'OK' }]);
             handleAddMediaToNote('gallery')
           }
         },
@@ -586,12 +592,15 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   const handleWebMediaAttach = async () => {
     console.log('DEBUG: handleWebMediaAttach called');
     
+    // Show immediate notification that web file picker is being initiated
+    Alert.alert('PWA Notification', '🌐 Initializing PWA file picker... PWA-Beta-03', [{ text: 'OK' }]);
+    
     return new Promise<void>((resolve, reject) => {
       try {
         // Check if we're in a browser environment
         if (typeof document === 'undefined') {
           console.error('Document not available - not in browser environment');
-          Alert.alert('Error', 'File attachment not available in this environment');
+          Alert.alert('PWA Error', 'Document not available - not in browser environment', [{ text: 'OK' }]);
           resolve();
           return;
         }

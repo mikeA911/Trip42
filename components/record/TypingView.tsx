@@ -25,7 +25,10 @@ const TypingView: React.FC<TypingViewProps> = ({
     console.log('DEBUG: TypingView - handlePhotoOptions called');
     const isWebPlatform = Platform.OS === 'web';
     console.log('DEBUG: TypingView - Platform.OS:', Platform.OS);
-     
+    
+    // Add immediate notification that button was clicked
+    Alert.alert('Notification', '📷 Attach Photo button clicked! PWA-Beta-03', [{ text: 'OK' }]);
+    
     if (isWebPlatform) {
       console.log('DEBUG: TypingView - Web platform detected, showing PWA options');
       // For web/PWA, show simplified options
@@ -37,6 +40,7 @@ const TypingView: React.FC<TypingViewProps> = ({
             text: '📷 Take Photo / Choose from Gallery',
             onPress: () => {
               console.log('DEBUG: TypingView - PWA photo option selected');
+              Alert.alert('PWA Notification', 'Gallery option selected! PWA-Beta-03', [{ text: 'OK' }]);
               handleAttachPhoto('gallery') // Use gallery as fallback for camera
             }
           },
@@ -54,6 +58,7 @@ const TypingView: React.FC<TypingViewProps> = ({
             text: '📷 Take Photo',
             onPress: () => {
               console.log('DEBUG: TypingView - Native camera option selected');
+              Alert.alert('Native Notification', 'Camera option selected! PWA-Beta-03', [{ text: 'OK' }]);
               handleAttachPhoto('camera')
             }
           },
@@ -61,6 +66,7 @@ const TypingView: React.FC<TypingViewProps> = ({
             text: '🖼️ Choose from Gallery',
             onPress: () => {
               console.log('DEBUG: TypingView - Native gallery option selected');
+              Alert.alert('Native Notification', 'Gallery option selected! PWA-Beta-03', [{ text: 'OK' }]);
               handleAttachPhoto('gallery')
             }
           },
@@ -127,11 +133,15 @@ const TypingView: React.FC<TypingViewProps> = ({
   const handleWebPhotoAttach = async (source: 'camera' | 'gallery') => {
     console.log('DEBUG: handleWebPhotoAttach called, source:', source);
     
+    // Show immediate notification that web file picker is being initiated
+    Alert.alert('PWA Notification', '🌐 Initializing PWA file picker... PWA-Beta-03', [{ text: 'OK' }]);
+    
     try {
       // Check if we're in a browser environment
       if (typeof document === 'undefined') {
         console.error('Document not available - not in browser environment');
         showError('File attachment not available in this environment');
+        Alert.alert('PWA Error', 'Document not available - not in browser environment', [{ text: 'OK' }]);
         return;
       }
 
