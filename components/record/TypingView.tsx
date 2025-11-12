@@ -22,29 +22,12 @@ const TypingView: React.FC<TypingViewProps> = ({
 }) => {
   const { showSuccess, showError } = useToast();
   const handlePhotoOptions = () => {
-    console.log('DEBUG: TypingView - handlePhotoOptions called');
     const isWebPlatform = Platform.OS === 'web';
-    console.log('DEBUG: TypingView - Platform.OS:', Platform.OS);
     
     if (isWebPlatform) {
-      console.log('DEBUG: TypingView - Web platform detected, using direct PWA attachment');
-      // For PWA, use a direct approach similar to camera that was working
-      Alert.alert(
-        'PWA Photo Attachment',
-        'Attaching photo to your note...',
-        [
-          {
-            text: 'Continue',
-            onPress: () => {
-              console.log('DEBUG: TypingView - PWA direct attachment initiated');
-              handleAttachPhoto('gallery'); // Direct gallery access for PWA
-            }
-          },
-          { text: 'Cancel', style: 'cancel' }
-        ]
-      );
+      // For PWA, bypass Alert.alert() - call file picker directly
+      handleAttachPhoto('gallery');
     } else {
-      console.log('DEBUG: TypingView - Native platform detected, showing native options');
       // For native platforms, show full options
       Alert.alert(
         'Attach Photo',
@@ -52,17 +35,11 @@ const TypingView: React.FC<TypingViewProps> = ({
         [
           {
             text: '📷 Take Photo',
-            onPress: () => {
-              console.log('DEBUG: TypingView - Native camera option selected');
-              handleAttachPhoto('camera')
-            }
+            onPress: () => handleAttachPhoto('camera')
           },
           {
             text: '🖼️ Choose from Gallery',
-            onPress: () => {
-              console.log('DEBUG: TypingView - Native gallery option selected');
-              handleAttachPhoto('gallery')
-            }
+            onPress: () => handleAttachPhoto('gallery')
           },
           { text: 'Cancel', style: 'cancel' }
         ]
@@ -71,21 +48,16 @@ const TypingView: React.FC<TypingViewProps> = ({
   };
 
   const handleAttachPhoto = async (source: 'camera' | 'gallery' = 'camera') => {
-    console.log('DEBUG: handleAttachPhoto called, source:', source);
-    
     try {
-      // Check if we're running in a PWA or web environment
       const isWebPlatform = Platform.OS === 'web';
       
       if (isWebPlatform) {
-        console.log('DEBUG: Web platform detected, using PWA file attachment');
-        // Handle web/PWA environment with file input fallback
+        // Handle web/PWA environment with file input
         handleWebPhotoAttach(source);
         return;
       }
 
-      console.log('DEBUG: Native platform detected');
-      // Original native logic for iOS/Android
+      // Native logic for iOS/Android
       let permissionStatus;
       let pickerFunction;
       let permissionMessage;
@@ -125,8 +97,6 @@ const TypingView: React.FC<TypingViewProps> = ({
   };
 
   const handleWebPhotoAttach = async (source: 'camera' | 'gallery') => {
-    console.log('DEBUG: handleWebPhotoAttach called, source:', source);
-    
     try {
       // Simple PWA file input approach
       const input = document.createElement('input');

@@ -472,41 +472,24 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   };
 
   const handlePhotoOptions = () => {
-    console.log('🚨🚨🚨 handlePhotoOptions CALLED - PWA Debug 🚨🚨🚨');
-    console.log('Platform.OS:', Platform.OS);
-    console.log('selectedNote:', selectedNote);
-    
     const isWebPlatform = Platform.OS === 'web' || typeof window !== 'undefined';
-    console.log('DEBUG: Web platform detected:', isWebPlatform);
     
     if (isWebPlatform) {
-      console.log('🚨 PWA MODE: Direct file picker opening...');
-      alert('🚨 PWA MODE: Opening file picker... PWA-Beta-04');
-      
-      // DIRECTLY call handleWebMediaAttach for PWA - no Alert.alert
+      // For PWA, call file picker directly - preserves user activation
       handleWebMediaAttach();
     } else {
-      console.log('🚨 NATIVE MODE: Showing native photo options');
-      alert('🚨 NATIVE MODE: PWA-Beta-04');
-      
-      // For native, still use Alert.alert (it works there)
+      // For native, show photo options
       Alert.alert(
         'Attach Photo',
         'Choose photo source:',
         [
           {
             text: '📷 Take Photo',
-            onPress: () => {
-              console.log('🚨🚨🚨 Native camera option selected');
-              handleAddMediaToNote('camera');
-            }
+            onPress: () => handleAddMediaToNote('camera')
           },
           {
             text: '🖼️ Choose from Gallery',
-            onPress: () => {
-              console.log('🚨🚨🚨 Native gallery option selected');
-              handleAddMediaToNote('gallery');
-            }
+            onPress: () => handleAddMediaToNote('gallery')
           },
           { text: 'Cancel', style: 'cancel' }
         ]
@@ -1199,15 +1182,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               <Text style={styles.bottomActionText}>← Back</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.bottomActionButton} onPress={() => {
-              // FORCE immediate file picker - direct user activation
-              console.log('🚨🚨🚨 FORCE: Add button clicked - PWA-Beta-04');
-              
-              if (typeof window !== 'undefined' && typeof alert !== 'undefined') {
-                alert('🚨 FORCE: Direct file picker opening! PWA-Beta-04');
-              }
-              
-              // DIRECTLY call file picker - this preserves user activation
-              console.log('🚨🚨🚨 FORCE: Direct file picker call...');
+              // Direct file picker - preserves user activation
               handleWebMediaAttach();
             }}>
               <Text style={styles.bottomActionText}>📎 Add</Text>
