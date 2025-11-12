@@ -472,48 +472,69 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   };
 
   const handlePhotoOptions = () => {
-    console.log('DEBUG: ManageNotesModal - handlePhotoOptions called');
+    // Force immediate debug notification and console log
+    console.log('🚨🚨🚨 handlePhotoOptions CALLED - PWA Debug 🚨🚨🚨');
+    console.log('Platform.OS:', Platform.OS);
+    console.log('selectedNote:', selectedNote);
     
-    const isWebPlatform = Platform.OS === 'web';
+    // Force browser alert regardless of Platform detection
+    if (typeof window !== 'undefined' && typeof alert !== 'undefined') {
+      alert('🚨 PWA DEBUG: handlePhotoOptions called! PWA-Beta-03\n\nPlatform: ' + Platform.OS);
+    }
     
-    if (isWebPlatform) {
-      console.log('DEBUG: ManageNotesModal - Web platform detected, using direct PWA attachment');
-      Alert.alert(
-        'PWA Photo Attachment',
-        'Attaching photo to your note...',
-        [
-          {
-            text: 'Continue',
-            onPress: () => {
-              console.log('DEBUG: ManageNotesModal - PWA direct attachment initiated');
-              handleAddMediaToNote('gallery'); // Direct gallery access for PWA
-            }
-          },
-          { text: 'Cancel', style: 'cancel' }
-        ]
-      );
-    } else {
-      Alert.alert(
-        'Attach Photo',
-        'Choose photo source:',
-        [
-          {
-            text: '📷 Take Photo',
-            onPress: () => {
-              console.log('DEBUG: ManageNotesModal - Native camera option selected');
-              handleAddMediaToNote('camera')
-            }
-          },
-          {
-            text: '🖼️ Choose from Gallery',
-            onPress: () => {
-              console.log('DEBUG: ManageNotesModal - Native gallery option selected');
-              handleAddMediaToNote('gallery')
-            }
-          },
-          { text: 'Cancel', style: 'cancel' }
-        ]
-      );
+    try {
+      const isWebPlatform = Platform.OS === 'web' || typeof window !== 'undefined';
+      console.log('DEBUG: Web platform detected:', isWebPlatform);
+      
+      if (isWebPlatform) {
+        console.log('DEBUG: PWA mode - showing photo attachment options');
+        const result = Alert.alert(
+          '🚨 PWA Photo Attachment',
+          'Attaching photo to your note...',
+          [
+            {
+              text: 'Continue',
+              onPress: () => {
+                console.log('🚨🚨🚨 Continue button clicked in PWA mode');
+                try {
+                  handleAddMediaToNote('gallery');
+                } catch (error) {
+                  console.error('🚨🚨🚨 Error in handleAddMediaToNote:', error);
+                  Alert.alert('ERROR', 'Failed to attach photo: ' + (error instanceof Error ? error.message : String(error)));
+                }
+              }
+            },
+            { text: 'Cancel', style: 'cancel', onPress: () => console.log('🚨🚨🚨 Cancel clicked') }
+          ]
+        );
+        console.log('DEBUG: Alert result:', result);
+      } else {
+        console.log('DEBUG: Native mode - showing native photo options');
+        Alert.alert(
+          'Attach Photo',
+          'Choose photo source:',
+          [
+            {
+              text: '📷 Take Photo',
+              onPress: () => {
+                console.log('🚨🚨🚨 Native camera option selected');
+                handleAddMediaToNote('camera');
+              }
+            },
+            {
+              text: '🖼️ Choose from Gallery',
+              onPress: () => {
+                console.log('🚨🚨🚨 Native gallery option selected');
+                handleAddMediaToNote('gallery');
+              }
+            },
+            { text: 'Cancel', style: 'cancel' }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('🚨🚨🚨 CRITICAL ERROR in handlePhotoOptions:', error);
+      Alert.alert('CRITICAL ERROR', 'handlePhotoOptions failed: ' + (error instanceof Error ? error.message : String(error)));
     }
   };
 
@@ -1202,18 +1223,33 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               <Text style={styles.bottomActionText}>← Back</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.bottomActionButton} onPress={() => {
-              Alert.alert(
-                'Add to Note',
-                'Choose what to add:',
-                [
-                  { text: 'Photo', onPress: handlePhotoOptions },
-                  { text: 'Tag', onPress: () => {
-                    setSelectedTagsForNote(selectedNote?.tags || []);
-                    setShowTagSelectorModal(true);
-                  }},
-                  { text: 'Cancel', style: 'cancel' }
-                ]
-              );
+              // Force immediate debug notification
+              console.log('🚨 Add button clicked - PWA Debug');
+              Alert.alert('🚨 PWA DEBUG', 'Add button clicked! PWA-Beta-03\n\nAbout to show Add menu...', [
+                {
+                  text: 'Continue',
+                  onPress: () => {
+                    Alert.alert(
+                      'Add to Note',
+                      'Choose what to add:',
+                      [
+                        {
+                          text: 'Photo',
+                          onPress: () => {
+                            console.log('🚨 Photo option clicked');
+                            Alert.alert('🚨 PWA DEBUG', 'Photo option clicked! PWA-Beta-03', [{ text: 'OK', onPress: handlePhotoOptions }]);
+                          }
+                        },
+                        { text: 'Tag', onPress: () => {
+                          setSelectedTagsForNote(selectedNote?.tags || []);
+                          setShowTagSelectorModal(true);
+                        }},
+                        { text: 'Cancel', style: 'cancel' }
+                      ]
+                    );
+                  }
+                }
+              ]);
             }}>
               <Text style={styles.bottomActionText}>📎 Add</Text>
             </TouchableOpacity>
