@@ -114,6 +114,39 @@ Trip42/
 4. **Note Saving** → AsyncStorage persistence
 5. **Optional Sync** → Supabase cloud storage
 
+## 🔐 PWA & Platform Permissions
+
+### Progressive Web App (PWA) Setup
+When running as a PWA (Progressive Web App), the following permissions may be required:
+
+#### Required Permissions for PWA
+- **📷 Camera Permission**: For sign language translation and photo capture
+  - Used for: Sign translation feature and photo attachments
+  - Browser will prompt: "Allow camera access"
+  - Fallback: File upload selection for photos
+- **🎤 Microphone Permission**: For voice recording (if audio recording is supported)
+  - Used for: Voice recording functionality
+  - Browser will prompt: "Allow microphone access"
+  - Alternative: Text input mode when unavailable
+
+#### PWA-Specific Features
+- **Cross-platform compatibility**: Works on iOS, Android, and desktop browsers
+- **File upload fallback**: When camera access is restricted, users can upload existing photos
+- **Progressive enhancement**: Full functionality when permissions granted, reduced features when restricted
+- **No app store required**: Direct browser access and installation
+
+#### Permission Management
+- **First-time users**: Permissions requested when features are first used
+- **Subsequent visits**: Browser remembers previous permission decisions
+- **Manual override**: Users can change permissions in browser settings
+- **Graceful degradation**: App remains functional with reduced features
+
+### Native App Permissions (iOS/Android)
+- **Camera**: Full camera access for photo capture
+- **Microphone**: High-quality audio recording
+- **Storage**: Local note and settings storage
+- **Location**: GPS coordinates for note tagging (optional)
+
 ## 🚀 Installation & Setup
 
 ### Prerequisites

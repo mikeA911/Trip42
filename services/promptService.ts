@@ -237,6 +237,45 @@ export const getCharacterForPromptType = async (theme: string, promptType: strin
   }
 };
 
+
+
+
+
+
+
+export const getThemeCharacters = async (theme: string): Promise<string[]> => {
+  try {
+    const themeData = await loadThemePrompts(theme);
+    const characters = new Set<string>();
+    for (const promptType in themeData.prompts) {
+      const promptText = themeData.prompts[promptType];
+      const match = promptText.match(/You are (.+?)\./);
+      if (match && match[1]) {
+        characters.add(match[1]);
+      }
+    }
+    return Array.from(characters);
+  } catch (error) {
+    console.error('Error getting theme characters:', error);
+    return [];
+  }
+};
+
+export const getThemeCharacter = async (theme: string, characterName: string): Promise<string | undefined> => {
+  try {
+    const themeData = await loadThemePrompts(theme);
+    // Find the prompt that has the matching character and return its character field
+    const characterPromptData = themeData.prompts['np2'] || themeData.prompts['notePolishing']; // Assuming 'np2' or 'notePolishing' contains character info
+    if (characterPromptData && characterPromptData.includes(`You are ${characterName}.`)) {
+      return characterName;
+    }
+    return undefined;
+  } catch (error) {
+    console.error('Error getting theme character:', error);
+    return undefined;
+  }
+};
+
 export const clearThemeCache = (theme?: string) => {
   if (theme) {
     themeCache.delete(theme);

@@ -8,7 +8,8 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  Image
+  Image,
+  Platform
 } from 'react-native';
 import { Audio } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
@@ -117,6 +118,16 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         return;
       }
 
+      // Check if we're running in a PWA or web environment
+      const isWebPlatform = Platform.OS === 'web';
+      
+      if (isWebPlatform) {
+        // Handle web/PWA environment with file input fallback
+        await handleWebSignTranslation();
+        return;
+      }
+
+      // Original native logic for iOS/Android
       // Request camera permissions
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
@@ -160,6 +171,59 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       setIsProcessing(false);
       setProcessingMessage('');
     }
+  };
+
+  const handleWebSignTranslation = async () => {
+    return new Promise<void>((resolve) => {
+      // Create a hidden file input element for web/PWA
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.setAttribute('capture', 'environment');
+      
+      input.onchange = async (event) => {
+        const file = (event.target as HTMLInputElement).files?.[0];
+        if (file) {
+          setIsProcessing(true);
+          setProcessingMessage('Marvin is analyzing...');
+
+          try {
+            // Convert file to base64 data URL for React Native compatibility
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+              const result = e.target?.result as string;
+              // Extract base64 data (remove data:image/jpeg;base64, prefix if present)
+              const base64Data = result.split(',')[1] || result;
+              
+              const translationResult = await translateSignWithGemini(base64Data, targetLanguage);
+
+              // Set the translated text and move to tabs for editing
+              setRecordingCurrentNote({
+                rawTranscription: translationResult.translation,
+                polishedNote: translationResult.translation,
+                signImageUrl: result,
+                audioUri: undefined
+              });
+
+              // Add the sign image to attached media
+              setAttachedMedia([result]);
+
+              setRecordingViewMode('tabs');
+              setActiveRecordingTab('polished');
+            };
+            reader.readAsDataURL(file);
+          } catch (error) {
+            Alert.alert('Error', 'Failed to process sign translation');
+          } finally {
+            setIsProcessing(false);
+            setProcessingMessage('');
+          }
+        }
+        resolve();
+      };
+
+      input.click();
+    });
   };
 
   const handleVoiceRecording = async () => {

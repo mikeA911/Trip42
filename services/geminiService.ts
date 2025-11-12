@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
-import { getPrompt } from '../prompts';
+import { getPrompt, Prompts } from '../prompts';
 import { getThemeCharacter } from './promptService';
 
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API;
@@ -284,6 +284,7 @@ export const transcribeAudioWithGemini = async (
 
 export const polishNoteWithGemini = async (
   transcription: string,
+  character?: string, // Add optional character parameter
   onCancel?: (cancelFn: () => void) => void,
   theme: string = 'h2g2'
 ): Promise<NotePolishResult> => {
@@ -293,14 +294,25 @@ export const polishNoteWithGemini = async (
     }
 
     let prompt: string;
-    const themePrompt = await getPrompt(theme, 'notePolishing');
-    if (themePrompt) {
-      // Ensure we replace both placeholders
-      prompt = themePrompt
+    let characterPersona: string | undefined;
+    let promptType: keyof Prompts['themes'][string] = 'notePolishing'; // Default prompt type
+
+    if (character) {
+      characterPersona = await getThemeCharacter(theme, character);
+      if (characterPersona) {
+        promptType = 'np2'; // Use np2 prompt type if a character is provided
+      }
+    }
+
+    const selectedThemePrompt = await getPrompt(theme, promptType);
+
+    if (selectedThemePrompt) {
+      prompt = selectedThemePrompt
+        .replace('{characterPersona}', characterPersona ? `You are ${characterPersona}.` : '')
         .replace('{transcription}', transcription)
         .replace('(original transcription)', transcription);
     } else {
-      prompt = `Please polish and improve this note, then give it a good title. Format your response as:
+      prompt = `${characterPersona ? `You are ${characterPersona}.` : ''} Please polish and improve this note, then give it a good title. Format your response as:
 
 Title: [concise title]
 Note: [polished and improved version of the text]

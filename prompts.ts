@@ -7,6 +7,7 @@ export interface Prompts {
       signTranslation?: string;
       transcription?: string;
       notePolishing?: string;
+      np2?: string; // Add np2 as a valid prompt type
       currencyConversion?: string;
       chatbotMap?: string;
       chatbotMeds?: string;

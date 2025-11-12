@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, Image } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Image, Platform } from 'react-native';
 import { Audio } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -70,6 +70,16 @@ const RecordingView: React.FC<RecordingViewProps> = ({
 
   const handleTakePhoto = async () => {
     try {
+      // Check if we're running in a PWA or web environment
+      const isWebPlatform = Platform.OS === 'web';
+      
+      if (isWebPlatform) {
+        // Handle web/PWA environment with file input fallback
+        handleWebPhotoAttach();
+        return;
+      }
+
+      // Original native logic for iOS/Android
       // Request camera permissions
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
@@ -91,8 +101,32 @@ const RecordingView: React.FC<RecordingViewProps> = ({
         // No alert - just return to recording interface
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to take photo');
+      Alert.alert('Error', 'Failed to take photo. This feature may not be available in your current environment.');
     }
+  };
+
+  const handleWebPhotoAttach = () => {
+    // Create a hidden file input element for web/PWA
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.setAttribute('capture', 'environment');
+    
+    input.onchange = (event) => {
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (file) {
+        // Convert file to base64 data URL for React Native compatibility
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const result = e.target?.result as string;
+          setAttachedMedia([...attachedMedia, result]);
+          // No alert - just return to recording interface
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
+    input.click();
   };
 
   const handlePauseRecording = async () => {

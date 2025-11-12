@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TextInput, TouchableOpacity, Text, Image, Alert, ScrollView } from 'react-native';
+import { View, TextInput, TouchableOpacity, Text, Image, Alert, ScrollView, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -22,25 +22,53 @@ const TypingView: React.FC<TypingViewProps> = ({
 }) => {
   const { showSuccess, showError } = useToast();
   const handlePhotoOptions = () => {
-    Alert.alert(
-      'Attach Photo',
-      'Choose photo source:',
-      [
-        {
-          text: '📷 Take Photo',
-          onPress: () => handleAttachPhoto('camera')
-        },
-        {
-          text: '🖼️ Choose from Gallery',
-          onPress: () => handleAttachPhoto('gallery')
-        },
-        { text: 'Cancel', style: 'cancel' }
-      ]
-    );
+    const isWebPlatform = Platform.OS === 'web';
+    
+    if (isWebPlatform) {
+      // For web/PWA, show simplified options
+      Alert.alert(
+        'Attach Photo',
+        'Choose a photo from your device:',
+        [
+          {
+            text: '📷 Take Photo / Choose from Gallery',
+            onPress: () => handleAttachPhoto('gallery') // Use gallery as fallback for camera
+          },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    } else {
+      // For native platforms, show full options
+      Alert.alert(
+        'Attach Photo',
+        'Choose photo source:',
+        [
+          {
+            text: '📷 Take Photo',
+            onPress: () => handleAttachPhoto('camera')
+          },
+          {
+            text: '🖼️ Choose from Gallery',
+            onPress: () => handleAttachPhoto('gallery')
+          },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    }
   };
 
   const handleAttachPhoto = async (source: 'camera' | 'gallery' = 'camera') => {
     try {
+      // Check if we're running in a PWA or web environment
+      const isWebPlatform = Platform.OS === 'web';
+      
+      if (isWebPlatform) {
+        // Handle web/PWA environment with file input fallback
+        handleWebPhotoAttach(source);
+        return;
+      }
+
+      // Original native logic for iOS/Android
       let permissionStatus;
       let pickerFunction;
       let permissionMessage;
@@ -75,8 +103,34 @@ const TypingView: React.FC<TypingViewProps> = ({
       }
     } catch (error) {
       console.error('Error attaching photo:', error);
-      showError('Failed to attach photo');
+      showError('Failed to attach photo. This feature may not be available in your current environment.');
     }
+  };
+
+  const handleWebPhotoAttach = (source: 'camera' | 'gallery') => {
+    // Create a hidden file input element for web/PWA
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    if (source === 'camera') {
+      input.setAttribute('capture', 'environment');
+    }
+    
+    input.onchange = (event) => {
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (file) {
+        // Convert file to base64 data URL for React Native compatibility
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const result = e.target?.result as string;
+          setAttachedMedia([...attachedMedia, result]);
+          showSuccess('Photo attached successfully!');
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
+    input.click();
   };
 
   const handleRemovePhoto = (index: number) => {
