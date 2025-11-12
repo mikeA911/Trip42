@@ -22,23 +22,17 @@ const TypingView: React.FC<TypingViewProps> = ({
 }) => {
   const { showSuccess, showError } = useToast();
   const handlePhotoOptions = () => {
-    console.log('DEBUG: TypingView - handlePhotoOptions called');
-    console.log('DEBUG: TypingView - Platform.OS:', Platform.OS);
-    
     const isWebPlatform = Platform.OS === 'web';
     
     if (isWebPlatform) {
       // For web/PWA, show simplified options
       Alert.alert(
-        'DEBUG: PWA Mode - Attach Photo',
+        'Attach Photo (PWA Mode)',
         'Choose a photo from your device:',
         [
           {
             text: '📷 Take Photo / Choose from Gallery',
-            onPress: () => {
-              console.log('DEBUG: TypingView - Gallery option selected');
-              handleAttachPhoto('gallery') // Use gallery as fallback for camera
-            }
+            onPress: () => handleAttachPhoto('gallery') // Use gallery as fallback for camera
           },
           { text: 'Cancel', style: 'cancel' }
         ]
@@ -46,22 +40,16 @@ const TypingView: React.FC<TypingViewProps> = ({
     } else {
       // For native platforms, show full options
       Alert.alert(
-        'DEBUG: Native Mode - Attach Photo',
+        'Attach Photo',
         'Choose photo source:',
         [
           {
             text: '📷 Take Photo',
-            onPress: () => {
-              console.log('DEBUG: TypingView - Camera option selected');
-              handleAttachPhoto('camera')
-            }
+            onPress: () => handleAttachPhoto('camera')
           },
           {
             text: '🖼️ Choose from Gallery',
-            onPress: () => {
-              console.log('DEBUG: TypingView - Gallery option selected');
-              handleAttachPhoto('gallery')
-            }
+            onPress: () => handleAttachPhoto('gallery')
           },
           { text: 'Cancel', style: 'cancel' }
         ]
@@ -70,22 +58,16 @@ const TypingView: React.FC<TypingViewProps> = ({
   };
 
   const handleAttachPhoto = async (source: 'camera' | 'gallery' = 'camera') => {
-    console.log('DEBUG: TypingView - handleAttachPhoto called with source:', source);
-    console.log('DEBUG: TypingView - Platform.OS:', Platform.OS);
-    
     try {
       // Check if we're running in a PWA or web environment
       const isWebPlatform = Platform.OS === 'web';
-      console.log('DEBUG: TypingView - isWebPlatform:', isWebPlatform);
       
       if (isWebPlatform) {
-        console.log('DEBUG: TypingView - Calling handleWebPhotoAttach');
         // Handle web/PWA environment with file input fallback
         handleWebPhotoAttach(source);
         return;
       }
 
-      console.log('DEBUG: TypingView - Using native logic');
       // Original native logic for iOS/Android
       let permissionStatus;
       let pickerFunction;
@@ -101,8 +83,6 @@ const TypingView: React.FC<TypingViewProps> = ({
         permissionMessage = 'Media library permission is required to attach photos';
       }
 
-      console.log('DEBUG: TypingView - Permission status:', permissionStatus.status);
-
       if (permissionStatus.status !== 'granted') {
         Alert.alert('Permission needed', permissionMessage);
         return;
@@ -116,22 +96,18 @@ const TypingView: React.FC<TypingViewProps> = ({
         base64: true,
       });
 
-      console.log('DEBUG: TypingView - Image picker result:', result);
-
       if (!result.canceled && result.assets[0]) {
         const imageUri = result.assets[0].uri;
         setAttachedMedia([...attachedMedia, imageUri]);
         showSuccess('Photo attached successfully!');
       }
     } catch (error) {
-      console.error('DEBUG: TypingView - Error attaching photo:', error);
+      console.error('Error attaching photo:', error);
       showError('Failed to attach photo. This feature may not be available in your current environment.');
     }
   };
 
   const handleWebPhotoAttach = (source: 'camera' | 'gallery') => {
-    console.log('DEBUG: TypingView - handleWebPhotoAttach called with source:', source);
-    
     try {
       // Create a hidden file input element for web/PWA
       const input = document.createElement('input');
@@ -141,37 +117,27 @@ const TypingView: React.FC<TypingViewProps> = ({
         input.setAttribute('capture', 'environment');
       }
       
-      console.log('DEBUG: TypingView - File input element created');
-      
       input.onchange = (event) => {
-        console.log('DEBUG: TypingView - File input change event triggered');
         const file = (event.target as HTMLInputElement).files?.[0];
-        console.log('DEBUG: TypingView - Selected file:', file?.name, file?.type);
         
         if (file) {
-          console.log('DEBUG: TypingView - Converting file to base64');
           // Convert file to base64 data URL for React Native compatibility
           const reader = new FileReader();
           reader.onload = (e) => {
-            console.log('DEBUG: TypingView - File converted to base64');
             const result = e.target?.result as string;
             setAttachedMedia([...attachedMedia, result]);
             showSuccess('Photo attached successfully!');
           };
           reader.onerror = () => {
-            console.error('DEBUG: TypingView - FileReader error');
             showError('Failed to read selected file');
           };
           reader.readAsDataURL(file);
-        } else {
-          console.log('DEBUG: TypingView - No file selected');
         }
       };
 
-      console.log('DEBUG: TypingView - Clicking file input');
       input.click();
     } catch (error) {
-      console.error('DEBUG: TypingView - Error in handleWebPhotoAttach:', error);
+      console.error('Error opening file picker:', error);
       showError('Failed to open file picker');
     }
   };
