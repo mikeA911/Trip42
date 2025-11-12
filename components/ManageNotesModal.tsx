@@ -1199,23 +1199,16 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               <Text style={styles.bottomActionText}>← Back</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.bottomActionButton} onPress={() => {
-              // FORCE immediate function execution without any Alert calls
+              // FORCE immediate file picker - direct user activation
               console.log('🚨🚨🚨 FORCE: Add button clicked - PWA-Beta-04');
               
-              // Test browser alert first
               if (typeof window !== 'undefined' && typeof alert !== 'undefined') {
-                alert('🚨 FORCE DEBUG: Add clicked! PWA-Beta-04');
+                alert('🚨 FORCE: Direct file picker opening! PWA-Beta-04');
               }
               
-              // DIRECTLY call handlePhotoOptions without Alert.alert
-              console.log('🚨🚨🚨 FORCE: Calling handlePhotoOptions directly...');
-              handlePhotoOptions();
-              
-              // Also trigger simple photo attachment for testing
-              setTimeout(() => {
-                console.log('🚨🚨🚨 FORCE: Testing direct file picker...');
-                handleWebMediaAttach();
-              }, 2000);
+              // DIRECTLY call file picker - this preserves user activation
+              console.log('🚨🚨🚨 FORCE: Direct file picker call...');
+              handleWebMediaAttach();
             }}>
               <Text style={styles.bottomActionText}>📎 Add</Text>
             </TouchableOpacity>
