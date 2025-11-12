@@ -474,32 +474,47 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   const handlePhotoOptions = () => {
     console.log('DEBUG: ManageNotesModal - handlePhotoOptions called');
     
-    // Add immediate notification that button was clicked
-    Alert.alert('Notification', '📷 Attach Photo button clicked! PWA-Beta-03', [{ text: 'OK' }]);
+    const isWebPlatform = Platform.OS === 'web';
     
-    Alert.alert(
-      'Attach Photo',
-      'Choose photo source:',
-      [
-        {
-          text: '📷 Take Photo',
-          onPress: () => {
-            console.log('DEBUG: ManageNotesModal - Take Photo option selected');
-            Alert.alert('PWA Notification', 'Camera option selected! PWA-Beta-03', [{ text: 'OK' }]);
-            handleAddMediaToNote('camera')
-          }
-        },
-        {
-          text: '🖼️ Choose from Gallery',
-          onPress: () => {
-            console.log('DEBUG: ManageNotesModal - Choose from Gallery option selected');
-            Alert.alert('PWA Notification', 'Gallery option selected! PWA-Beta-03', [{ text: 'OK' }]);
-            handleAddMediaToNote('gallery')
-          }
-        },
-        { text: 'Cancel', style: 'cancel' }
-      ]
-    );
+    if (isWebPlatform) {
+      console.log('DEBUG: ManageNotesModal - Web platform detected, using direct PWA attachment');
+      Alert.alert(
+        'PWA Photo Attachment',
+        'Attaching photo to your note...',
+        [
+          {
+            text: 'Continue',
+            onPress: () => {
+              console.log('DEBUG: ManageNotesModal - PWA direct attachment initiated');
+              handleAddMediaToNote('gallery'); // Direct gallery access for PWA
+            }
+          },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Attach Photo',
+        'Choose photo source:',
+        [
+          {
+            text: '📷 Take Photo',
+            onPress: () => {
+              console.log('DEBUG: ManageNotesModal - Native camera option selected');
+              handleAddMediaToNote('camera')
+            }
+          },
+          {
+            text: '🖼️ Choose from Gallery',
+            onPress: () => {
+              console.log('DEBUG: ManageNotesModal - Native gallery option selected');
+              handleAddMediaToNote('gallery')
+            }
+          },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    }
   };
 
   const handleAddMediaToNote = async (source: 'camera' | 'gallery' = 'gallery') => {
@@ -592,169 +607,44 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   const handleWebMediaAttach = async () => {
     console.log('DEBUG: handleWebMediaAttach called');
     
-    // Show immediate notification that web file picker is being initiated
-    Alert.alert('PWA Notification', '🌐 Initializing PWA file picker... PWA-Beta-03', [{ text: 'OK' }]);
-    
-    return new Promise<void>((resolve, reject) => {
-      try {
-        // Check if we're in a browser environment
-        if (typeof document === 'undefined') {
-          console.error('Document not available - not in browser environment');
-          Alert.alert('PWA Error', 'Document not available - not in browser environment', [{ text: 'OK' }]);
-          resolve();
-          return;
-        }
-
-        console.log('DEBUG: Creating PWA-compatible file picker...');
-        
-        // For PWAs, we need a more direct approach
-        // Remove any existing file inputs first
-        const existingInputs = document.querySelectorAll('input[type="file"]');
-        console.log('DEBUG: Cleaning up existing inputs:', existingInputs.length);
-        existingInputs.forEach(el => el.remove());
-
-        // Create file input with PWA-compatible settings
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*,video/*,audio/*';
-        input.multiple = false;
-        input.setAttribute('capture', 'environment');
-        
-        // Style to make it invisible but still clickable
-        Object.assign(input.style, {
-          position: 'fixed',
-          top: '0',
-          left: '0',
-          width: '100%',
-          height: '100%',
-          opacity: '0',
-          pointerEvents: 'auto',
-          zIndex: '9999'
-        });
-        
-        console.log('DEBUG: Appending input to body...');
-        document.body.appendChild(input);
-        
-        // Set up event handlers
-        const handleFileSelection = async (event: Event) => {
-          console.log('DEBUG: File input change event triggered');
-          try {
-            const target = event.target as HTMLInputElement;
-            const file = target.files?.[0];
-            
-            if (!file) {
-              console.log('DEBUG: No file selected, cleaning up');
-              cleanup();
-              resolve();
-              return;
-            }
-            
-            console.log('DEBUG: File selected successfully:', {
-              name: file.name,
-              type: file.type,
-              size: file.size
-            });
-            
-            // Convert to base64
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-              try {
-                const result = e.target?.result as string;
-                console.log('DEBUG: File converted to base64, length:', result?.length);
-                
-                const updatedNote = {
-                  ...selectedNote!,
-                  attachedMedia: [...selectedNote!.attachedMedia, result]
-                };
-
-                await editNote(updatedNote);
-                setSelectedNote(updatedNote);
-                refreshNotes();
-                Alert.alert('Success', `Media attached successfully! (${file.name})`);
-              } catch (processError) {
-                console.error('ERROR: Error processing file:', processError);
-                Alert.alert('Error', 'Failed to process selected file');
-              } finally {
-                cleanup();
-                resolve();
-              }
+    try {
+      // Simple PWA file input approach
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.style.display = 'none';
+      
+      document.body.appendChild(input);
+      
+      input.onchange = async (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = async (event) => {
+            const result = event.target?.result as string;
+            const updatedNote = {
+              ...selectedNote!,
+              attachedMedia: [...selectedNote!.attachedMedia, result]
             };
-            
-            reader.onerror = (error) => {
-              console.error('ERROR: FileReader error:', error);
-              Alert.alert('Error', 'Failed to read selected file');
-              cleanup();
-              resolve();
-            };
-            
-            reader.readAsDataURL(file);
-          } catch (error) {
-            console.error('ERROR: Error in file selection:', error);
-            Alert.alert('Error', 'Failed to handle file selection');
-            cleanup();
-            resolve();
-          }
-        };
-        
-        const handleCancel = () => {
-          console.log('DEBUG: File selection cancelled');
-          cleanup();
-          resolve();
-        };
-        
-        const cleanup = () => {
-          console.log('DEBUG: Cleaning up file input');
-          if (document.body.contains(input)) {
+
+            await editNote(updatedNote);
+            setSelectedNote(updatedNote);
+            refreshNotes();
+            Alert.alert('Success', `Media attached: ${file.name}`);
             document.body.removeChild(input);
-          }
-          input.removeEventListener('change', handleFileSelection);
-          input.removeEventListener('cancel', handleCancel);
-          input.removeEventListener('abort', handleCancel);
-        };
-        
-        // Attach event listeners
-        input.addEventListener('change', handleFileSelection);
-        input.addEventListener('cancel', handleCancel);
-        input.addEventListener('abort', handleCancel);
-        
-        console.log('DEBUG: Triggering file input click...');
-        
-        // For PWA compatibility, try multiple approaches
-        try {
-          // Method 1: Direct click
-          input.click();
-          console.log('DEBUG: Direct click completed');
-        } catch (clickError) {
-          console.warn('DEBUG: Direct click failed, trying focus + click:', clickError);
-          try {
-            input.focus();
-            setTimeout(() => {
-              input.click();
-              console.log('DEBUG: Focus + click completed');
-            }, 100);
-          } catch (focusError) {
-            console.error('ERROR: Both click methods failed:', focusError);
-            Alert.alert('Error', 'Failed to open file picker - browser security restrictions may apply');
-            cleanup();
-            resolve();
-          }
+          };
+          reader.readAsDataURL(file);
+        } else {
+          document.body.removeChild(input);
         }
-        
-        // Fallback cleanup timeout
-        setTimeout(() => {
-          if (document.body.contains(input)) {
-            console.log('DEBUG: Fallback cleanup triggered');
-            cleanup();
-            resolve();
-          }
-        }, 10000); // 10 second timeout
-        
-      } catch (error) {
-        console.error('ERROR: Error in handleWebMediaAttach:', error);
-        Alert.alert('Error', 'Failed to initialize file picker');
-        reject(error);
-      }
-    });
+      };
+      
+      input.click();
+      
+    } catch (error) {
+      console.error('PWA file attachment error:', error);
+      Alert.alert('Error', 'Photo attachment failed in PWA');
+    }
   };
 
   const handleSaveMediaFromNote = async (mediaUri: string) => {
@@ -1332,9 +1222,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             </TouchableOpacity>
             <TouchableOpacity style={styles.bottomActionButton} onPress={handleShareNote}>
               <Text style={styles.bottomActionText}>📤 Share</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.bottomActionButton} onPress={() => setShowMoreOptionsModal(true)}>
-              <Text style={styles.bottomActionText}>⋯ More</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -26,22 +26,18 @@ const TypingView: React.FC<TypingViewProps> = ({
     const isWebPlatform = Platform.OS === 'web';
     console.log('DEBUG: TypingView - Platform.OS:', Platform.OS);
     
-    // Add immediate notification that button was clicked
-    Alert.alert('Notification', '📷 Attach Photo button clicked! PWA-Beta-03', [{ text: 'OK' }]);
-    
     if (isWebPlatform) {
-      console.log('DEBUG: TypingView - Web platform detected, showing PWA options');
-      // For web/PWA, show simplified options
+      console.log('DEBUG: TypingView - Web platform detected, using direct PWA attachment');
+      // For PWA, use a direct approach similar to camera that was working
       Alert.alert(
-        'Attach Photo (PWA Mode)',
-        'Choose a photo from your device:',
+        'PWA Photo Attachment',
+        'Attaching photo to your note...',
         [
           {
-            text: '📷 Take Photo / Choose from Gallery',
+            text: 'Continue',
             onPress: () => {
-              console.log('DEBUG: TypingView - PWA photo option selected');
-              Alert.alert('PWA Notification', 'Gallery option selected! PWA-Beta-03', [{ text: 'OK' }]);
-              handleAttachPhoto('gallery') // Use gallery as fallback for camera
+              console.log('DEBUG: TypingView - PWA direct attachment initiated');
+              handleAttachPhoto('gallery'); // Direct gallery access for PWA
             }
           },
           { text: 'Cancel', style: 'cancel' }
@@ -58,7 +54,6 @@ const TypingView: React.FC<TypingViewProps> = ({
             text: '📷 Take Photo',
             onPress: () => {
               console.log('DEBUG: TypingView - Native camera option selected');
-              Alert.alert('Native Notification', 'Camera option selected! PWA-Beta-03', [{ text: 'OK' }]);
               handleAttachPhoto('camera')
             }
           },
@@ -66,7 +61,6 @@ const TypingView: React.FC<TypingViewProps> = ({
             text: '🖼️ Choose from Gallery',
             onPress: () => {
               console.log('DEBUG: TypingView - Native gallery option selected');
-              Alert.alert('Native Notification', 'Gallery option selected! PWA-Beta-03', [{ text: 'OK' }]);
               handleAttachPhoto('gallery')
             }
           },
@@ -133,158 +127,36 @@ const TypingView: React.FC<TypingViewProps> = ({
   const handleWebPhotoAttach = async (source: 'camera' | 'gallery') => {
     console.log('DEBUG: handleWebPhotoAttach called, source:', source);
     
-    // Show immediate notification that web file picker is being initiated
-    Alert.alert('PWA Notification', '🌐 Initializing PWA file picker... PWA-Beta-03', [{ text: 'OK' }]);
-    
     try {
-      // Check if we're in a browser environment
-      if (typeof document === 'undefined') {
-        console.error('Document not available - not in browser environment');
-        showError('File attachment not available in this environment');
-        Alert.alert('PWA Error', 'Document not available - not in browser environment', [{ text: 'OK' }]);
-        return;
-      }
-
-      console.log('DEBUG: Creating PWA-compatible file picker...');
-      
-      // For PWAs, we need a more direct approach
-      // Remove any existing file inputs first
-      const existingInputs = document.querySelectorAll('input[type="file"]');
-      console.log('DEBUG: Cleaning up existing inputs:', existingInputs.length);
-      existingInputs.forEach(el => el.remove());
-
-      // Create file input with PWA-compatible settings
+      // Simple PWA file input approach
       const input = document.createElement('input');
       input.type = 'file';
-      input.accept = 'image/*,video/*,audio/*';
-      input.multiple = false;
+      input.accept = 'image/*';
+      input.style.display = 'none';
       
-      // Add capture attribute for camera if requested
-      if (source === 'camera') {
-        input.setAttribute('capture', 'environment');
-        console.log('DEBUG: Camera capture enabled');
-      } else {
-        input.setAttribute('capture', 'user');
-        console.log('DEBUG: Gallery mode (user camera) enabled');
-      }
-      
-      // Style to make it invisible but still clickable
-      Object.assign(input.style, {
-        position: 'fixed',
-        top: '0',
-        left: '0',
-        width: '100%',
-        height: '100%',
-        opacity: '0',
-        pointerEvents: 'auto',
-        zIndex: '9999'
-      });
-      
-      console.log('DEBUG: Appending input to body...');
       document.body.appendChild(input);
       
-      // Set up event handlers
-      const handleFileSelection = (event: Event) => {
-        console.log('DEBUG: File input change event triggered');
-        try {
-          const target = event.target as HTMLInputElement;
-          const file = target.files?.[0];
-          
-          if (!file) {
-            console.log('DEBUG: No file selected, cleaning up');
-            cleanup();
-            return;
-          }
-          
-          console.log('DEBUG: File selected successfully:', {
-            name: file.name,
-            type: file.type,
-            size: file.size
-          });
-          
-          // Convert to base64
+      input.onchange = (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (file) {
           const reader = new FileReader();
-          reader.onload = (e) => {
-            try {
-              const result = e.target?.result as string;
-              console.log('DEBUG: File converted to base64, length:', result?.length);
-              setAttachedMedia([...attachedMedia, result]);
-              showSuccess(`Photo attached successfully! (${file.name})`);
-            } catch (processError) {
-              console.error('ERROR: Error processing file:', processError);
-              showError('Failed to process selected file');
-            } finally {
-              cleanup();
-            }
+          reader.onload = (event) => {
+            const result = event.target?.result as string;
+            setAttachedMedia([...attachedMedia, result]);
+            showSuccess(`Photo attached: ${file.name}`);
+            document.body.removeChild(input);
           };
-          
-          reader.onerror = (error) => {
-            console.error('ERROR: FileReader error:', error);
-            showError('Failed to read selected file');
-            cleanup();
-          };
-          
           reader.readAsDataURL(file);
-        } catch (error) {
-          console.error('ERROR: Error in file selection:', error);
-          showError('Failed to handle file selection');
-          cleanup();
-        }
-      };
-      
-      const handleCancel = () => {
-        console.log('DEBUG: File selection cancelled');
-        cleanup();
-      };
-      
-      const cleanup = () => {
-        console.log('DEBUG: Cleaning up file input');
-        if (document.body.contains(input)) {
+        } else {
           document.body.removeChild(input);
         }
-        input.removeEventListener('change', handleFileSelection);
-        input.removeEventListener('cancel', handleCancel);
-        input.removeEventListener('abort', handleCancel);
       };
       
-      // Attach event listeners
-      input.addEventListener('change', handleFileSelection);
-      input.addEventListener('cancel', handleCancel);
-      input.addEventListener('abort', handleCancel);
-      
-      console.log('DEBUG: Triggering file input click...');
-      
-      // For PWA compatibility, try multiple approaches
-      try {
-        // Method 1: Direct click
-        input.click();
-        console.log('DEBUG: Direct click completed');
-      } catch (clickError) {
-        console.warn('DEBUG: Direct click failed, trying focus + click:', clickError);
-        try {
-          input.focus();
-          setTimeout(() => {
-            input.click();
-            console.log('DEBUG: Focus + click completed');
-          }, 100);
-        } catch (focusError) {
-          console.error('ERROR: Both click methods failed:', focusError);
-          showError('Failed to open file picker - browser security restrictions may apply');
-          cleanup();
-        }
-      }
-      
-      // Fallback cleanup timeout
-      setTimeout(() => {
-        if (document.body.contains(input)) {
-          console.log('DEBUG: Fallback cleanup triggered');
-          cleanup();
-        }
-      }, 10000); // 10 second timeout
+      input.click();
       
     } catch (error) {
-      console.error('ERROR: Error in handleWebPhotoAttach:', error);
-      showError('Failed to initialize file picker');
+      console.error('PWA file attachment error:', error);
+      showError('Photo attachment failed in PWA');
     }
   };
 
