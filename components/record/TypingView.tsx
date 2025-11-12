@@ -22,11 +22,11 @@ const TypingView: React.FC<TypingViewProps> = ({
 }) => {
   const { showSuccess, showError } = useToast();
   const handlePhotoOptions = () => {
-    const isWebPlatform = Platform.OS === 'web';
+    const isWebPlatform = Platform.OS === 'web' || typeof window !== 'undefined';
     
     if (isWebPlatform) {
-      // For PWA, bypass Alert.alert() - call file picker directly
-      handleAttachPhoto('gallery');
+      // For PWA, call file picker directly - preserves user activation
+      handleWebPhotoAttach('gallery');
     } else {
       // For native platforms, show full options
       Alert.alert(

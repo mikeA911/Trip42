@@ -36,7 +36,7 @@ interface ManageNotesModalProps {
 const getMimeType = (uri: string): string => {
   if (uri.includes('.mp3')) return 'audio/mpeg';
   if (uri.includes('.wav')) return 'audio/wav';
-  if (uri.includes('.m4a')) return 'audio/m4a';
+  if (uri.includes('.m4a')) return 'audio/mp4';
   if (uri.includes('.jpg') || uri.includes('.jpeg')) return 'image/jpeg';
   if (uri.includes('.png')) return 'image/png';
   if (uri.includes('.gif')) return 'image/gif';
@@ -636,7 +636,11 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `trip42_media_${Date.now()}.${mediaUri.includes('.mp3') ? 'mp3' : 'jpg'}`;
+        a.download = `trip42_media_${Date.now()}.${
+          mediaUri.includes('.mp3') ? 'mp3' :
+          mediaUri.includes('.m4a') ? 'm4a' :
+          mediaUri.includes('.wav') ? 'wav' : 'jpg'
+        }`;
         a.click();
         URL.revokeObjectURL(url);
       } else {
@@ -1116,7 +1120,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
                   <Text style={styles.sectionTitle}>Media:</Text>
                   {selectedNote.attachedMedia.map((mediaUri, index) => (
                     <View key={index} style={styles.mediaItem}>
-                      {mediaUri.includes('.mp3') || mediaUri.includes('.wav') ? (
+                      {mediaUri.includes('.mp3') || mediaUri.includes('.wav') || mediaUri.includes('.m4a') ? (
                         <View style={styles.audioItem}>
                           <Text style={styles.audioIndicator}>🔊 Audio</Text>
                           <TouchableOpacity
@@ -1182,7 +1186,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               <Text style={styles.bottomActionText}>← Back</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.bottomActionButton} onPress={() => {
-              // Direct file picker - preserves user activation
+              // Direct file picker - preserves user activation, no popup
               handleWebMediaAttach();
             }}>
               <Text style={styles.bottomActionText}>📎 Add</Text>

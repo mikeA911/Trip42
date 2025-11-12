@@ -1,6 +1,6 @@
 {
   "name": "hitchtrip",
-  "version": "PWA-Beta-04",
+  "version": "PWA-Beta-05",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
