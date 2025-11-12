@@ -1223,32 +1223,23 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               <Text style={styles.bottomActionText}>← Back</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.bottomActionButton} onPress={() => {
-              // CRITICAL: Test if Alert.alert works at all
-              console.log('🚨🚨🚨 Add button clicked - PWA Debug Test');
+              // FORCE immediate function execution without any Alert calls
+              console.log('🚨🚨🚨 FORCE: Add button clicked - PWA-Beta-04');
               
-              // Try browser alert first
+              // Test browser alert first
               if (typeof window !== 'undefined' && typeof alert !== 'undefined') {
-                alert('🚨 PWA DEBUG: Add button clicked! PWA-Beta-03');
+                alert('🚨 FORCE DEBUG: Add clicked! PWA-Beta-04');
               }
               
-              // Try React Native Alert
-              Alert.alert('🚨 PWA DEBUG', 'Add button clicked! PWA-Beta-03\n\nTesting Alert.alert()...', [
-                {
-                  text: 'Continue',
-                  onPress: () => {
-                    console.log('🚨🚨🚨 Continue button pressed!');
-                    handlePhotoOptions();
-                  }
-                },
-                { text: 'Cancel', style: 'cancel', onPress: () => console.log('🚨🚨🚨 Cancel pressed!') }
-              ]);
+              // DIRECTLY call handlePhotoOptions without Alert.alert
+              console.log('🚨🚨🚨 FORCE: Calling handlePhotoOptions directly...');
+              handlePhotoOptions();
               
-              // Also test simple direct function call
-              console.log('🚨🚨🚨 About to call handlePhotoOptions directly');
+              // Also trigger simple photo attachment for testing
               setTimeout(() => {
-                console.log('🚨🚨🚨 Direct function call - handlePhotoOptions');
-                handlePhotoOptions();
-              }, 1000);
+                console.log('🚨🚨🚨 FORCE: Testing direct file picker...');
+                handleWebMediaAttach();
+              }, 2000);
             }}>
               <Text style={styles.bottomActionText}>📎 Add</Text>
             </TouchableOpacity>
