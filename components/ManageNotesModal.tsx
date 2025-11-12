@@ -472,69 +472,45 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   };
 
   const handlePhotoOptions = () => {
-    // Force immediate debug notification and console log
     console.log('🚨🚨🚨 handlePhotoOptions CALLED - PWA Debug 🚨🚨🚨');
     console.log('Platform.OS:', Platform.OS);
     console.log('selectedNote:', selectedNote);
     
-    // Force browser alert regardless of Platform detection
-    if (typeof window !== 'undefined' && typeof alert !== 'undefined') {
-      alert('🚨 PWA DEBUG: handlePhotoOptions called! PWA-Beta-03\n\nPlatform: ' + Platform.OS);
-    }
+    const isWebPlatform = Platform.OS === 'web' || typeof window !== 'undefined';
+    console.log('DEBUG: Web platform detected:', isWebPlatform);
     
-    try {
-      const isWebPlatform = Platform.OS === 'web' || typeof window !== 'undefined';
-      console.log('DEBUG: Web platform detected:', isWebPlatform);
+    if (isWebPlatform) {
+      console.log('🚨 PWA MODE: Direct file picker opening...');
+      alert('🚨 PWA MODE: Opening file picker... PWA-Beta-04');
       
-      if (isWebPlatform) {
-        console.log('DEBUG: PWA mode - showing photo attachment options');
-        const result = Alert.alert(
-          '🚨 PWA Photo Attachment',
-          'Attaching photo to your note...',
-          [
-            {
-              text: 'Continue',
-              onPress: () => {
-                console.log('🚨🚨🚨 Continue button clicked in PWA mode');
-                try {
-                  handleAddMediaToNote('gallery');
-                } catch (error) {
-                  console.error('🚨🚨🚨 Error in handleAddMediaToNote:', error);
-                  Alert.alert('ERROR', 'Failed to attach photo: ' + (error instanceof Error ? error.message : String(error)));
-                }
-              }
-            },
-            { text: 'Cancel', style: 'cancel', onPress: () => console.log('🚨🚨🚨 Cancel clicked') }
-          ]
-        );
-        console.log('DEBUG: Alert result:', result);
-      } else {
-        console.log('DEBUG: Native mode - showing native photo options');
-        Alert.alert(
-          'Attach Photo',
-          'Choose photo source:',
-          [
-            {
-              text: '📷 Take Photo',
-              onPress: () => {
-                console.log('🚨🚨🚨 Native camera option selected');
-                handleAddMediaToNote('camera');
-              }
-            },
-            {
-              text: '🖼️ Choose from Gallery',
-              onPress: () => {
-                console.log('🚨🚨🚨 Native gallery option selected');
-                handleAddMediaToNote('gallery');
-              }
-            },
-            { text: 'Cancel', style: 'cancel' }
-          ]
-        );
-      }
-    } catch (error) {
-      console.error('🚨🚨🚨 CRITICAL ERROR in handlePhotoOptions:', error);
-      Alert.alert('CRITICAL ERROR', 'handlePhotoOptions failed: ' + (error instanceof Error ? error.message : String(error)));
+      // DIRECTLY call handleWebMediaAttach for PWA - no Alert.alert
+      handleWebMediaAttach();
+    } else {
+      console.log('🚨 NATIVE MODE: Showing native photo options');
+      alert('🚨 NATIVE MODE: PWA-Beta-04');
+      
+      // For native, still use Alert.alert (it works there)
+      Alert.alert(
+        'Attach Photo',
+        'Choose photo source:',
+        [
+          {
+            text: '📷 Take Photo',
+            onPress: () => {
+              console.log('🚨🚨🚨 Native camera option selected');
+              handleAddMediaToNote('camera');
+            }
+          },
+          {
+            text: '🖼️ Choose from Gallery',
+            onPress: () => {
+              console.log('🚨🚨🚨 Native gallery option selected');
+              handleAddMediaToNote('gallery');
+            }
+          },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
     }
   };
 
