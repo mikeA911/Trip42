@@ -572,43 +572,107 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   };
 
   const handleWebMediaAttach = async () => {
-    return new Promise<void>((resolve) => {
-      // Create a hidden file input element for web/PWA
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*,video/*,audio/*';
-      input.setAttribute('capture', 'environment');
-      
-      input.onchange = async (event) => {
-        const file = (event.target as HTMLInputElement).files?.[0];
+    return new Promise<void>((resolve, reject) => {
+      try {
+        // Create a hidden file input element for web/PWA
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*,video/*,audio/*';
+        input.setAttribute('capture', 'environment');
         
-        if (file) {
+        // Clean up any previous input elements to prevent conflicts
+        const existingInputs = document.querySelectorAll('input[type="file"][style*="display: none"]');
+        existingInputs.forEach(el => el.remove());
+        
+        // Apply styles to make it truly hidden but still functional
+        Object.assign(input.style, {
+          position: 'absolute',
+          left: '-9999px',
+          opacity: '0',
+          pointerEvents: 'none'
+        });
+        
+        document.body.appendChild(input);
+        
+        input.onchange = async (event) => {
           try {
+            const file = (event.target as HTMLInputElement).files?.[0];
+            
+            if (!file) {
+              console.log('No file selected');
+              document.body.removeChild(input);
+              resolve();
+              return;
+            }
+            
+            console.log('File selected:', file.name, file.type);
+            
             // Convert file to base64 data URL for React Native compatibility
             const reader = new FileReader();
             reader.onload = async (e) => {
-              const result = e.target?.result as string;
-              
-              const updatedNote = {
-                ...selectedNote!,
-                attachedMedia: [...selectedNote!.attachedMedia, result]
-              };
+              try {
+                const result = e.target?.result as string;
+                
+                console.log('File converted to base64, length:', result?.length);
+                
+                const updatedNote = {
+                  ...selectedNote!,
+                  attachedMedia: [...selectedNote!.attachedMedia, result]
+                };
 
-              await editNote(updatedNote);
-              setSelectedNote(updatedNote);
-              refreshNotes();
-              Alert.alert('Success', 'Media attached successfully!');
+                await editNote(updatedNote);
+                setSelectedNote(updatedNote);
+                refreshNotes();
+                Alert.alert('Success', `Media attached successfully! (${file.name})`);
+              } catch (processError) {
+                console.error('Error processing file:', processError);
+                Alert.alert('Error', 'Failed to process selected file');
+              } finally {
+                // Clean up the input element
+                if (document.body.contains(input)) {
+                  document.body.removeChild(input);
+                }
+                resolve();
+              }
             };
+            
+            reader.onerror = (error) => {
+              console.error('FileReader error:', error);
+              Alert.alert('Error', 'Failed to read selected file');
+              if (document.body.contains(input)) {
+                document.body.removeChild(input);
+              }
+              resolve();
+            };
+            
             reader.readAsDataURL(file);
           } catch (error) {
-            console.error('Error processing file:', error);
-            Alert.alert('Error', 'Failed to process selected file');
+            console.error('Error in file selection handler:', error);
+            Alert.alert('Error', 'Failed to handle file selection');
+            if (document.body.contains(input)) {
+              document.body.removeChild(input);
+            }
+            resolve();
           }
-        }
-        resolve();
-      };
+        };
 
-      input.click();
+        // Also handle cancel/ESC key scenarios
+        input.onabort = () => {
+          console.log('File selection cancelled');
+          if (document.body.contains(input)) {
+            document.body.removeChild(input);
+          }
+          resolve();
+        };
+
+        console.log('Triggering file input click...');
+        input.click();
+        
+      } catch (error) {
+        console.error('Error creating file input:', error);
+        Alert.alert('Error', 'Failed to open file picker');
+        reject(error);
+      }
     });
   };
 

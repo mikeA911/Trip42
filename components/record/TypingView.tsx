@@ -112,29 +112,85 @@ const TypingView: React.FC<TypingViewProps> = ({
       // Create a hidden file input element for web/PWA
       const input = document.createElement('input');
       input.type = 'file';
-      input.accept = 'image/*';
+      input.accept = 'image/*,video/*,audio/*';
       if (source === 'camera') {
         input.setAttribute('capture', 'environment');
       }
       
+      // Clean up any previous input elements to prevent conflicts
+      const existingInputs = document.querySelectorAll('input[type="file"][style*="display: none"]');
+      existingInputs.forEach(el => el.remove());
+      
+      // Apply styles to make it truly hidden but still functional
+      Object.assign(input.style, {
+        position: 'absolute',
+        left: '-9999px',
+        opacity: '0',
+        pointerEvents: 'none'
+      });
+      
+      document.body.appendChild(input);
+       
       input.onchange = (event) => {
-        const file = (event.target as HTMLInputElement).files?.[0];
-        
-        if (file) {
+        try {
+          const file = (event.target as HTMLInputElement).files?.[0];
+          
+          if (!file) {
+            console.log('No file selected');
+            if (document.body.contains(input)) {
+              document.body.removeChild(input);
+            }
+            return;
+          }
+          
+          console.log('File selected:', file.name, file.type);
+          
           // Convert file to base64 data URL for React Native compatibility
           const reader = new FileReader();
           reader.onload = (e) => {
-            const result = e.target?.result as string;
-            setAttachedMedia([...attachedMedia, result]);
-            showSuccess('Photo attached successfully!');
+            try {
+              const result = e.target?.result as string;
+              console.log('File converted to base64, length:', result?.length);
+              setAttachedMedia([...attachedMedia, result]);
+              showSuccess(`Photo attached successfully! (${file.name})`);
+            } catch (processError) {
+              console.error('Error processing file:', processError);
+              showError('Failed to process selected file');
+            } finally {
+              // Clean up the input element
+              if (document.body.contains(input)) {
+                document.body.removeChild(input);
+              }
+            }
           };
-          reader.onerror = () => {
+          
+          reader.onerror = (error) => {
+            console.error('FileReader error:', error);
             showError('Failed to read selected file');
+            if (document.body.contains(input)) {
+              document.body.removeChild(input);
+            }
           };
+          
           reader.readAsDataURL(file);
+        } catch (error) {
+          console.error('Error in file selection handler:', error);
+          showError('Failed to handle file selection');
+          if (document.body.contains(input)) {
+            document.body.removeChild(input);
+          }
         }
       };
 
+      // Also handle cancel/ESC key scenarios
+      input.onabort = () => {
+        console.log('File selection cancelled');
+        if (document.body.contains(input)) {
+          document.body.removeChild(input);
+        }
+      };
+
+      console.log('Triggering file input click...');
       input.click();
     } catch (error) {
       console.error('Error opening file picker:', error);
