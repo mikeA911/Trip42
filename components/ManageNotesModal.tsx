@@ -1223,33 +1223,32 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               <Text style={styles.bottomActionText}>← Back</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.bottomActionButton} onPress={() => {
-              // Force immediate debug notification
-              console.log('🚨 Add button clicked - PWA Debug');
-              Alert.alert('🚨 PWA DEBUG', 'Add button clicked! PWA-Beta-03\n\nAbout to show Add menu...', [
+              // CRITICAL: Test if Alert.alert works at all
+              console.log('🚨🚨🚨 Add button clicked - PWA Debug Test');
+              
+              // Try browser alert first
+              if (typeof window !== 'undefined' && typeof alert !== 'undefined') {
+                alert('🚨 PWA DEBUG: Add button clicked! PWA-Beta-03');
+              }
+              
+              // Try React Native Alert
+              Alert.alert('🚨 PWA DEBUG', 'Add button clicked! PWA-Beta-03\n\nTesting Alert.alert()...', [
                 {
                   text: 'Continue',
                   onPress: () => {
-                    Alert.alert(
-                      'Add to Note',
-                      'Choose what to add:',
-                      [
-                        {
-                          text: 'Photo',
-                          onPress: () => {
-                            console.log('🚨 Photo option clicked');
-                            Alert.alert('🚨 PWA DEBUG', 'Photo option clicked! PWA-Beta-03', [{ text: 'OK', onPress: handlePhotoOptions }]);
-                          }
-                        },
-                        { text: 'Tag', onPress: () => {
-                          setSelectedTagsForNote(selectedNote?.tags || []);
-                          setShowTagSelectorModal(true);
-                        }},
-                        { text: 'Cancel', style: 'cancel' }
-                      ]
-                    );
+                    console.log('🚨🚨🚨 Continue button pressed!');
+                    handlePhotoOptions();
                   }
-                }
+                },
+                { text: 'Cancel', style: 'cancel', onPress: () => console.log('🚨🚨🚨 Cancel pressed!') }
               ]);
+              
+              // Also test simple direct function call
+              console.log('🚨🚨🚨 About to call handlePhotoOptions directly');
+              setTimeout(() => {
+                console.log('🚨🚨🚨 Direct function call - handlePhotoOptions');
+                handlePhotoOptions();
+              }, 1000);
             }}>
               <Text style={styles.bottomActionText}>📎 Add</Text>
             </TouchableOpacity>

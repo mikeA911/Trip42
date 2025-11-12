@@ -504,7 +504,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         style={styles.versionContainer}
         onPress={() => Platform.OS === 'web' && setShowPwaInfoModal(true)}
       >
-        <Text style={styles.versionText}>PWA-Beta-03</Text>
+        <Text style={styles.versionText}>PWA-Beta-04</Text>
       </TouchableOpacity>
 
       <PanGestureHandler
