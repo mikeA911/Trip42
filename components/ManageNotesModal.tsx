@@ -472,17 +472,24 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   };
 
   const handlePhotoOptions = () => {
+    console.log('DEBUG: ManageNotesModal - handlePhotoOptions called');
     Alert.alert(
       'Attach Photo',
       'Choose photo source:',
       [
         {
           text: '📷 Take Photo',
-          onPress: () => handleAddMediaToNote('camera')
+          onPress: () => {
+            console.log('DEBUG: ManageNotesModal - Take Photo option selected');
+            handleAddMediaToNote('camera')
+          }
         },
         {
           text: '🖼️ Choose from Gallery',
-          onPress: () => handleAddMediaToNote('gallery')
+          onPress: () => {
+            console.log('DEBUG: ManageNotesModal - Choose from Gallery option selected');
+            handleAddMediaToNote('gallery')
+          }
         },
         { text: 'Cancel', style: 'cancel' }
       ]
@@ -572,8 +579,20 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   };
 
   const handleWebMediaAttach = async () => {
+    console.log('DEBUG: handleWebMediaAttach called');
+    
     return new Promise<void>((resolve, reject) => {
       try {
+        // Check if we're in a browser environment
+        if (typeof document === 'undefined') {
+          console.error('Document not available - not in browser environment');
+          Alert.alert('Error', 'File attachment not available in this environment');
+          resolve();
+          return;
+        }
+
+        console.log('DEBUG: Creating file input element...');
+        
         // Create a hidden file input element for web/PWA
         const input = document.createElement('input');
         input.type = 'file';
@@ -581,7 +600,8 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         input.setAttribute('capture', 'environment');
         
         // Clean up any previous input elements to prevent conflicts
-        const existingInputs = document.querySelectorAll('input[type="file"][style*="display: none"]');
+        const existingInputs = document.querySelectorAll('input[type="file"]');
+        console.log('DEBUG: Found existing inputs:', existingInputs.length);
         existingInputs.forEach(el => el.remove());
         
         // Apply styles to make it truly hidden but still functional
@@ -589,23 +609,29 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
           position: 'absolute',
           left: '-9999px',
           opacity: '0',
-          pointerEvents: 'none'
+          pointerEvents: 'none',
+          width: '1px',
+          height: '1px'
         });
         
         document.body.appendChild(input);
+        console.log('DEBUG: File input added to DOM');
         
         input.onchange = async (event) => {
+          console.log('DEBUG: File input onchange triggered');
           try {
             const file = (event.target as HTMLInputElement).files?.[0];
             
             if (!file) {
-              console.log('No file selected');
-              document.body.removeChild(input);
+              console.log('DEBUG: No file selected');
+              if (document.body.contains(input)) {
+                document.body.removeChild(input);
+              }
               resolve();
               return;
             }
             
-            console.log('File selected:', file.name, file.type);
+            console.log('DEBUG: File selected:', file.name, file.type, file.size);
             
             // Convert file to base64 data URL for React Native compatibility
             const reader = new FileReader();
@@ -613,7 +639,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               try {
                 const result = e.target?.result as string;
                 
-                console.log('File converted to base64, length:', result?.length);
+                console.log('DEBUG: File converted to base64, length:', result?.length);
                 
                 const updatedNote = {
                   ...selectedNote!,
@@ -625,7 +651,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
                 refreshNotes();
                 Alert.alert('Success', `Media attached successfully! (${file.name})`);
               } catch (processError) {
-                console.error('Error processing file:', processError);
+                console.error('ERROR: Error processing file:', processError);
                 Alert.alert('Error', 'Failed to process selected file');
               } finally {
                 // Clean up the input element
@@ -637,7 +663,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             };
             
             reader.onerror = (error) => {
-              console.error('FileReader error:', error);
+              console.error('ERROR: FileReader error:', error);
               Alert.alert('Error', 'Failed to read selected file');
               if (document.body.contains(input)) {
                 document.body.removeChild(input);
@@ -647,7 +673,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             
             reader.readAsDataURL(file);
           } catch (error) {
-            console.error('Error in file selection handler:', error);
+            console.error('ERROR: Error in file selection handler:', error);
             Alert.alert('Error', 'Failed to handle file selection');
             if (document.body.contains(input)) {
               document.body.removeChild(input);
@@ -658,18 +684,33 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
 
         // Also handle cancel/ESC key scenarios
         input.onabort = () => {
-          console.log('File selection cancelled');
+          console.log('DEBUG: File selection cancelled/aborted');
           if (document.body.contains(input)) {
             document.body.removeChild(input);
           }
           resolve();
         };
 
-        console.log('Triggering file input click...');
-        input.click();
+        console.log('DEBUG: About to trigger file input click...');
+        
+        // Use setTimeout to ensure DOM is ready
+        setTimeout(() => {
+          try {
+            console.log('DEBUG: Triggering input.click()');
+            input.click();
+            console.log('DEBUG: input.click() completed');
+          } catch (clickError) {
+            console.error('ERROR: Failed to trigger input.click():', clickError);
+            Alert.alert('Error', 'Failed to open file picker');
+            if (document.body.contains(input)) {
+              document.body.removeChild(input);
+            }
+            resolve();
+          }
+        }, 10);
         
       } catch (error) {
-        console.error('Error creating file input:', error);
+        console.error('ERROR: Error creating file input:', error);
         Alert.alert('Error', 'Failed to open file picker');
         reject(error);
       }

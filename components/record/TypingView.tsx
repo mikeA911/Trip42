@@ -22,9 +22,12 @@ const TypingView: React.FC<TypingViewProps> = ({
 }) => {
   const { showSuccess, showError } = useToast();
   const handlePhotoOptions = () => {
+    console.log('DEBUG: TypingView - handlePhotoOptions called');
     const isWebPlatform = Platform.OS === 'web';
-    
+    console.log('DEBUG: TypingView - Platform.OS:', Platform.OS);
+     
     if (isWebPlatform) {
+      console.log('DEBUG: TypingView - Web platform detected, showing PWA options');
       // For web/PWA, show simplified options
       Alert.alert(
         'Attach Photo (PWA Mode)',
@@ -32,12 +35,16 @@ const TypingView: React.FC<TypingViewProps> = ({
         [
           {
             text: '📷 Take Photo / Choose from Gallery',
-            onPress: () => handleAttachPhoto('gallery') // Use gallery as fallback for camera
+            onPress: () => {
+              console.log('DEBUG: TypingView - PWA photo option selected');
+              handleAttachPhoto('gallery') // Use gallery as fallback for camera
+            }
           },
           { text: 'Cancel', style: 'cancel' }
         ]
       );
     } else {
+      console.log('DEBUG: TypingView - Native platform detected, showing native options');
       // For native platforms, show full options
       Alert.alert(
         'Attach Photo',
@@ -45,11 +52,17 @@ const TypingView: React.FC<TypingViewProps> = ({
         [
           {
             text: '📷 Take Photo',
-            onPress: () => handleAttachPhoto('camera')
+            onPress: () => {
+              console.log('DEBUG: TypingView - Native camera option selected');
+              handleAttachPhoto('camera')
+            }
           },
           {
             text: '🖼️ Choose from Gallery',
-            onPress: () => handleAttachPhoto('gallery')
+            onPress: () => {
+              console.log('DEBUG: TypingView - Native gallery option selected');
+              handleAttachPhoto('gallery')
+            }
           },
           { text: 'Cancel', style: 'cancel' }
         ]
@@ -108,7 +121,18 @@ const TypingView: React.FC<TypingViewProps> = ({
   };
 
   const handleWebPhotoAttach = (source: 'camera' | 'gallery') => {
+    console.log('DEBUG: handleWebPhotoAttach called, source:', source);
+    
     try {
+      // Check if we're in a browser environment
+      if (typeof document === 'undefined') {
+        console.error('Document not available - not in browser environment');
+        showError('File attachment not available in this environment');
+        return;
+      }
+
+      console.log('DEBUG: Creating file input element...');
+      
       // Create a hidden file input element for web/PWA
       const input = document.createElement('input');
       input.type = 'file';
@@ -118,7 +142,8 @@ const TypingView: React.FC<TypingViewProps> = ({
       }
       
       // Clean up any previous input elements to prevent conflicts
-      const existingInputs = document.querySelectorAll('input[type="file"][style*="display: none"]');
+      const existingInputs = document.querySelectorAll('input[type="file"]');
+      console.log('DEBUG: Found existing inputs:', existingInputs.length);
       existingInputs.forEach(el => el.remove());
       
       // Apply styles to make it truly hidden but still functional
@@ -126,35 +151,39 @@ const TypingView: React.FC<TypingViewProps> = ({
         position: 'absolute',
         left: '-9999px',
         opacity: '0',
-        pointerEvents: 'none'
+        pointerEvents: 'none',
+        width: '1px',
+        height: '1px'
       });
       
       document.body.appendChild(input);
+      console.log('DEBUG: File input added to DOM');
        
       input.onchange = (event) => {
+        console.log('DEBUG: File input onchange triggered');
         try {
           const file = (event.target as HTMLInputElement).files?.[0];
           
           if (!file) {
-            console.log('No file selected');
+            console.log('DEBUG: No file selected');
             if (document.body.contains(input)) {
               document.body.removeChild(input);
             }
             return;
           }
           
-          console.log('File selected:', file.name, file.type);
+          console.log('DEBUG: File selected:', file.name, file.type, file.size);
           
           // Convert file to base64 data URL for React Native compatibility
           const reader = new FileReader();
           reader.onload = (e) => {
             try {
               const result = e.target?.result as string;
-              console.log('File converted to base64, length:', result?.length);
+              console.log('DEBUG: File converted to base64, length:', result?.length);
               setAttachedMedia([...attachedMedia, result]);
               showSuccess(`Photo attached successfully! (${file.name})`);
             } catch (processError) {
-              console.error('Error processing file:', processError);
+              console.error('ERROR: Error processing file:', processError);
               showError('Failed to process selected file');
             } finally {
               // Clean up the input element
@@ -165,7 +194,7 @@ const TypingView: React.FC<TypingViewProps> = ({
           };
           
           reader.onerror = (error) => {
-            console.error('FileReader error:', error);
+            console.error('ERROR: FileReader error:', error);
             showError('Failed to read selected file');
             if (document.body.contains(input)) {
               document.body.removeChild(input);
@@ -174,7 +203,7 @@ const TypingView: React.FC<TypingViewProps> = ({
           
           reader.readAsDataURL(file);
         } catch (error) {
-          console.error('Error in file selection handler:', error);
+          console.error('ERROR: Error in file selection handler:', error);
           showError('Failed to handle file selection');
           if (document.body.contains(input)) {
             document.body.removeChild(input);
@@ -184,16 +213,31 @@ const TypingView: React.FC<TypingViewProps> = ({
 
       // Also handle cancel/ESC key scenarios
       input.onabort = () => {
-        console.log('File selection cancelled');
+        console.log('DEBUG: File selection cancelled/aborted');
         if (document.body.contains(input)) {
           document.body.removeChild(input);
         }
       };
 
-      console.log('Triggering file input click...');
-      input.click();
+      console.log('DEBUG: About to trigger file input click...');
+      
+      // Use setTimeout to ensure DOM is ready
+      setTimeout(() => {
+        try {
+          console.log('DEBUG: Triggering input.click()');
+          input.click();
+          console.log('DEBUG: input.click() completed');
+        } catch (clickError) {
+          console.error('ERROR: Failed to trigger input.click():', clickError);
+          showError('Failed to open file picker');
+          if (document.body.contains(input)) {
+            document.body.removeChild(input);
+          }
+        }
+      }, 10);
+      
     } catch (error) {
-      console.error('Error opening file picker:', error);
+      console.error('ERROR: Error opening file picker:', error);
       showError('Failed to open file picker');
     }
   };
