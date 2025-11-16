@@ -93,6 +93,7 @@ const TabsView: React.FC<TabsViewProps> = ({
   const [includeGps, setIncludeGps] = useState(false);
   const [showTagSelector, setShowTagSelector] = useState(false);
   const [noteTags, setNoteTags] = useState<string[]>([]);
+  const [enabledTags, setEnabledTags] = useState<string[]>([]);
 
   // Load user preferred language from settings
   useEffect(() => {
@@ -105,6 +106,21 @@ const TabsView: React.FC<TabsViewProps> = ({
       }
     };
     loadSettings();
+  }, []);
+
+  // Load enabled tags from settings
+  useEffect(() => {
+    const loadEnabledTags = async () => {
+      try {
+        const settings = await getOrCreateSettings();
+        const tags = settings.enabledTags || [];
+        setEnabledTags(tags);
+      } catch (error) {
+        console.error('Error loading enabled tags:', error);
+        setEnabledTags([]);
+      }
+    };
+    loadEnabledTags();
   }, []);
 
   // Update available languages when settings change (passed from parent)
@@ -237,7 +253,7 @@ const TabsView: React.FC<TabsViewProps> = ({
                 </TouchableOpacity>
 
                 {showLanguageDropdown && (
-                  <ScrollView style={styles.dropdownList} showsVerticalScrollIndicator={true}>
+                  <ScrollView style={styles.dropdownList} showsVerticalScrollIndicator={true} nestedScrollEnabled={true}>
                     {availableLanguages
                       .sort((a, b) => a.name.localeCompare(b.name))
                       .map(lang => (
@@ -370,32 +386,8 @@ const TabsView: React.FC<TabsViewProps> = ({
 
           <View style={styles.tagsSection}>
             <Text style={styles.tagsLabel}>Tags:</Text>
-            <View style={styles.enabledTagsList}>
+            <ScrollView style={styles.enabledTagsList} showsVerticalScrollIndicator={true}>
               {(() => {
-                // Get enabled tags from settings
-                const [enabledTags, setEnabledTags] = useState<string[]>([]);
-
-                useEffect(() => {
-                  const loadEnabledTags = async () => {
-                    try {
-                      // Load directly from AsyncStorage like SettingsPage does
-                      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-                      const savedSettings = await AsyncStorage.getItem('userSettings');
-                      if (savedSettings) {
-                        const settings = JSON.parse(savedSettings);
-                        const tags = settings.enabledTags || [];
-                        setEnabledTags(tags);
-                      } else {
-                        setEnabledTags([]);
-                      }
-                    } catch (error) {
-                      console.error('Error loading enabled tags:', error);
-                      setEnabledTags([]);
-                    }
-                  };
-                  loadEnabledTags();
-                }, []);
-
                 const permanentTagIcons: { [key: string]: string } = {
                   'vitals': '❤️',
                   'medicines': '💊',
@@ -448,7 +440,7 @@ const TabsView: React.FC<TabsViewProps> = ({
                   );
                 });
               })()}
-            </View>
+            </ScrollView>
           </View>
 
           <View style={styles.saveModalButtons}>
@@ -1354,7 +1346,7 @@ const styles = {
     backgroundColor: '#1f2937',
     borderRadius: 8,
     padding: 10,
-    maxHeight: 200,
+    maxHeight: 400,
   },
   dropdownItem: {
     padding: 12,
@@ -1367,6 +1359,7 @@ const styles = {
   },
   enabledTagsList: {
     marginBottom: 20,
+    maxHeight: 200,
   },
   tagSelectorItemDisabled: {
     backgroundColor: '#2d3748',

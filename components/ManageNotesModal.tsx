@@ -56,6 +56,8 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   const [editingPolishedText, setEditingPolishedText] = useState('');
   const [isCreatingPolishedNote, setIsCreatingPolishedNote] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [tempTitle, setTempTitle] = useState('');
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [currentImageUri, setCurrentImageUri] = useState('');
   const [sound, setSound] = useState<Audio.Sound | null>(null);
@@ -88,6 +90,18 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
     setSelectedNotes(newSelected);
   };
 
+  const handleConfirmDeleteSelected = async () => {
+    try {
+      for (const noteId of selectedNotes) {
+        await removeNote(noteId);
+      }
+      setSelectedNotes(new Set());
+      refreshNotes();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to delete notes');
+    }
+  };
+
   const handleDeleteSelected = () => {
     if (selectedNotes.size === 0) return;
 
@@ -99,17 +113,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              for (const noteId of selectedNotes) {
-                await removeNote(noteId);
-              }
-              setSelectedNotes(new Set());
-              refreshNotes();
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete notes');
-            }
-          }
+          onPress: handleConfirmDeleteSelected
         }
       ]
     );
@@ -912,6 +916,30 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
     }
   };
 
+  const handleEditTitle = () => {
+    if (!selectedNote) return;
+    setTempTitle(selectedNote.title);
+    setEditingTitle(true);
+  };
+
+  const handleSaveTitle = async () => {
+    if (!selectedNote) return;
+
+    try {
+      const updatedNote = {
+        ...selectedNote,
+        title: tempTitle.trim()
+      };
+      await editNote(updatedNote);
+      setSelectedNote(updatedNote);
+      setEditingTitle(false);
+      refreshNotes();
+      Alert.alert('Success', 'Title updated!');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update title');
+    }
+  };
+
   const handleCreatePolishedNote = async () => {
     if (!selectedNote) return;
 
@@ -1048,13 +1076,31 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         <View style={styles.detailContainer}>
           <ScrollView style={styles.detailContent}>
             <View style={styles.detailContentContainer}>
+              {/* Title Section */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Title:</Text>
+                <TouchableOpacity onPress={handleEditTitle}>
+                  <Text style={styles.noteTitle}>{selectedNote.title}</Text>
+                </TouchableOpacity>
+              </View>
+
               {/* Note Text - Display first */}
-              <TouchableOpacity onLongPress={() => handleCopyText(selectedNote.text, 'Note text')}>
-                <Text style={styles.noteText} selectable={true}>{selectedNote.text}</Text>
-              </TouchableOpacity>
+              {(() => {
+                const displayText = selectedNote.noteType === 'voice_recording' ? (selectedNote.polishedText || selectedNote.text) : selectedNote.text;
+                return (selectedNote.noteType !== 'voice_recording' || displayText) && (
+                  <TouchableOpacity onLongPress={() => handleCopyText(displayText, 'Note text')}>
+                    <Text style={styles.noteText} selectable={true}>{displayText}</Text>
+                  </TouchableOpacity>
+                );
+              })()}
 
               {/* Original Text if different */}
-              {(selectedNote.originalText && selectedNote.originalText !== selectedNote.text) || !selectedNote.polishedText ? (
+              {selectedNote.noteType === 'voice_recording' ? (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Original:</Text>
+                  <Text style={styles.originalText}>Original voice in media below</Text>
+                </View>
+              ) : (selectedNote.originalText && selectedNote.originalText !== selectedNote.text) || !selectedNote.polishedText ? (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Original:</Text>
                   <TouchableOpacity onLongPress={() => handleCopyText(selectedNote.originalText || selectedNote.text, 'Original text')}>
@@ -1064,40 +1110,33 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               ) : null}
 
               {/* Polished Text Section */}
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Polished:</Text>
-                  <View style={styles.polishedActions}>
-                    {selectedNote.polishedText && selectedNote.polishedText !== selectedNote.text && (
-                      <TouchableOpacity
-                        style={styles.editButton}
-                        onPress={handleEditPolishedText}
-                      >
-                        <Text style={styles.editButtonText}>✏️ Edit</Text>
-                      </TouchableOpacity>
-                    )}
-                    <TouchableOpacity
-                      style={[styles.createPolishedButton, isCreatingPolishedNote && styles.disabledButton]}
-                      onPress={handleCreatePolishedNote}
-                      disabled={isCreatingPolishedNote}
-                    >
-                      <Text style={[styles.createPolishedButtonText, isCreatingPolishedNote && styles.disabledText]}>
-                        {isCreatingPolishedNote ? '🤖 Creating...' : selectedNote.polishedText ? '🔄 Recreate' : '✨ Create'}
-                      </Text>
-                    </TouchableOpacity>
+              {selectedNote.noteType !== 'voice_recording' && (
+                <View style={styles.section}>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Polished:</Text>
+                    <View style={styles.polishedActions}>
+                      {selectedNote.polishedText && selectedNote.polishedText !== selectedNote.text && (
+                        <TouchableOpacity
+                          style={styles.editButton}
+                          onPress={handleEditPolishedText}
+                        >
+                          <Text style={styles.editButtonText}>✏️ Edit</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
+                  {selectedNote.polishedText && selectedNote.polishedText !== selectedNote.text ? (
+                    <TouchableOpacity onPress={() => {
+                      setEditingPolishedText(selectedNote.polishedText || '');
+                      setShowEditPolishedTextModal(true);
+                    }}>
+                      <Text style={styles.polishedText} selectable={true}>{selectedNote.polishedText}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.noPolishedText}>No Polished Version</Text>
+                  )}
                 </View>
-                {selectedNote.polishedText && selectedNote.polishedText !== selectedNote.text ? (
-                  <TouchableOpacity onPress={() => {
-                    setEditingPolishedText(selectedNote.polishedText || '');
-                    setShowEditPolishedTextModal(true);
-                  }}>
-                    <Text style={styles.polishedText} selectable={true}>{selectedNote.polishedText}</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <Text style={styles.noPolishedText}>No polished version available. Create one above.</Text>
-                )}
-              </View>
+              )}
 
               {/* Translations */}
               {selectedNote.translations && Object.keys(selectedNote.translations).length > 0 && (
@@ -1196,6 +1235,9 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             </TouchableOpacity>
             <TouchableOpacity style={styles.bottomActionButton} onPress={handleShareNote}>
               <Text style={styles.bottomActionText}>📤 Share</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.bottomActionButton, styles.deleteActionButton]} onPress={handleDeleteNote}>
+              <Text style={styles.deleteActionText}>🗑️ Delete</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1327,6 +1369,41 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             </Modal>
           )}
 
+          {/* Edit Title Modal */}
+          {editingTitle && (
+            <Modal visible={true} animationType="fade" transparent={true} presentationStyle="overFullScreen">
+              <View style={styles.editModalOverlay}>
+                <View style={styles.editModalContent}>
+                  <Text style={styles.editModalTitle}>Edit Title</Text>
+
+                  <TextInput
+                    style={styles.editTextInput}
+                    value={tempTitle}
+                    onChangeText={setTempTitle}
+                    placeholder="Enter title..."
+                    placeholderTextColor="#9ca3af"
+                    autoFocus={true}
+                  />
+
+                  <View style={styles.editModalButtons}>
+                    <TouchableOpacity
+                      style={styles.editModalCancelButton}
+                      onPress={() => setEditingTitle(false)}
+                    >
+                      <Text style={styles.editModalCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.editModalSaveButton}
+                      onPress={handleSaveTitle}
+                    >
+                      <Text style={styles.editModalSaveText}>Save</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
+          )}
+
           {/* Tag Selector Modal - Rendered at the end to ensure it's on top */}
           <TagSelectorModal
             visible={showTagSelectorModal}
@@ -1437,6 +1514,7 @@ const styles = {
     fontWeight: 'bold' as const,
   },
   iconButton: {
+    backgroundColor: '#374151',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,

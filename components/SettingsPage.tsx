@@ -539,7 +539,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, onThemeChange }) =>
 
         {/* Tags Management */}
         <View style={sharedStyles.settingsSection}>
-          <Text style={sharedStyles.settingsLabel}>Tags</Text>
+          <Text style={sharedStyles.settingsLabel}>Quick select tags</Text>
 
 
           {/* Tags Dropdown */}
