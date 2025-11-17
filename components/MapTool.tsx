@@ -108,8 +108,16 @@ const MapTool: React.FC<MapToolProps> = ({ onBack, theme = 'h2g2' }) => {
     try {
       const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API;
 
+      console.log('API Key available:', !!apiKey);
+      console.log('API Key length:', apiKey?.length || 0);
+
       if (!apiKey) {
         Alert.alert('Configuration Error', 'Google Maps API key is not configured. Please check your environment variables.');
+        return;
+      }
+
+      if (apiKey.length < 20) {
+        Alert.alert('Configuration Error', 'Google Maps API key appears to be invalid (too short). Please check your environment variables.');
         return;
       }
 
