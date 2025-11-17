@@ -62,6 +62,8 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   const [currentImageUri, setCurrentImageUri] = useState('');
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [showSingleDeleteConfirmation, setShowSingleDeleteConfirmation] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -69,25 +71,31 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       setSelectedNotes(new Set());
       setShowNoteDetail(false);
       setSelectedNote(null);
+      setShowDeleteConfirmation(false);
+      setShowSingleDeleteConfirmation(false);
     }
   }, [visible]);
 
   const handleSelectAll = () => {
-    if (selectedNotes.size === notes.length) {
-      setSelectedNotes(new Set());
-    } else {
-      setSelectedNotes(new Set(notes.map(note => note.id)));
-    }
+    setSelectedNotes(prev => {
+      if (prev.size === notes.length) {
+        return new Set();
+      } else {
+        return new Set(notes.map(note => note.id));
+      }
+    });
   };
 
   const handleNoteSelect = (noteId: string) => {
-    const newSelected = new Set(selectedNotes);
-    if (newSelected.has(noteId)) {
-      newSelected.delete(noteId);
-    } else {
-      newSelected.add(noteId);
-    }
-    setSelectedNotes(newSelected);
+    setSelectedNotes(prev => {
+      const newSelected = new Set(prev);
+      if (newSelected.has(noteId)) {
+        newSelected.delete(noteId);
+      } else {
+        newSelected.add(noteId);
+      }
+      return newSelected;
+    });
   };
 
   const handleConfirmDeleteSelected = async () => {
@@ -97,26 +105,30 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       }
       setSelectedNotes(new Set());
       refreshNotes();
+      setShowDeleteConfirmation(false);
     } catch (error) {
       Alert.alert('Error', 'Failed to delete notes');
+      setShowDeleteConfirmation(false);
+    }
+  };
+
+  const handleConfirmSingleDelete = async () => {
+    if (!selectedNote) return;
+    try {
+      await removeNote(selectedNote.id);
+      setShowNoteDetail(false);
+      setSelectedNote(null);
+      refreshNotes();
+      setShowSingleDeleteConfirmation(false);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to delete note');
+      setShowSingleDeleteConfirmation(false);
     }
   };
 
   const handleDeleteSelected = () => {
     if (selectedNotes.size === 0) return;
-
-    Alert.alert(
-      'Delete Notes',
-      `Delete ${selectedNotes.size} selected note${selectedNotes.size > 1 ? 's' : ''}? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: handleConfirmDeleteSelected
-        }
-      ]
-    );
+    setShowDeleteConfirmation(true);
   };
 
   const handleExportSelected = async () => {
@@ -868,28 +880,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
 
   const handleDeleteNote = () => {
     if (!selectedNote) return;
-
-    Alert.alert(
-      'Delete Note',
-      'Delete this note? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await removeNote(selectedNote.id);
-              setShowNoteDetail(false);
-              setSelectedNote(null);
-              refreshNotes();
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete note');
-            }
-          }
-        }
-      ]
-    );
+    setShowSingleDeleteConfirmation(true);
   };
 
   const handleEditPolishedText = () => {
@@ -1261,7 +1252,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
           <View style={styles.selectionHeader}>
             <TouchableOpacity style={styles.selectButton} onPress={handleSelectAll}>
               <Text style={styles.selectText}>
-                {selectedNotes.size === notes.length && notes.length > 0 ? '☑' : '□'} Select All
+                {selectedNotes.size === notes.length && notes.length > 0 ? '☑ Unselect All' : '□ Select All'}
               </Text>
             </TouchableOpacity>
             <Text style={styles.selectedCountText}>
@@ -1423,6 +1414,40 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               }
             }}
           />
+
+          {/* Delete Confirmation Modal */}
+          <Modal visible={showDeleteConfirmation || showSingleDeleteConfirmation} animationType="fade" transparent={true}>
+            <View style={styles.moreOptionsModalOverlay}>
+              <View style={styles.moreOptionsModalContent}>
+                <Text style={styles.moreOptionsModalTitle}>
+                  {showSingleDeleteConfirmation ? 'Delete Note' : 'Delete Notes'}
+                </Text>
+                <Text style={styles.deleteConfirmationText}>
+                  {showSingleDeleteConfirmation
+                    ? 'Delete this note? This action cannot be undone.'
+                    : `Delete ${selectedNotes.size} selected note${selectedNotes.size > 1 ? 's' : ''}? This action cannot be undone.`
+                  }
+                </Text>
+                <View style={styles.editModalButtons}>
+                  <TouchableOpacity
+                    style={styles.editModalCancelButton}
+                    onPress={() => {
+                      setShowDeleteConfirmation(false);
+                      setShowSingleDeleteConfirmation(false);
+                    }}
+                  >
+                    <Text style={styles.editModalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.editModalSaveButton, styles.deleteActionButton]}
+                    onPress={showSingleDeleteConfirmation ? handleConfirmSingleDelete : handleConfirmDeleteSelected}
+                  >
+                    <Text style={styles.deleteActionText}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
         </View>
       </Modal>
 
@@ -2179,6 +2204,12 @@ const styles = {
     fontSize: 18,
     fontWeight: 'bold' as const,
     color: '#f59e0b',
+    textAlign: 'center' as const,
+    marginBottom: 20,
+  },
+  deleteConfirmationText: {
+    fontSize: 16,
+    color: '#fff',
     textAlign: 'center' as const,
     marginBottom: 20,
   },
