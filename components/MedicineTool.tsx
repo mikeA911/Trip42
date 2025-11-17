@@ -71,13 +71,8 @@ const MedicineTool: React.FC<MedicineToolProps> = ({ onBack, theme = 'h2g2' }) =
     if (medicineCharacter.initialGreeting) {
       return medicineCharacter.initialGreeting;
     }
-    // Fallback to theme-specific defaults
-    const greetings: { [theme: string]: string } = {
-      'h2g2': "I Suppose You're Ill Again",
-      'QT-GR': "You Look Like You Need Some Pulp Fiction Medicine",
-      'TP': "Guards! Guards! Someone's Not Feeling Well"
-    };
-    return greetings[theme] || "I Suppose You're Ill Again";
+    // Generic fallback if no initialGreeting in table
+    return `Hello! I'm ${medicineCharacter.character || 'the medicine expert'}. How can I help with your health concerns?`;
   };
 
   const countries = [

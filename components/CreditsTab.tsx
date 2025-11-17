@@ -62,7 +62,10 @@ const CreditsTab: React.FC<CreditsTabProps> = ({ onBack }) => {
         setVoucherCode('');
         // Reload credits from storage to get the updated balance
         await loadCredits();
-        showSuccess(`Successfully redeemed ${result.creditsRedeemed} credits!`);
+        const successMessage = result.creditsRedeemed === 0
+          ? 'AI prompts cache refreshed successfully!'
+          : `Successfully redeemed ${result.creditsRedeemed} credits!`;
+        showSuccess(successMessage);
         logEvent({
           event_type: 'voucher_redemption',
           result: 'success',

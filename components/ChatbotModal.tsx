@@ -38,6 +38,8 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
   visible,
   onClose,
   systemPrompt,
+  chatbotName,
+  chatbotAvatar,
   theme = 'h2g2',
   initialMode
 }) => {
@@ -86,13 +88,22 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
         if (char) {
             mode = char.character?.toLowerCase();
             promptType = char.promptType || 'chatbotFaq';
+        } else {
+            promptType = mode;
         }
+    }
+
+    // If chatbotName is provided (e.g., from MapTool), use it as the mode
+    if (chatbotName) {
+        setCurrentMode(chatbotName.toLowerCase());
+        setCurrentPromptType(initialMode || 'chatbotFaq');
+        return;
     }
 
     setCurrentMode(mode || characters[0]?.character?.toLowerCase() || 'arthur');
     setCurrentPromptType(promptType);
 
-  }, [theme, initialMode]);
+  }, [theme, initialMode, chatbotName]);
 
   const getAvatar = (characterName: string) => {
     const character = themeCharacters.find(char => char.character?.toLowerCase() === characterName.toLowerCase());
@@ -139,10 +150,8 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
     } catch (error) {
       console.log('⚠️ Could not load character greeting, using fallback');
     }
-    if (promptType === 'chatbotFaq') return `Hello! I'm ${character?.character}. How can I help you with the app?`;
-    if (promptType === 'chatbotQuickNote') return `Hey there! ${character?.character} here. Ready to handle your quick notes. Fire away!`;
-    if (promptType === 'chatbotBored') return `Ah, hello. ${character?.character} at your service. What's on your mind?`;
-    return "Hello!";
+    // Generic fallback if no initialGreeting in table
+    return `Hello! I'm ${character?.character || mode}. How can I help you?`;
   };
   
   const getRecentNotesContext = (promptType: string): string => {

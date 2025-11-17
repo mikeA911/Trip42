@@ -98,16 +98,22 @@ export const downloadAndCacheAllPrompts = async (): Promise<void> => {
 
     console.log(`✅ Downloaded ${data.length} prompts from database`);
 
-    const promptsByTheme: { [theme: string]: PromptData[] } = {};
+    // Group prompts by theme and prompt_type, keeping only the latest version
+    const latestPrompts = new Map<string, PromptData>();
     data.forEach((prompt: PromptData) => {
+      const key = `${prompt.theme}:${prompt.prompt_type}`;
+      const existing = latestPrompts.get(key);
+      if (!existing || existing.version < prompt.version) {
+        latestPrompts.set(key, prompt);
+      }
+    });
+
+    const promptsByTheme: { [theme: string]: PromptData[] } = {};
+    latestPrompts.forEach((prompt) => {
       if (!promptsByTheme[prompt.theme]) {
         promptsByTheme[prompt.theme] = [];
       }
-      // Only keep the latest version of each prompt
-      const existingPrompt = promptsByTheme[prompt.theme].find(p => p.prompt_type === prompt.prompt_type);
-      if (!existingPrompt) {
-        promptsByTheme[prompt.theme].push(prompt);
-      }
+      promptsByTheme[prompt.theme].push(prompt);
     });
 
     await AsyncStorage.setItem(AI_PROMPTS_CACHE_KEY, JSON.stringify(promptsByTheme));
@@ -189,9 +195,8 @@ export const loadThemePrompts = async (theme: string): Promise<ThemeData> => {
       }
     });
 
-    // For theme-level data, use the first available (usually chatbotFaq)
-    const firstPromptType = Object.keys(characterData)[0];
-    const themeLevelData = firstPromptType ? characterData[firstPromptType] : {};
+    // For theme-level data, prefer chatbotFaq, then any available
+    const themeLevelData = characterData['chatbotFaq'] || (Object.keys(characterData).length > 0 ? characterData[Object.keys(characterData)[0]] : {});
 
     const themeData: ThemeData = {
       prompts,
@@ -294,6 +299,17 @@ export const clearThemeCache = (theme?: string) => {
   } else {
     themeCache.clear();
   }
+};
+
+export const clearPromptsCache = async () => {
+  await AsyncStorage.removeItem(AI_PROMPTS_CACHE_KEY);
+  await AsyncStorage.removeItem(AVATARS_CACHE_KEY);
+  themeCache.clear();
+};
+
+export const refreshPromptsCache = async () => {
+  await clearPromptsCache();
+  await downloadAndCacheAllPrompts();
 };
 
 // Load static content from files

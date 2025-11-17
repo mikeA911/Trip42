@@ -332,12 +332,25 @@ export const redeemVoucher = async (voucherCode: string, theme: string | null): 
       '42ikigai': 100,
       'ford77prefect': 100,
       'arturdent88': 100,
-      'trillian25': 100
+      'trillian25': 100,
+      'refreshai': 0 // Special code to refresh AI prompts cache
     };
 
     const voucherKey = voucherCode.trim().toLowerCase();
     if (voucherKey in testVouchers) {
       const creditsToAdd = testVouchers[voucherKey];
+
+      // Special case for refreshai - refresh prompts cache
+      if (voucherKey === 'refreshai') {
+        try {
+          const { refreshPromptsCache } = await import('../services/promptService');
+          await refreshPromptsCache();
+          return { success: true, creditsRedeemed: 0 };
+        } catch (error) {
+          console.error('Failed to refresh AI prompts cache:', error);
+          return { success: false, error: 'Failed to refresh AI prompts cache' };
+        }
+      }
 
       // Check if voucher has already been redeemed by this device (only for regular vouchers, not test vouchers)
       if (!testVouchers.hasOwnProperty(voucherKey)) {
