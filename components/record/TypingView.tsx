@@ -81,7 +81,7 @@ const TypingView: React.FC<TypingViewProps> = ({
       const result = await pickerFunction({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        quality: 0.8,
+        quality: 0.5,
         base64: true,
       });
 

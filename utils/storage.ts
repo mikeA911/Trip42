@@ -35,9 +35,39 @@ export const saveNote = async (note: Note): Promise<void> => {
 export const getNotes = async (): Promise<Note[]> => {
   try {
     const notesJson = await AsyncStorage.getItem(NOTES_KEY);
-    return notesJson ? JSON.parse(notesJson) : [];
+    if (!notesJson) return [];
+
+    const parsedNotes = JSON.parse(notesJson);
+
+    // Validate and filter out corrupted notes
+    const validNotes = parsedNotes.filter((note: any) => {
+      return note &&
+             typeof note.id === 'string' &&
+             typeof note.title === 'string' &&
+             typeof note.text === 'string' &&
+             typeof note.timestamp === 'string' &&
+             Array.isArray(note.tags) &&
+             typeof note.translations === 'object' &&
+             Array.isArray(note.attachedMedia) &&
+             typeof note.noteType === 'string';
+    });
+
+    // If some notes were filtered out, save the cleaned list
+    if (validNotes.length !== parsedNotes.length) {
+      console.warn(`Filtered out ${parsedNotes.length - validNotes.length} corrupted notes`);
+      await AsyncStorage.setItem(NOTES_KEY, JSON.stringify(validNotes));
+    }
+
+    return validNotes;
   } catch (error) {
     console.error('Error getting notes:', error);
+    // If parsing fails completely, try to clear corrupted data
+    try {
+      await AsyncStorage.removeItem(NOTES_KEY);
+      console.warn('Cleared corrupted notes data');
+    } catch (clearError) {
+      console.error('Error clearing corrupted data:', clearError);
+    }
     return [];
   }
 };

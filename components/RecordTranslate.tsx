@@ -185,7 +185,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        quality: 0.8,
+        quality: 0.5,
         base64: true,
       });
 
