@@ -108,6 +108,11 @@ const MapTool: React.FC<MapToolProps> = ({ onBack, theme = 'h2g2' }) => {
     try {
       const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API;
 
+      if (!apiKey) {
+        Alert.alert('Configuration Error', 'Google Maps API key is not configured. Please check your environment variables.');
+        return;
+      }
+
       const { latitude, longitude } = location;
 
       // Use Google Places API for nearby search
@@ -120,9 +125,18 @@ const MapTool: React.FC<MapToolProps> = ({ onBack, theme = 'h2g2' }) => {
         `keyword=${encodeURIComponent(searchQuery)}&` +
         `key=${apiKey}`;
 
+      console.log('Searching places with URL:', placesUrl.replace(apiKey, '[API_KEY]'));
+
       const response = await fetch(placesUrl);
 
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
       const data = await response.json();
+
+      console.log('Places API response status:', data.status);
+      console.log('Places API response results count:', data.results?.length || 0);
 
       if (data.status !== 'OK') {
         // Handle specific error cases
@@ -132,6 +146,16 @@ const MapTool: React.FC<MapToolProps> = ({ onBack, theme = 'h2g2' }) => {
             `No ${searchQuery} found within 5km of your location. Try:\n• Different search terms (restaurant, pharmacy, store)\n• Moving to a more populated area\n• Checking your internet connection`,
             [{ text: 'OK' }]
           );
+          return;
+        }
+
+        if (data.status === 'REQUEST_DENIED') {
+          Alert.alert('API Access Denied', 'The Google Maps API key is invalid or not properly configured. Please check your API key configuration.');
+          return;
+        }
+
+        if (data.status === 'OVER_QUERY_LIMIT') {
+          Alert.alert('API Quota Exceeded', 'The Google Maps API quota has been exceeded. Please try again later.');
           return;
         }
 
