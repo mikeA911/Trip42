@@ -296,29 +296,41 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             Alert.alert('Error', 'Failed to save note file');
           }
         } else {
-          // Multiple notes - share as JSON collection
+          // Multiple notes - save as JSON collection file
           const collectionData = {
             version: '1.0',
             exportedAt: new Date().toISOString(),
             notes: processedNotes
           };
           const jsonBlob = JSON.stringify(collectionData, null, 2);
-          await Share.share({
-            message: jsonBlob,
-            title: `Trip42 Notes Export - ${processedNotes.length} notes`
-          });
-          Alert.alert(
-            'Success',
-            `${processedNotes.length} notes exported!\n\nFiles saved to Documents directory.`,
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  setSelectedNotes(new Set());
-                }
-              }
-            ]
-          );
+          const fileName = `trip42_notes_${new Date().toISOString().split('T')[0]}.t42`;
+
+          try {
+            const documentsDir = FileSystem.documentDirectory;
+            if (documentsDir) {
+              const fileUri = `${documentsDir}${fileName}`;
+              await FileSystem.writeAsStringAsync(fileUri, jsonBlob, {
+                encoding: FileSystem.EncodingType.UTF8,
+              });
+              Alert.alert(
+                'Success',
+                `${processedNotes.length} notes exported as collection!\n\nFile saved to Documents as ${fileName}\n\nLocation: ${fileUri}`,
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      setSelectedNotes(new Set());
+                    }
+                  }
+                ]
+              );
+            } else {
+              throw new Error('No documents directory available');
+            }
+          } catch (saveError) {
+            console.error('Error saving file:', saveError);
+            Alert.alert('Error', 'Failed to save notes collection file');
+          }
         }
       }
     } catch (error) {
@@ -2378,7 +2390,7 @@ const TagSelectorModal: React.FC<{
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true}>
+    <Modal visible={visible} animationType="slide" transparent={true} presentationStyle="overFullScreen">
       <View style={styles.tagSelectorModalOverlay}>
         <View style={styles.tagSelectorModalContent}>
           <Text style={styles.tagSelectorModalTitle}>Select Tags</Text>
