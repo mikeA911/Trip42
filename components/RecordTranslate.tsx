@@ -562,6 +562,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         location: location || undefined,
         attachedMedia: attachedMedia,
         noteType: recordingCurrentNote.signImageUrl ? 'sign_translation' : recordingCurrentNote.audioUri ? 'voice_recording' : 'text_note',
+        originalText: recordingCurrentNote.rawTranscription,
         // Audio URI is now stored in attachedMedia array
       };
 
