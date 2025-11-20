@@ -1188,9 +1188,20 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               )}
 
               {/* Tags */}
-              {(selectedNote.tags || []).length > 0 && (
-                <View style={styles.tagsSection}>
+              <View style={styles.tagsSection}>
+                <View style={styles.sectionHeader}>
                   <Text style={styles.sectionTitle}>Tags:</Text>
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={() => {
+                      setSelectedTagsForNote(selectedNote.tags || []);
+                      setShowTagSelectorModal(true);
+                    }}
+                  >
+                    <Text style={styles.editButtonText}>✏️ Edit</Text>
+                  </TouchableOpacity>
+                </View>
+                {(selectedNote.tags || []).length > 0 ? (
                   <View style={styles.tagsContainer}>
                     {(selectedNote.tags || []).map(tag => (
                       <Text key={tag} style={styles.tag}>
@@ -1198,8 +1209,10 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
                       </Text>
                     ))}
                   </View>
-                </View>
-              )}
+                ) : (
+                  <Text style={styles.noTagsText}>No tags assigned</Text>
+                )}
+              </View>
 
               {/* Timestamp */}
               <View style={styles.timestampContainer}>
@@ -1871,6 +1884,13 @@ const styles = {
     gap: 10,
   },
   noPolishedText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontStyle: 'italic' as const,
+    textAlign: 'center' as const,
+    padding: 20,
+  },
+  noTagsText: {
     color: '#9ca3af',
     fontSize: 14,
     fontStyle: 'italic' as const,

@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, TextInput, Alert } from 'reac
 import { sharedStyles } from '../styles';
 import { useToast } from '../contexts/ToastContext';
 import { fetchQuotesByTheme } from '../services/quotesService';
+import { fetchThemes, Theme } from '../services/themesService';
 import { UserSettings } from '../types/settings';
 import { getOrCreateSettings, saveSettings } from '../utils/settings';
 
@@ -155,47 +156,49 @@ const CURRENCIES = [
   { code: 'MMK', name: 'Myanmar Kyat', symbol: 'K' }
 ];
 
-const AI_THEMES = [
-  { code: 'h2g2', name: 'Hitchhiker\'s Guide to the Galaxy', description: 'Marvin the Paranoid Android' },
-  { code: 'QT-GR', name: 'Quentin Tarantino/Guy Ritchie Films', description: 'Quentin Tarantino/Guy Ritchie Films' },
-  { code: 'TP', name: 'Terry Pratchett Guards! Guards!', description: 'Terry Pratchett Guards! Guards!' }
-];
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, onThemeChange }) => {
-  const [settings, setSettings] = useState<UserSettings>({
-    uiLanguage: 'en',
-    userCurrency: 'USD',
-    customTags: [],
-    locationPermission: 'prompt',
-    enabledTags: [],
-    enabledLanguages: [],
-    aiTheme: 'h2g2'
-  });
-  const { showSuccess, showError } = useToast();
-   const [tempEnabledTags, setTempEnabledTags] = useState<string[]>([]);
-   const [tempEnabledLanguages, setTempEnabledLanguages] = useState<string[]>([]);
-   const [newTag, setNewTag] = useState('');
-   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
-   const [showCurrencyDropdown, setShowCurrencyDropdown] = useState(false);
-   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
-   const [showTagsSelector, setShowTagsSelector] = useState(false);
-   const [showLanguagesSelector, setShowLanguagesSelector] = useState(false);
-   const [showThemeDropdown, setShowThemeDropdown] = useState(false);
+   const [settings, setSettings] = useState<UserSettings>({
+     uiLanguage: 'en',
+     userCurrency: 'USD',
+     customTags: [],
+     locationPermission: 'prompt',
+     enabledTags: [],
+     enabledLanguages: [],
+     aiTheme: 'h2g2'
+   });
+   const { showSuccess, showError } = useToast();
+    const [tempEnabledTags, setTempEnabledTags] = useState<string[]>([]);
+    const [tempEnabledLanguages, setTempEnabledLanguages] = useState<string[]>([]);
+    const [newTag, setNewTag] = useState('');
+    const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
+    const [showCurrencyDropdown, setShowCurrencyDropdown] = useState(false);
+    const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+    const [showTagsSelector, setShowTagsSelector] = useState(false);
+    const [showLanguagesSelector, setShowLanguagesSelector] = useState(false);
+    const [showThemeDropdown, setShowThemeDropdown] = useState(false);
+    const [themes, setThemes] = useState<Theme[]>([]);
 
   useEffect(() => {
-    loadSettings();
-  }, []);
+     loadSettings();
+     loadThemes();
+   }, []);
 
-  useEffect(() => {
-    // Initialize temp states when settings are loaded
-    setTempEnabledTags(settings.enabledTags || []);
-    setTempEnabledLanguages(settings.enabledLanguages || []);
-  }, [settings.enabledTags, settings.enabledLanguages]);
+   useEffect(() => {
+     // Initialize temp states when settings are loaded
+     setTempEnabledTags(settings.enabledTags || []);
+     setTempEnabledLanguages(settings.enabledLanguages || []);
+   }, [settings.enabledTags, settings.enabledLanguages]);
 
-  const loadSettings = async () => {
-    const userSettings = await getOrCreateSettings();
-    setSettings(userSettings);
-  };
+   const loadSettings = async () => {
+     const userSettings = await getOrCreateSettings();
+     setSettings(userSettings);
+   };
+
+   const loadThemes = async () => {
+     const fetchedThemes = await fetchThemes();
+     setThemes(fetchedThemes);
+   };
 
   const updateSetting = (key: keyof UserSettings, value: any) => {
     setSettings(prevSettings => {
@@ -241,9 +244,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, onThemeChange }) =>
   };
 
   const getThemeName = (code: string) => {
-    const theme = AI_THEMES.find(t => t.code === code);
-    return theme ? theme.name : code;
-  };
+     const theme = themes.find(t => t.code === code);
+     return theme ? theme.name : code;
+   };
 
   return (
     <ScrollView style={sharedStyles.tabContent}>
@@ -403,7 +406,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, onThemeChange }) =>
                 nestedScrollEnabled={true}
                 contentContainerStyle={{ paddingBottom: 10 }}
               >
-                {AI_THEMES.map((theme) => (
+                {themes.map((theme) => (
                   <TouchableOpacity
                     key={theme.code}
                     style={sharedStyles.tagSelectorItem}

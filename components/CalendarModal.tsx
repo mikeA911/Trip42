@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Modal, ScrollView, Dimensions, StyleSheet, TextInput } from 'react-native';
+import { getOrCreateSettings, saveSettings } from '../utils/settings';
 
 const { width, height } = Dimensions.get('window');
 
@@ -23,6 +24,8 @@ export default function CalendarModal({
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteTitle, setNoteTitle] = useState('');
   const [noteText, setNoteText] = useState('');
+  const [showTagSelectorModal, setShowTagSelectorModal] = useState(false);
+  const [selectedTagsForNote, setSelectedTagsForNote] = useState<string[]>([]);
   const [scrollPosition, setScrollPosition] = useState(0);
   const scrollContainerRef = useRef<ScrollView>(null);
 
@@ -136,12 +139,16 @@ export default function CalendarModal({
     const isFutureDate = selectedDate > now;
     const isPastDate = selectedDate < now && selectedDate.toDateString() !== now.toDateString();
 
+    let tags = [...selectedTagsForNote];
+    if (isFutureDate && !tags.includes('plan')) tags.push('plan');
+    if (isPastDate && !tags.includes('memory')) tags.push('memory');
+
     const newNote = {
       id: `note-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
       title: noteTitle,
       text: noteText,
       timestamp: selectedDate.toISOString(),
-      tags: isFutureDate ? ['plan'] : isPastDate ? ['memory'] : [],
+      tags: tags,
       noteType: 'text_note' as const,
       isSynced: false,
       translations: {},
@@ -153,6 +160,7 @@ export default function CalendarModal({
     setSelectedDate(null);
     setNoteTitle('');
     setNoteText('');
+    setSelectedTagsForNote([]);
   };
 
   const cancelNote = () => {
@@ -160,6 +168,7 @@ export default function CalendarModal({
     setSelectedDate(null);
     setNoteTitle('');
     setNoteText('');
+    setSelectedTagsForNote([]);
   };
 
   const isCurrentMonth = (monthDate: Date) => {
@@ -352,6 +361,19 @@ export default function CalendarModal({
               textAlignVertical="top"
             />
 
+            <Text style={styles.noteTextLabel}>Tags:</Text>
+            <TouchableOpacity
+              style={styles.tagSelectorButton}
+              onPress={() => setShowTagSelectorModal(true)}
+            >
+              <Text style={styles.tagSelectorText}>
+                {selectedTagsForNote.length > 0
+                  ? selectedTagsForNote.join(', ')
+                  : 'Select tags...'}
+              </Text>
+              <Text style={styles.tagSelectorArrow}>▼</Text>
+            </TouchableOpacity>
+
             <View style={styles.noteModalButtons}>
               <TouchableOpacity
                 style={[styles.noteModalButton, styles.cancelButton]}
@@ -369,9 +391,173 @@ export default function CalendarModal({
           </View>
         </View>
       </Modal>
+
+      {/* Tag Selector Modal */}
+      <TagSelectorModal
+        visible={showTagSelectorModal}
+        onClose={() => setShowTagSelectorModal(false)}
+        selectedTags={selectedTagsForNote}
+        onTagsChange={setSelectedTagsForNote}
+        onConfirm={(finalSelectedTags) => {
+          setSelectedTagsForNote(finalSelectedTags);
+          setShowTagSelectorModal(false);
+        }}
+      />
     </>
   );
 }
+
+// Tag Selector Modal Component
+const TagSelectorModal: React.FC<{
+  visible: boolean;
+  onClose: () => void;
+  selectedTags: string[];
+  onTagsChange: (tags: string[]) => void;
+  onConfirm: (finalSelectedTags: string[]) => void;
+}> = ({ visible, onClose, selectedTags, onTagsChange, onConfirm }) => {
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [newTagInput, setNewTagInput] = useState('');
+
+  useEffect(() => {
+    if (visible) {
+      loadAvailableTags();
+    }
+  }, [visible]);
+
+  const loadAvailableTags = async () => {
+    try {
+      const settings = await getOrCreateSettings();
+      const enabledTags = settings.enabledTags || [];
+      const customTags = settings.customTags || [];
+      const defaultTags = [
+        'vitals', 'medicines', 'events', 'activities', 'habits',
+        'Work', 'Personal', 'Ideas', 'Health', 'Fitness', 'Nutrition', 'Sleep', 'Mood', 'Energy', 'Focus', 'Creativity'
+      ];
+      const allTags = Array.from(new Set([...enabledTags, ...customTags, ...defaultTags]));
+      setAvailableTags(allTags);
+    } catch (error) {
+      setAvailableTags([
+        'vitals', 'medicines', 'events', 'activities', 'habits',
+        'Work', 'Personal', 'Ideas', 'Health', 'Fitness', 'Nutrition', 'Sleep', 'Mood', 'Energy', 'Focus', 'Creativity'
+      ]);
+    }
+  };
+
+  const saveCustomTag = async (tag: string) => {
+    try {
+      const currentSettings = await getOrCreateSettings();
+      const customTags = currentSettings.customTags || [];
+      if (!customTags.includes(tag)) {
+        const updatedSettings = {
+          ...currentSettings,
+          customTags: [...customTags, tag]
+        };
+        await saveSettings(updatedSettings);
+      }
+    } catch (error) {
+      // Error saving custom tag - silently fail
+    }
+  };
+
+  const handleTagToggle = (tag: string) => {
+    if (selectedTags.includes(tag)) {
+      onTagsChange(selectedTags.filter(t => t !== tag));
+    } else {
+      onTagsChange([...selectedTags, tag]);
+    }
+  };
+
+  const handleAddNewTag = () => {
+    const newTag = newTagInput.trim();
+    if (newTag && !availableTags.includes(newTag)) {
+      setAvailableTags(prev => [...prev, newTag]);
+      saveCustomTag(newTag);
+      onTagsChange([...selectedTags, newTag]);
+      setNewTagInput('');
+    }
+  };
+
+  const permanentTagIcons: { [key: string]: string } = {
+    'vitals': '❤️',
+    'medicines': '💊',
+    'events': '📅',
+    'activities': '🏃',
+    'habits': '🎯',
+    'Work': '💼',
+    'Personal': '🏠',
+    'Ideas': '💡',
+    'Health': '🏥',
+    'Fitness': '💪',
+    'Nutrition': '🥗',
+    'Sleep': '😴',
+    'Mood': '😊',
+    'Energy': '⚡',
+    'Focus': '🎯',
+    'Creativity': '🎨'
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent={true}>
+      <View style={styles.tagSelectorModalOverlay}>
+        <View style={styles.tagSelectorModalContent}>
+          <Text style={styles.tagSelectorModalTitle}>Select Tags</Text>
+
+          <ScrollView style={styles.tagSelectorScrollView}>
+            {availableTags.sort((a, b) => a.localeCompare(b)).map(tag => {
+              const isSelected = selectedTags.includes(tag);
+              const icon = permanentTagIcons[tag] || '🏷️';
+
+              return (
+                <TouchableOpacity
+                  key={tag}
+                  style={[styles.tagSelectorOption, isSelected && styles.tagSelectorOptionSelected]}
+                  onPress={() => handleTagToggle(tag)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.tagSelectorOptionText, isSelected && styles.tagSelectorOptionTextSelected]}>
+                    {isSelected ? '☑' : '□'} {icon} {tag}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <View style={styles.addNewTagContainer}>
+            <TextInput
+              style={styles.addNewTagInput}
+              placeholder="Add new tag..."
+              placeholderTextColor="#9ca3af"
+              value={newTagInput}
+              onChangeText={setNewTagInput}
+              onSubmitEditing={handleAddNewTag}
+            />
+            <TouchableOpacity
+              style={styles.addNewTagButton}
+              onPress={handleAddNewTag}
+            >
+              <Text style={styles.addNewTagButtonText}>+</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.tagSelectorModalButtons}>
+            <TouchableOpacity
+              style={styles.tagSelectorModalCancelButton}
+              onPress={onClose}
+            >
+              <Text style={styles.tagSelectorModalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.tagSelectorModalSaveButton}
+              onPress={() => onConfirm(selectedTags)}
+            >
+              <Text style={styles.tagSelectorModalSaveText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
 const styles = StyleSheet.create({
   modalOverlay: {
@@ -592,5 +778,136 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  tagSelectorModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    zIndex: 9999,
+  },
+  tagSelectorModalContent: {
+    backgroundColor: '#1f2937',
+    borderRadius: 12,
+    padding: 20,
+    width: '90%' as const,
+    maxWidth: 400,
+    maxHeight: '80%' as const,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    zIndex: 10000,
+  },
+  tagSelectorModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold' as const,
+    color: '#f59e0b',
+    textAlign: 'center' as const,
+    marginBottom: 20,
+  },
+  tagSelectorScrollView: {
+    maxHeight: 300,
+    marginBottom: 10,
+  },
+  tagSelectorOption: {
+    backgroundColor: '#4b5563',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#6b7280',
+  },
+  tagSelectorOptionSelected: {
+    backgroundColor: '#f59e0b',
+    borderColor: '#fff',
+  },
+  tagSelectorOptionText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+  },
+  tagSelectorOptionTextSelected: {
+    color: '#000',
+    fontWeight: 'bold' as const,
+  },
+  addNewTagContainer: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  addNewTagInput: {
+    flex: 1,
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+    color: '#fff',
+    fontSize: 16,
+    marginRight: 10,
+  },
+  addNewTagButton: {
+    backgroundColor: '#f59e0b',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
+  addNewTagButtonText: {
+    color: '#000',
+    fontSize: 20,
+    fontWeight: 'bold' as const,
+  },
+  tagSelectorModalButtons: {
+    flexDirection: 'row' as const,
+    justifyContent: 'center' as const,
+  },
+  tagSelectorModalCancelButton: {
+    backgroundColor: '#6b7280',
+    padding: 15,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center' as const,
+    marginRight: 10,
+  },
+  tagSelectorModalCancelText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+  },
+  tagSelectorModalSaveButton: {
+    backgroundColor: '#10b981',
+    padding: 15,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center' as const,
+    marginLeft: 10,
+  },
+  tagSelectorModalSaveText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+  },
+  tagSelectorButton: {
+    flex: 1,
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    marginBottom: 15,
+  },
+  tagSelectorText: {
+    color: '#f59e0b',
+    fontSize: 16,
+    flex: 1,
+  },
+  tagSelectorArrow: {
+    color: '#f59e0b',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
   },
 });
