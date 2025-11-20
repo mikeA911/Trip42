@@ -717,69 +717,48 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         }
       }
 
-      // Share with attached media if available
+      // Include attached media if available
       if (selectedNote.attachedMedia && selectedNote.attachedMedia.length > 0) {
         try {
-          Alert.alert('Sharing', 'Uploading media to cloud storage...');
+          Alert.alert('Copying', 'Uploading media to cloud storage...');
 
           const mediaUri = selectedNote.attachedMedia[0];
 
           // Use the working uploadImageForSharing function from utils/supabase.js
           const mediaUrl = await uploadImageForSharing(mediaUri);
 
-          // Share with media URL in message
-          const shareMessage = `${message}\n\n📎 Media: ${mediaUrl}\n\n*Note: Media files are automatically deleted after 30 days for privacy*`;
+          // Include media URL in message
+          message += `\n\n📎 Media: ${mediaUrl}\n\n*Note: Media files are automatically deleted after 30 days for privacy*`;
 
-          // Try Telegram first, fallback to regular share
-          const telegramUrl = `tg://msg?text=${encodeURIComponent(shareMessage)}`;
-          const canOpen = await Linking.canOpenURL(telegramUrl);
-
-          if (canOpen) {
-            await Linking.openURL(telegramUrl);
-            Alert.alert('Success', 'Note shared to Telegram with media link!');
-          } else {
-            Alert.alert('Sharing Failed', 'Telegram app is required for sharing notes with media. Please install Telegram.');
-          }
+          // Copy to clipboard
+          await Clipboard.setStringAsync(message);
+          Alert.alert('Success', 'Note with media link copied to clipboard! You can now paste it into any app like WhatsApp.');
 
           // Shared with Supabase media URL
         } catch (mediaError) {
-          Alert.alert('Media Upload Failed', 'Sharing note text only. Media could not be uploaded.');
+          console.error('Media upload failed:', mediaError);
+          Alert.alert('Media Upload Failed', 'Copying note text only. Media could not be uploaded.');
 
-          // Fallback to text-only sharing
-          const telegramUrl = `tg://msg?text=${encodeURIComponent(message + '\n\n[Media upload failed]')}`;
-          const canOpen = await Linking.canOpenURL(telegramUrl);
-
-          if (canOpen) {
-            await Linking.openURL(telegramUrl);
-            Alert.alert('Shared', 'Note shared to Telegram (media upload failed)');
-          } else {
-            Alert.alert('Sharing Failed', 'Telegram app is required for sharing notes. Please install Telegram.');
-          }
+          // Copy text-only to clipboard
+          await Clipboard.setStringAsync(message + '\n\n[Media attached but upload failed]');
+          Alert.alert('Copied', 'Note text copied to clipboard (media upload failed).');
         }
       } else {
-        // Text-only sharing
-        const telegramUrl = `tg://msg?text=${encodeURIComponent(message)}`;
-        const canOpen = await Linking.canOpenURL(telegramUrl);
-
-        if (canOpen) {
-          await Linking.openURL(telegramUrl);
-          Alert.alert('Success', 'Note shared to Telegram!');
-        } else {
-          Alert.alert('Sharing Failed', 'Telegram app is required for sharing notes. Please install Telegram.');
-        }
-
-        // Share options (text only)
+        // Text-only copying
+        await Clipboard.setStringAsync(message);
+        Alert.alert('Success', 'Note copied to clipboard! You can now paste it into any app.');
       }
 
       if (selectedNote.attachedMedia && selectedNote.attachedMedia.length > 1) {
         Alert.alert(
           'Additional Media',
-          `Shared first media file. Use 💾 Save button for ${selectedNote.attachedMedia.length - 1} additional file(s).`,
+          `Copied first media link. Use 💾 Save button for ${selectedNote.attachedMedia.length - 1} additional file(s).`,
           [{ text: 'OK' }]
         );
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to share note');
+      console.error('Error copying note:', error);
+      Alert.alert('Error', 'Failed to copy note');
     }
   };
 
