@@ -37,14 +37,14 @@ const TypingView: React.FC<TypingViewProps> = ({
           // File path
           urls.push(mediaItem);
         } else {
-          // Legacy media ID - try to get from storage
+          // Media ID - load from AsyncStorage
           try {
             const url = await getMedia(mediaItem);
             if (url) {
               urls.push(url);
             }
           } catch (error) {
-            console.error('Failed to load legacy media:', error);
+            console.error('Failed to load media:', error);
           }
         }
       }
@@ -178,8 +178,9 @@ const TypingView: React.FC<TypingViewProps> = ({
           const reader = new FileReader();
           reader.onload = async (event) => {
             const result = event.target?.result as string;
-            // For PWA, store data URL directly in attachedMedia
-            setAttachedMedia([...attachedMedia, result]);
+            // For PWA, save data URL to AsyncStorage and store ID
+            const mediaId = await saveMedia(result);
+            setAttachedMedia([...attachedMedia, mediaId]);
             showSuccess(`Photo attached: ${file.name}`);
             document.body.removeChild(input);
           };
@@ -216,14 +217,14 @@ const TypingView: React.FC<TypingViewProps> = ({
                 console.error('Error deleting file:', error);
               }
             } else if (!mediaItem.startsWith('data:')) {
-              // Media ID - delete from storage
+              // Media ID - delete from AsyncStorage
               try {
                 await deleteMedia(mediaItem);
               } catch (error) {
                 console.error('Error deleting media:', error);
               }
             }
-            // For data URLs, just remove from array
+            // Remove from array
             setAttachedMedia(attachedMedia.filter((_, i) => i !== index));
           }
         }

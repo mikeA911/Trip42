@@ -756,7 +756,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             const mimeType = mediaItem.includes('/DCIM/') ? 'image/jpeg' : 'audio/mpeg';
             mediaUri = `data:${mimeType};base64,${fileContent}`;
           } else {
-            // Media ID - load from storage
+            // Media ID - load from AsyncStorage
             mediaUri = await getMedia(mediaItem) || '';
           }
 
@@ -843,7 +843,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             const mimeType = mediaItem.includes('/DCIM/') ? 'image/jpeg' : 'audio/mpeg';
             mediaUri = `data:${mimeType};base64,${fileContent}`;
           } else {
-            // Media ID - load from storage
+            // Media ID - load from AsyncStorage
             mediaUri = await getMedia(mediaItem) || '';
           }
 
@@ -937,7 +937,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               const mimeType = mediaItem.includes('/DCIM/') ? 'image/jpeg' : 'audio/mpeg'; // Simple detection
               mediaData = `data:${mimeType};base64,${fileContent}`;
             } else {
-              // Media ID - load from storage
+              // Media ID - load from AsyncStorage
               mediaData = await getMedia(mediaItem) || '';
             }
             if (mediaData) {
