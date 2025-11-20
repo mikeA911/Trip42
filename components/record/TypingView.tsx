@@ -44,8 +44,8 @@ const TypingView: React.FC<TypingViewProps> = ({
     loadMedia();
   }, [attachedMedia]);
   const handlePhotoOptions = () => {
-    const isWebPlatform = Platform.OS === 'web' || typeof window !== 'undefined';
-    
+    const isWebPlatform = Platform.OS === 'web' && typeof document !== 'undefined';
+
     if (isWebPlatform) {
       // For PWA, call file picker directly - preserves user activation
       handleWebPhotoAttach('gallery');
