@@ -3,7 +3,7 @@ import { View, TextInput, TouchableOpacity, Text, Image, Alert, ScrollView, Plat
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useToast } from '../../contexts/ToastContext';
-import { saveMedia, getMedia, deleteMedia } from '../../utils/storage';
+import { generateMediaId, getMedia, saveMedia, deleteMedia } from '../../utils/storage';
 
 interface TypingViewProps {
   typedText: string;
@@ -32,11 +32,18 @@ const TypingView: React.FC<TypingViewProps> = ({
         if (mediaItem.startsWith('data:')) {
           // Old format: data URL
           urls.push(mediaItem);
+        } else if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
+          // File path
+          urls.push(mediaItem);
         } else {
-          // New format: media ID
-          const url = await getMedia(mediaItem);
-          if (url) {
-            urls.push(url);
+          // Legacy media ID - try to get from storage
+          try {
+            const url = await getMedia(mediaItem);
+            if (url) {
+              urls.push(url);
+            }
+          } catch (error) {
+            console.error('Failed to load legacy media:', error);
           }
         }
       }
@@ -110,33 +117,27 @@ const TypingView: React.FC<TypingViewProps> = ({
 
       if (!result.canceled && result.assets[0]) {
         const imageUri = result.assets[0].uri;
-        const mimeType = result.assets[0].type || 'image/jpeg';
-
-        let dataUrl: string;
-        const base64 = result.assets[0].base64;
-
-        if (base64) {
-          dataUrl = `data:${mimeType};base64,${base64}`;
-        } else {
-          // Fallback: read file as base64 using FileSystem
-          try {
-            const rawBase64 = await FileSystem.readAsStringAsync(imageUri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-            dataUrl = `data:${mimeType};base64,${rawBase64}`;
-          } catch (fileError) {
-            console.error('Failed to read file as base64:', fileError);
-            showError('Failed to process photo data');
-            return;
-          }
-        }
 
         try {
-          const mediaId = await saveMedia(dataUrl);
-          setAttachedMedia([...attachedMedia, mediaId]);
+          // Create DCIM directory if it doesn't exist
+          const dcimDir = FileSystem.documentDirectory + 'DCIM/';
+          await FileSystem.makeDirectoryAsync(dcimDir, { intermediates: true });
+
+          // Generate unique filename
+          const fileExtension = imageUri.split('.').pop() || 'jpg';
+          const fileName = `photo_${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExtension}`;
+          const destinationUri = dcimDir + fileName;
+
+          // Copy the file to our DCIM directory
+          await FileSystem.copyAsync({
+            from: imageUri,
+            to: destinationUri
+          });
+
+          setAttachedMedia([...attachedMedia, destinationUri]);
           showSuccess('Photo attached successfully!');
         } catch (error) {
-          console.error('Failed to save media:', error);
+          console.error('Failed to save photo:', error);
           showError('Failed to save photo');
         }
       }
@@ -196,8 +197,25 @@ const TypingView: React.FC<TypingViewProps> = ({
           style: 'destructive',
           onPress: async () => {
             const mediaItem = attachedMedia[index];
-            if (!mediaItem.startsWith('data:')) {
-              // New format: delete from storage
+            if (mediaItem.startsWith('data:')) {
+              // Data URL - check if it's a media ID
+              if (!mediaItem.startsWith('data:image/') && !mediaItem.startsWith('data:audio/')) {
+                // Legacy media ID
+                try {
+                  await deleteMedia(mediaItem);
+                } catch (error) {
+                  console.error('Error deleting legacy media:', error);
+                }
+              }
+            } else if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
+              // File path - delete the file
+              try {
+                await FileSystem.deleteAsync(mediaItem, { idempotent: true });
+              } catch (error) {
+                console.error('Error deleting file:', error);
+              }
+            } else {
+              // Media ID
               try {
                 await deleteMedia(mediaItem);
               } catch (error) {

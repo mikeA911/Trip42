@@ -421,8 +421,28 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             audioUri: uri
           });
 
-          // Add the audio URI to attached media
-          setAttachedMedia(prev => [...prev, uri!]);
+          // Save audio to Downloads directory
+          if (Platform.OS === 'web') {
+            // For web, uri is data URL, keep as is
+            setAttachedMedia(prev => [...prev, uri!]);
+          } else {
+            // For native, copy to Downloads directory
+            try {
+              const downloadsDir = FileSystem.documentDirectory + 'Downloads/';
+              await FileSystem.makeDirectoryAsync(downloadsDir, { intermediates: true });
+              const fileName = `recording_${Date.now()}.m4a`;
+              const destinationUri = downloadsDir + fileName;
+              await FileSystem.copyAsync({
+                from: uri!,
+                to: destinationUri
+              });
+              setAttachedMedia(prev => [...prev, destinationUri]);
+            } catch (error) {
+              console.error('Failed to save audio file:', error);
+              // Fallback to original URI
+              setAttachedMedia(prev => [...prev, uri!]);
+            }
+          }
 
           setRecordingViewMode('tabs');
           setActiveRecordingTab('polished');

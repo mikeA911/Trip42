@@ -85,10 +85,13 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         const mediaUrls: string[] = [];
         for (const mediaItem of selectedNote.attachedMedia) {
           if (mediaItem.startsWith('data:')) {
-            // Old format: data URL
+            // Data URL
+            mediaUrls.push(mediaItem);
+          } else if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
+            // File path
             mediaUrls.push(mediaItem);
           } else {
-            // New format: media ID
+            // Media ID
             const url = await getMedia(mediaItem);
             if (url) {
               mediaUrls.push(url);
@@ -742,7 +745,19 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
           Alert.alert('Copying', 'Uploading media to cloud storage...');
 
           const mediaItem = selectedNote.attachedMedia[0];
-          const mediaUri = mediaItem.startsWith('data:') ? mediaItem : await getMedia(mediaItem);
+          let mediaUri: string;
+          if (mediaItem.startsWith('data:')) {
+            mediaUri = mediaItem;
+          } else if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
+            // File path - read and convert to data URL
+            const fileContent = await FileSystem.readAsStringAsync(mediaItem, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            const mimeType = mediaItem.includes('/DCIM/') ? 'image/jpeg' : 'audio/mpeg';
+            mediaUri = `data:${mimeType};base64,${fileContent}`;
+          } else {
+            mediaUri = await getMedia(mediaItem) || '';
+          }
 
           if (mediaUri) {
             // Use the working uploadImageForSharing function from utils/supabase.js
@@ -816,7 +831,19 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
           Alert.alert('Sharing', 'Uploading media to cloud storage...');
 
           const mediaItem = selectedNote.attachedMedia[0];
-          const mediaUri = mediaItem.startsWith('data:') ? mediaItem : await getMedia(mediaItem);
+          let mediaUri: string;
+          if (mediaItem.startsWith('data:')) {
+            mediaUri = mediaItem;
+          } else if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
+            // File path - read and convert to data URL
+            const fileContent = await FileSystem.readAsStringAsync(mediaItem, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            const mimeType = mediaItem.includes('/DCIM/') ? 'image/jpeg' : 'audio/mpeg';
+            mediaUri = `data:${mimeType};base64,${fileContent}`;
+          } else {
+            mediaUri = await getMedia(mediaItem) || '';
+          }
 
           if (mediaUri) {
             // Use the working uploadImageForSharing function from utils/supabase.js
@@ -900,6 +927,13 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             if (mediaItem.startsWith('data:')) {
               // Already a data URL
               mediaData = mediaItem;
+            } else if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
+              // File path - read and convert to data URL
+              const fileContent = await FileSystem.readAsStringAsync(mediaItem, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+              const mimeType = mediaItem.includes('/DCIM/') ? 'image/jpeg' : 'audio/mpeg'; // Simple detection
+              mediaData = `data:${mimeType};base64,${fileContent}`;
             } else {
               // Load from ID
               mediaData = await getMedia(mediaItem) || '';
