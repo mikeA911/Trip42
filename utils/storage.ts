@@ -144,19 +144,78 @@ export const generateMediaId = (): string => {
   return `media-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
 };
 
+const CHUNK_SIZE = 500000; // 500KB chunks
+
 export const saveMedia = async (mediaData: string): Promise<string> => {
   const mediaId = generateMediaId();
-  const key = `media-${mediaId}`;
-  await AsyncStorage.setItem(key, mediaData);
+
+  if (mediaData.length <= CHUNK_SIZE) {
+    // Small data, save as single chunk
+    const key = `media-${mediaId}`;
+    await AsyncStorage.setItem(key, mediaData);
+  } else {
+    // Large data, split into chunks
+    const chunks = [];
+    for (let i = 0; i < mediaData.length; i += CHUNK_SIZE) {
+      chunks.push(mediaData.slice(i, i + CHUNK_SIZE));
+    }
+
+    // Save metadata
+    const metadataKey = `media-${mediaId}-meta`;
+    const metadata = { chunkCount: chunks.length };
+    await AsyncStorage.setItem(metadataKey, JSON.stringify(metadata));
+
+    // Save chunks
+    for (let i = 0; i < chunks.length; i++) {
+      const chunkKey = `media-${mediaId}-chunk-${i}`;
+      await AsyncStorage.setItem(chunkKey, chunks[i]);
+    }
+  }
+
   return mediaId;
 };
 
 export const getMedia = async (mediaId: string): Promise<string | null> => {
-  const key = `media-${mediaId}`;
-  return await AsyncStorage.getItem(key);
+  const metadataKey = `media-${mediaId}-meta`;
+  const metadataStr = await AsyncStorage.getItem(metadataKey);
+
+  if (metadataStr) {
+    // Multi-chunk media
+    const metadata = JSON.parse(metadataStr);
+    const chunks = [];
+    for (let i = 0; i < metadata.chunkCount; i++) {
+      const chunkKey = `media-${mediaId}-chunk-${i}`;
+      const chunk = await AsyncStorage.getItem(chunkKey);
+      if (chunk) {
+        chunks.push(chunk);
+      } else {
+        console.error(`Missing chunk ${i} for media ${mediaId}`);
+        return null;
+      }
+    }
+    return chunks.join('');
+  } else {
+    // Single chunk media
+    const key = `media-${mediaId}`;
+    return await AsyncStorage.getItem(key);
+  }
 };
 
 export const deleteMedia = async (mediaId: string): Promise<void> => {
-  const key = `media-${mediaId}`;
-  await AsyncStorage.removeItem(key);
+  const metadataKey = `media-${mediaId}-meta`;
+  const metadataStr = await AsyncStorage.getItem(metadataKey);
+
+  if (metadataStr) {
+    // Multi-chunk media
+    const metadata = JSON.parse(metadataStr);
+    for (let i = 0; i < metadata.chunkCount; i++) {
+      const chunkKey = `media-${mediaId}-chunk-${i}`;
+      await AsyncStorage.removeItem(chunkKey);
+    }
+    await AsyncStorage.removeItem(metadataKey);
+  } else {
+    // Single chunk media
+    const key = `media-${mediaId}`;
+    await AsyncStorage.removeItem(key);
+  }
 };
