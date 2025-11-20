@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, TextInput, TouchableOpacity, Text, Image, Alert, ScrollView, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useToast } from '../../contexts/ToastContext';
 import { saveMedia, getMedia, deleteMedia } from '../../utils/storage';
 
@@ -109,21 +110,34 @@ const TypingView: React.FC<TypingViewProps> = ({
 
       if (!result.canceled && result.assets[0]) {
         const imageUri = result.assets[0].uri;
-        // For native, uri is file path, but we need data URL
-        // Since we have base64: true, use base64
+        const mimeType = result.assets[0].type || 'image/jpeg';
+
+        let dataUrl: string;
         const base64 = result.assets[0].base64;
+
         if (base64) {
-          const mimeType = result.assets[0].type || 'image/jpeg';
-          const dataUrl = `data:${mimeType};base64,${base64}`;
-          try {
-            const mediaId = await saveMedia(dataUrl);
-            setAttachedMedia([...attachedMedia, mediaId]);
-            showSuccess('Photo attached successfully!');
-          } catch (error) {
-            showError('Failed to save photo');
-          }
+          dataUrl = `data:${mimeType};base64,${base64}`;
         } else {
-          showError('Failed to get photo data');
+          // Fallback: read file as base64 using FileSystem
+          try {
+            const rawBase64 = await FileSystem.readAsStringAsync(imageUri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            dataUrl = `data:${mimeType};base64,${rawBase64}`;
+          } catch (fileError) {
+            console.error('Failed to read file as base64:', fileError);
+            showError('Failed to process photo data');
+            return;
+          }
+        }
+
+        try {
+          const mediaId = await saveMedia(dataUrl);
+          setAttachedMedia([...attachedMedia, mediaId]);
+          showSuccess('Photo attached successfully!');
+        } catch (error) {
+          console.error('Failed to save media:', error);
+          showError('Failed to save photo');
         }
       }
     } catch (error) {
