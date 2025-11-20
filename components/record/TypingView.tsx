@@ -33,7 +33,7 @@ const TypingView: React.FC<TypingViewProps> = ({
         if (mediaItem.startsWith('data:')) {
           // Data URL - use directly
           urls.push(mediaItem);
-        } else if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
+        } else if (mediaItem.startsWith('file://') || mediaItem.includes('/tripNotesMedia/') || mediaItem.includes('/Downloads/')) {
           // File path
           urls.push(mediaItem);
         } else {
@@ -120,14 +120,14 @@ const TypingView: React.FC<TypingViewProps> = ({
         const imageUri = result.assets[0].uri;
 
         try {
-          // Create DCIM directory if it doesn't exist
-          const dcimDir = FileSystem.documentDirectory + 'DCIM/';
-          await FileSystem.makeDirectoryAsync(dcimDir, { intermediates: true });
+          // Create tripNotesMedia directory if it doesn't exist
+          const mediaDir = FileSystem.documentDirectory + 'tripNotesMedia/';
+          await FileSystem.makeDirectoryAsync(mediaDir, { intermediates: true });
 
           // Generate unique filename
           const fileExtension = imageUri.split('.').pop() || 'jpg';
           const fileName = `photo_${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExtension}`;
-          const destinationUri = dcimDir + fileName;
+          const destinationUri = mediaDir + fileName;
 
           // For Android content:// URIs, we need to read and write the file
           if (Platform.OS === 'android' && imageUri.startsWith('content://')) {
@@ -151,9 +151,7 @@ const TypingView: React.FC<TypingViewProps> = ({
           showSuccess('Photo attached successfully!');
         } catch (error) {
           console.error('Failed to save photo:', error);
-          // Fallback: use original URI
-          setAttachedMedia([...attachedMedia, imageUri]);
-          showSuccess('Photo attached (using original location)!');
+          showError('Failed to save photo to device storage');
         }
       }
     } catch (error) {
@@ -209,7 +207,7 @@ const TypingView: React.FC<TypingViewProps> = ({
           style: 'destructive',
           onPress: async () => {
             const mediaItem = attachedMedia[index];
-            if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
+            if (mediaItem.startsWith('file://') || mediaItem.includes('/tripNotesMedia/') || mediaItem.includes('/Downloads/')) {
               // File path - delete the file
               try {
                 await FileSystem.deleteAsync(mediaItem, { idempotent: true });
