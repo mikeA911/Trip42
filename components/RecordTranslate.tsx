@@ -373,9 +373,26 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
       setIsRecording(false);
       await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
+      let uri = recordingRef.current.getURI();
 
       if (uri) {
+        // For web/PWA, convert blob URLs to data URLs for persistence
+        if (Platform.OS === 'web' && uri.startsWith('blob:')) {
+          try {
+            const response = await fetch(uri);
+            const blob = await response.blob();
+            const dataUrl = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.readAsDataURL(blob);
+            });
+            uri = dataUrl;
+          } catch (error) {
+            console.error('Failed to convert blob to data URL:', error);
+            // Continue with original URI if conversion fails
+          }
+        }
+
         setIsTranscribing(true);
         setIsProcessingRecording(true);
         setProcessingMessage('Transcribing audio...');
@@ -405,7 +422,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           });
 
           // Add the audio URI to attached media
-          setAttachedMedia(prev => [...prev, uri]);
+          setAttachedMedia(prev => [...prev, uri!]);
 
           setRecordingViewMode('tabs');
           setActiveRecordingTab('polished');
