@@ -5,6 +5,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useToast } from '../../contexts/ToastContext';
 import { generateMediaId, getMedia, saveMedia, deleteMedia } from '../../utils/storage';
 
+
 interface TypingViewProps {
   typedText: string;
   setTypedText: (text: string) => void;

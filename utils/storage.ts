@@ -144,7 +144,7 @@ export const generateMediaId = (): string => {
   return `media-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
 };
 
-const CHUNK_SIZE = 100000; // 100KB chunks
+const CHUNK_SIZE = 500000; // 500KB chunks
 
 export const saveMedia = async (mediaData: string): Promise<string> => {
   const mediaId = generateMediaId();
