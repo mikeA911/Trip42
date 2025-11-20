@@ -178,18 +178,12 @@ const TypingView: React.FC<TypingViewProps> = ({
           reader.onload = async (event) => {
             const result = event.target?.result as string;
             try {
-              // Check size limit for PWA
-              if (Platform.OS === 'web' && result.length > 1000000) { // 1MB limit for PWA
-                showError('Image too large for PWA. Please use camera or select a smaller image.');
-                document.body.removeChild(input);
-                return;
-              }
               const mediaId = await saveMedia(result);
               setAttachedMedia([...attachedMedia, mediaId]);
               showSuccess(`Photo attached: ${file.name}`);
             } catch (error) {
               console.error('Failed to save photo:', error);
-              showError('Failed to save photo');
+              showError('Failed to save photo - image may be too large');
             }
             document.body.removeChild(input);
           };
