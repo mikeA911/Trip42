@@ -421,14 +421,14 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             audioUri: uri
           });
 
-          // Save audio to tripNotesMedia directory
+          // Save audio to trip42Media directory
           if (Platform.OS === 'web') {
             // For web, uri is data URL, keep as is
             setAttachedMedia(prev => [...prev, uri!]);
           } else {
-            // For native, copy to tripNotesMedia directory
+            // For native, copy to trip42Media directory
             try {
-              const mediaDir = FileSystem.documentDirectory + 'tripNotesMedia/';
+              const mediaDir = FileSystem.documentDirectory + 'trip42Media/';
               await FileSystem.makeDirectoryAsync(mediaDir, { intermediates: true });
               const fileName = `recording_${Date.now()}.m4a`;
               const destinationUri = mediaDir + fileName;
