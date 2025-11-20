@@ -738,10 +738,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             await Linking.openURL(telegramUrl);
             Alert.alert('Success', 'Note shared to Telegram with media link!');
           } else {
-            await Share.share({
-              message: shareMessage,
-              title: `Shared note from Trip42: ${selectedNote.title}`
-            });
+            Alert.alert('Sharing Failed', 'Telegram app is required for sharing notes with media. Please install Telegram.');
           }
 
           // Shared with Supabase media URL
@@ -756,10 +753,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             await Linking.openURL(telegramUrl);
             Alert.alert('Shared', 'Note shared to Telegram (media upload failed)');
           } else {
-            await Share.share({
-              message: message + '\n\n[Media attached but upload failed]',
-              title: `Shared note from Trip42: ${selectedNote.title}`
-            });
+            Alert.alert('Sharing Failed', 'Telegram app is required for sharing notes. Please install Telegram.');
           }
         }
       } else {
@@ -771,10 +765,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
           await Linking.openURL(telegramUrl);
           Alert.alert('Success', 'Note shared to Telegram!');
         } else {
-          await Share.share({
-            message,
-            title: `Shared note from Trip42: ${selectedNote.title}`
-          });
+          Alert.alert('Sharing Failed', 'Telegram app is required for sharing notes. Please install Telegram.');
         }
 
         // Share options (text only)
