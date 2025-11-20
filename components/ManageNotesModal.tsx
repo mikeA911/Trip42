@@ -1243,7 +1243,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
                   <Text style={styles.sectionTitle}>Media:</Text>
                   {selectedNote.attachedMedia.map((mediaUri, index) => (
                     <View key={index} style={styles.mediaItem}>
-                      {mediaUri.includes('.mp3') || mediaUri.includes('.wav') || mediaUri.includes('.m4a') ? (
+                      {mediaUri.includes('.mp3') || mediaUri.includes('.wav') || mediaUri.includes('.m4a') || selectedNote.noteType === 'voice_recording' ? (
                         <View style={styles.audioItem}>
                           <Text style={styles.audioIndicator}>🔊 Audio</Text>
                           <TouchableOpacity
