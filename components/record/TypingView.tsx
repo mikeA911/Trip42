@@ -128,17 +128,31 @@ const TypingView: React.FC<TypingViewProps> = ({
           const fileName = `photo_${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExtension}`;
           const destinationUri = dcimDir + fileName;
 
-          // Copy the file to our DCIM directory
-          await FileSystem.copyAsync({
-            from: imageUri,
-            to: destinationUri
-          });
+          // For Android content:// URIs, we need to read and write the file
+          if (Platform.OS === 'android' && imageUri.startsWith('content://')) {
+            // Read the file content
+            const fileContent = await FileSystem.readAsStringAsync(imageUri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            // Write to destination
+            await FileSystem.writeAsStringAsync(destinationUri, fileContent, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+          } else {
+            // For iOS or file:// URIs, copy directly
+            await FileSystem.copyAsync({
+              from: imageUri,
+              to: destinationUri
+            });
+          }
 
           setAttachedMedia([...attachedMedia, destinationUri]);
           showSuccess('Photo attached successfully!');
         } catch (error) {
           console.error('Failed to save photo:', error);
-          showError('Failed to save photo');
+          // Fallback: use original URI
+          setAttachedMedia([...attachedMedia, imageUri]);
+          showSuccess('Photo attached (using original location)!');
         }
       }
     } catch (error) {
