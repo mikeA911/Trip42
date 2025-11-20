@@ -30,7 +30,7 @@ const TypingView: React.FC<TypingViewProps> = ({
       const urls: string[] = [];
       for (const mediaItem of attachedMedia) {
         if (mediaItem.startsWith('data:')) {
-          // Old format: data URL
+          // Data URL - use directly
           urls.push(mediaItem);
         } else if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
           // File path
@@ -177,14 +177,9 @@ const TypingView: React.FC<TypingViewProps> = ({
           const reader = new FileReader();
           reader.onload = async (event) => {
             const result = event.target?.result as string;
-            try {
-              const mediaId = await saveMedia(result);
-              setAttachedMedia([...attachedMedia, mediaId]);
-              showSuccess(`Photo attached: ${file.name}`);
-            } catch (error) {
-              console.error('Failed to save photo:', error);
-              showError('Failed to save photo - image may be too large');
-            }
+            // For PWA, store data URL directly in attachedMedia
+            setAttachedMedia([...attachedMedia, result]);
+            showSuccess(`Photo attached: ${file.name}`);
             document.body.removeChild(input);
           };
           reader.readAsDataURL(file);
@@ -212,31 +207,22 @@ const TypingView: React.FC<TypingViewProps> = ({
           style: 'destructive',
           onPress: async () => {
             const mediaItem = attachedMedia[index];
-            if (mediaItem.startsWith('data:')) {
-              // Data URL - check if it's a media ID
-              if (!mediaItem.startsWith('data:image/') && !mediaItem.startsWith('data:audio/')) {
-                // Legacy media ID
-                try {
-                  await deleteMedia(mediaItem);
-                } catch (error) {
-                  console.error('Error deleting legacy media:', error);
-                }
-              }
-            } else if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
+            if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
               // File path - delete the file
               try {
                 await FileSystem.deleteAsync(mediaItem, { idempotent: true });
               } catch (error) {
                 console.error('Error deleting file:', error);
               }
-            } else {
-              // Media ID
+            } else if (!mediaItem.startsWith('data:')) {
+              // Media ID - delete from storage
               try {
                 await deleteMedia(mediaItem);
               } catch (error) {
                 console.error('Error deleting media:', error);
               }
             }
+            // For data URLs, just remove from array
             setAttachedMedia(attachedMedia.filter((_, i) => i !== index));
           }
         }
