@@ -696,6 +696,29 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   const handleShareNote = async () => {
     if (!selectedNote) return;
 
+    Alert.alert(
+      'Share Note',
+      'How would you like to share this note?',
+      [
+        {
+          text: 'Copy to Clipboard',
+          onPress: () => handleCopyToClipboard()
+        },
+        {
+          text: 'Share via Telegram',
+          onPress: () => handleShareViaTelegram()
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        }
+      ]
+    );
+  };
+
+  const handleCopyToClipboard = async () => {
+    if (!selectedNote) return;
+
     try {
       let message = `${selectedNote.title}\n\n${selectedNote.text}`;
 
@@ -759,6 +782,94 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
     } catch (error) {
       console.error('Error copying note:', error);
       Alert.alert('Error', 'Failed to copy note');
+    }
+  };
+
+  const handleShareViaTelegram = async () => {
+    if (!selectedNote) return;
+
+    try {
+      let message = `${selectedNote.title}\n\n${selectedNote.text}`;
+
+      // Include original text if it's a Zaphod note
+      if (selectedNote.noteType === 'zaphod_note' && selectedNote.originalText) {
+        message += `\n\nOriginal: ${selectedNote.originalText}`;
+      }
+
+      if ((selectedNote.tags || []).length > 0) {
+        message += `\n\nTags: ${(selectedNote.tags || []).map(tag => `#${tag}`).join(' ')}`;
+      }
+
+      // Include location if available and user preference allows
+      if (selectedNote.location) {
+        // Check location permission setting
+        const settings = await getOrCreateSettings();
+        if (settings.locationPermission === 'always') {
+          message += `\n\nLocation: ${selectedNote.location.latitude.toFixed(4)}, ${selectedNote.location.longitude.toFixed(4)}`;
+        }
+      }
+
+      // Share with attached media if available
+      if (selectedNote.attachedMedia && selectedNote.attachedMedia.length > 0) {
+        try {
+          Alert.alert('Sharing', 'Uploading media to cloud storage...');
+
+          const mediaUri = selectedNote.attachedMedia[0];
+
+          // Use the working uploadImageForSharing function from utils/supabase.js
+          const mediaUrl = await uploadImageForSharing(mediaUri);
+
+          // Share with media URL in message
+          const shareMessage = `${message}\n\n📎 Media: ${mediaUrl}\n\n*Note: Media files are automatically deleted after 30 days for privacy*`;
+
+          // Try Telegram
+          const telegramUrl = `tg://msg?text=${encodeURIComponent(shareMessage)}`;
+          const canOpen = await Linking.canOpenURL(telegramUrl);
+
+          if (canOpen) {
+            await Linking.openURL(telegramUrl);
+            Alert.alert('Success', 'Note shared to Telegram with media link!');
+          } else {
+            Alert.alert('Telegram Not Found', 'Please install Telegram to share notes.');
+          }
+
+          // Shared with Supabase media URL
+        } catch (mediaError) {
+          Alert.alert('Media Upload Failed', 'Sharing note text only. Media could not be uploaded.');
+
+          // Fallback to text-only sharing
+          const telegramUrl = `tg://msg?text=${encodeURIComponent(message + '\n\n[Media upload failed]')}`;
+          const canOpen = await Linking.canOpenURL(telegramUrl);
+
+          if (canOpen) {
+            await Linking.openURL(telegramUrl);
+            Alert.alert('Shared', 'Note shared to Telegram (media upload failed)');
+          } else {
+            Alert.alert('Telegram Not Found', 'Please install Telegram to share notes.');
+          }
+        }
+      } else {
+        // Text-only sharing
+        const telegramUrl = `tg://msg?text=${encodeURIComponent(message)}`;
+        const canOpen = await Linking.canOpenURL(telegramUrl);
+
+        if (canOpen) {
+          await Linking.openURL(telegramUrl);
+          Alert.alert('Success', 'Note shared to Telegram!');
+        } else {
+          Alert.alert('Telegram Not Found', 'Please install Telegram to share notes.');
+        }
+      }
+
+      if (selectedNote.attachedMedia && selectedNote.attachedMedia.length > 1) {
+        Alert.alert(
+          'Additional Media',
+          `Shared first media file. Use 💾 Save button for ${selectedNote.attachedMedia.length - 1} additional file(s).`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to share note');
     }
   };
 
