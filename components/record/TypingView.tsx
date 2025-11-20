@@ -33,7 +33,7 @@ const TypingView: React.FC<TypingViewProps> = ({
         if (mediaItem.startsWith('data:')) {
           // Data URL - use directly
           urls.push(mediaItem);
-        } else if (mediaItem.startsWith('file://') || mediaItem.includes('/trip42Media/') || mediaItem.includes('/Downloads/')) {
+        } else if (mediaItem.startsWith('file://') || mediaItem.includes('/Downloads/trip42Media/') || mediaItem.includes('/Downloads/')) {
           // File path
           urls.push(mediaItem);
         } else {
@@ -120,8 +120,8 @@ const TypingView: React.FC<TypingViewProps> = ({
         const imageUri = result.assets[0].uri;
 
         try {
-          // Create trip42Media directory if it doesn't exist
-          const mediaDir = FileSystem.documentDirectory + 'trip42Media/';
+          // Create Downloads/trip42Media directory if it doesn't exist
+          const mediaDir = FileSystem.documentDirectory + 'Downloads/trip42Media/';
           await FileSystem.makeDirectoryAsync(mediaDir, { intermediates: true });
 
           // Generate unique filename
@@ -207,7 +207,7 @@ const TypingView: React.FC<TypingViewProps> = ({
           style: 'destructive',
           onPress: async () => {
             const mediaItem = attachedMedia[index];
-            if (mediaItem.startsWith('file://') || mediaItem.includes('/trip42Media/') || mediaItem.includes('/Downloads/')) {
+            if (mediaItem.startsWith('file://') || mediaItem.includes('/Downloads/trip42Media/') || mediaItem.includes('/Downloads/')) {
               // File path - delete the file
               try {
                 await FileSystem.deleteAsync(mediaItem, { idempotent: true });

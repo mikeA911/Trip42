@@ -202,8 +202,22 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             audioUri: undefined
           });
 
-          // Add the sign image to attached media
-          setAttachedMedia([result.assets[0].uri]);
+          // Save the sign image to Downloads/trip42Media directory
+          try {
+            const mediaDir = FileSystem.documentDirectory + 'Downloads/trip42Media/';
+            await FileSystem.makeDirectoryAsync(mediaDir, { intermediates: true });
+            const fileName = `sign_${Date.now()}_${Math.random().toString(36).substring(2, 15)}.jpg`;
+            const destinationUri = mediaDir + fileName;
+            await FileSystem.copyAsync({
+              from: result.assets[0].uri,
+              to: destinationUri
+            });
+            setAttachedMedia([destinationUri]);
+          } catch (error) {
+            console.error('Failed to save sign image:', error);
+            // Fallback to original URI
+            setAttachedMedia([result.assets[0].uri]);
+          }
 
           setRecordingViewMode('tabs');
           setActiveRecordingTab('polished');
@@ -428,7 +442,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           } else {
             // For native, copy to trip42Media directory
             try {
-              const mediaDir = FileSystem.documentDirectory + 'trip42Media/';
+              const mediaDir = FileSystem.documentDirectory + 'Downloads/trip42Media/';
               await FileSystem.makeDirectoryAsync(mediaDir, { intermediates: true });
               const fileName = `recording_${Date.now()}.m4a`;
               const destinationUri = mediaDir + fileName;
