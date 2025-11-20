@@ -23,6 +23,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import { supabase, uploadImageForSharing, blobToBase64 } from '../utils/supabase'; // Corrected import path
+import { getMedia } from '../utils/storage';
 import { polishNoteWithGemini } from '../services/geminiService';
 import { Audio } from 'expo-av'; // Import Audio from expo-av
 import { getThemeCharacters } from '../services/promptService'; // Import getThemeCharacters
@@ -64,9 +65,11 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [showSingleDeleteConfirmation, setShowSingleDeleteConfirmation] = useState(false);
+  const [selectedNoteMedia, setSelectedNoteMedia] = useState<string[]>([]);
 
   useEffect(() => {
     if (visible) {
+      console.log('DEBUG: ManageNotesModal visible, calling refreshNotes');
       refreshNotes();
       setSelectedNotes(new Set());
       setShowNoteDetail(false);
@@ -75,6 +78,30 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       setShowSingleDeleteConfirmation(false);
     }
   }, [visible]);
+
+  useEffect(() => {
+    const loadSelectedNoteMedia = async () => {
+      if (selectedNote && selectedNote.attachedMedia && selectedNote.attachedMedia.length > 0) {
+        const mediaUrls: string[] = [];
+        for (const mediaItem of selectedNote.attachedMedia) {
+          if (mediaItem.startsWith('data:')) {
+            // Old format: data URL
+            mediaUrls.push(mediaItem);
+          } else {
+            // New format: media ID
+            const url = await getMedia(mediaItem);
+            if (url) {
+              mediaUrls.push(url);
+            }
+          }
+        }
+        setSelectedNoteMedia(mediaUrls);
+      } else {
+        setSelectedNoteMedia([]);
+      }
+    };
+    loadSelectedNoteMedia();
+  }, [selectedNote]);
 
   const handleSelectAll = () => {
     setSelectedNotes(prev => {
@@ -143,58 +170,27 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       const exportPromises = notesToExport.map(async (note) => {
         const exportNote = { ...note };
 
-        // Process attached media - convert URIs to base64 blobs
+        // Process attached media - load data URLs from ids
         if (exportNote.attachedMedia && exportNote.attachedMedia.length > 0) {
           const processedMedia: string[] = [];
 
           for (let i = 0; i < exportNote.attachedMedia.length; i++) {
-            const mediaUri = exportNote.attachedMedia[i];
-
+            const mediaItem = exportNote.attachedMedia[i];
+  
             try {
-              let base64Data: string;
-
-              if (Platform.OS === 'web') {
-                if (mediaUri.startsWith('data:')) {
-                  // Already a data URL (base64), use it directly
-                  base64Data = mediaUri;
-                } else if (mediaUri.startsWith('blob:')) {
-                  // Blob URL, fetch and convert to base64
-                  const response = await fetch(mediaUri);
-                  if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                  }
-                  const blob = await response.blob();
-                  const mimeType = blob.type; // Get MIME type from the blob
-
-                  base64Data = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                      const dataUrl = reader.result as string;
-                      // Extract raw base64 data (remove "data:mime/type;base64," prefix)
-                      const rawBase64 = dataUrl.split(',')[1];
-                      resolve(rawBase64);
-                    };
-                    reader.onerror = (e) => reject(new Error('FileReader failed'));
-                    reader.readAsDataURL(blob);
-                  });
-                  base64Data = `data:${mimeType};base64,${base64Data}`;
-                } else {
-                  // Unknown URI type on web, keep original
-                  base64Data = mediaUri;
-                }
+              let mediaData: string;
+              if (mediaItem.startsWith('data:')) {
+                mediaData = mediaItem;
               } else {
-                // For native, read file as base64
-                const rawBase64 = await FileSystem.readAsStringAsync(mediaUri, {
-                  encoding: FileSystem.EncodingType.Base64,
-                });
-                const mimeType = getMimeType(mediaUri); // Use the new getMimeType helper
-                base64Data = `data:${mimeType};base64,${rawBase64}`;
+                mediaData = await getMedia(mediaItem) || '';
               }
-
-              processedMedia.push(base64Data);
+              if (mediaData) {
+                processedMedia.push(mediaData);
+              } else {
+                console.error('Media not found for item:', mediaItem);
+              }
             } catch (mediaError) {
-              console.error('Error processing media for export:', mediaError);
-              processedMedia.push(mediaUri); // Keep original URI if processing fails
+              console.error('Error loading media for export:', mediaError);
             }
           }
 
@@ -745,19 +741,24 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         try {
           Alert.alert('Copying', 'Uploading media to cloud storage...');
 
-          const mediaUri = selectedNote.attachedMedia[0];
+          const mediaItem = selectedNote.attachedMedia[0];
+          const mediaUri = mediaItem.startsWith('data:') ? mediaItem : await getMedia(mediaItem);
 
-          // Use the working uploadImageForSharing function from utils/supabase.js
-          const mediaUrl = await uploadImageForSharing(mediaUri);
+          if (mediaUri) {
+            // Use the working uploadImageForSharing function from utils/supabase.js
+            const mediaUrl = await uploadImageForSharing(mediaUri);
 
-          // Include media URL in message
-          message += `\n\n📎 Media: ${mediaUrl}\n\n*Note: Media files are automatically deleted after 30 days for privacy*`;
+            // Include media URL in message
+            message += `\n\n📎 Media: ${mediaUrl}\n\n*Note: Media files are automatically deleted after 30 days for privacy*`;
 
-          // Copy to clipboard
-          await Clipboard.setStringAsync(message);
-          Alert.alert('Success', 'Note with media link copied to clipboard! You can now paste it into any app like WhatsApp.');
+            // Copy to clipboard
+            await Clipboard.setStringAsync(message);
+            Alert.alert('Success', 'Note with media link copied to clipboard! You can now paste it into any app like WhatsApp.');
 
-          // Shared with Supabase media URL
+            // Shared with Supabase media URL
+          } else {
+            throw new Error('Media not found');
+          }
         } catch (mediaError) {
           console.error('Media upload failed:', mediaError);
           Alert.alert('Media Upload Failed', 'Copying note text only. Media could not be uploaded.');
@@ -814,26 +815,31 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         try {
           Alert.alert('Sharing', 'Uploading media to cloud storage...');
 
-          const mediaUri = selectedNote.attachedMedia[0];
+          const mediaItem = selectedNote.attachedMedia[0];
+          const mediaUri = mediaItem.startsWith('data:') ? mediaItem : await getMedia(mediaItem);
 
-          // Use the working uploadImageForSharing function from utils/supabase.js
-          const mediaUrl = await uploadImageForSharing(mediaUri);
+          if (mediaUri) {
+            // Use the working uploadImageForSharing function from utils/supabase.js
+            const mediaUrl = await uploadImageForSharing(mediaUri);
 
-          // Share with media URL in message
-          const shareMessage = `${message}\n\n📎 Media: ${mediaUrl}\n\n*Note: Media files are automatically deleted after 30 days for privacy*`;
+            // Share with media URL in message
+            const shareMessage = `${message}\n\n📎 Media: ${mediaUrl}\n\n*Note: Media files are automatically deleted after 30 days for privacy*`;
 
-          // Try Telegram
-          const telegramUrl = `tg://msg?text=${encodeURIComponent(shareMessage)}`;
-          const canOpen = await Linking.canOpenURL(telegramUrl);
+            // Try Telegram
+            const telegramUrl = `tg://msg?text=${encodeURIComponent(shareMessage)}`;
+            const canOpen = await Linking.canOpenURL(telegramUrl);
 
-          if (canOpen) {
-            await Linking.openURL(telegramUrl);
-            Alert.alert('Success', 'Note shared to Telegram with media link!');
+            if (canOpen) {
+              await Linking.openURL(telegramUrl);
+              Alert.alert('Success', 'Note shared to Telegram with media link!');
+            } else {
+              Alert.alert('Telegram Not Found', 'Please install Telegram to share notes.');
+            }
+
+            // Shared with Supabase media URL
           } else {
-            Alert.alert('Telegram Not Found', 'Please install Telegram to share notes.');
+            throw new Error('Media not found');
           }
-
-          // Shared with Supabase media URL
         } catch (mediaError) {
           Alert.alert('Media Upload Failed', 'Sharing note text only. Media could not be uploaded.');
 
@@ -882,50 +888,29 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       // Create a copy of the note for export
       const exportNote = { ...selectedNote };
 
-      // Process attached media - convert URIs to base64 blobs
+      // Process attached media - ensure they are data URLs
       if (exportNote.attachedMedia && exportNote.attachedMedia.length > 0) {
         const processedMedia: string[] = [];
 
         for (let i = 0; i < exportNote.attachedMedia.length; i++) {
-          const mediaUri = exportNote.attachedMedia[i];
-          // Processing media
+          const mediaItem = exportNote.attachedMedia[i];
 
           try {
-            let base64Data: string;
-
-            if (Platform.OS === 'web') {
-              // For web, fetch the blob and convert to base64
-              const response = await fetch(mediaUri);
-              const blob = await response.blob();
-              base64Data = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                  const dataUrl = reader.result as string;
-                  // Extract raw base64 data (remove "data:mime/type;base64," prefix)
-                  base64Data = dataUrl.split(',')[1];
-                  resolve(base64Data);
-                };
-                reader.onerror = () => {
-                  reject(new Error('FileReader failed'));
-                };
-                reader.readAsDataURL(blob);
-              });
-              const mimeType = getMimeType(mediaUri); // Use the new getMimeType helper
-              base64Data = `data:${mimeType};base64,${base64Data}`;
+            let mediaData: string;
+            if (mediaItem.startsWith('data:')) {
+              // Already a data URL
+              mediaData = mediaItem;
             } else {
-              // For native, read file as base64
-              const rawBase64 = await FileSystem.readAsStringAsync(mediaUri, {
-                encoding: FileSystem.EncodingType.Base64,
-              });
-              const mimeType = getMimeType(mediaUri); // Use the new getMimeType helper
-              base64Data = `data:${mimeType};base64,${rawBase64}`;
+              // Load from ID
+              mediaData = await getMedia(mediaItem) || '';
             }
-
-            processedMedia.push(base64Data);
+            if (mediaData) {
+              processedMedia.push(mediaData);
+            } else {
+              console.error('Media not found for item:', mediaItem);
+            }
           } catch (mediaError) {
-            console.error('Error processing media for export:', mediaError);
-            // Keep original URI if processing fails
-            processedMedia.push(mediaUri);
+            console.error('Error loading media for export:', mediaError);
           }
         }
 
@@ -1238,10 +1223,10 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               )}
 
               {/* Media Section */}
-              {selectedNote.attachedMedia && selectedNote.attachedMedia.length > 0 && (
+              {selectedNoteMedia && selectedNoteMedia.length > 0 && (
                 <View style={styles.mediaSection}>
                   <Text style={styles.sectionTitle}>Media:</Text>
-                  {selectedNote.attachedMedia.map((mediaUri, index) => (
+                  {selectedNoteMedia.map((mediaUri, index) => (
                     <View key={index} style={styles.mediaItem}>
                       {mediaUri.includes('.mp3') || mediaUri.includes('.wav') || mediaUri.includes('.m4a') || selectedNote.noteType === 'voice_recording' ? (
                         <View style={styles.audioItem}>

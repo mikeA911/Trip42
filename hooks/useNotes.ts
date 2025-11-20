@@ -11,8 +11,10 @@ export const useNotes = () => {
 
   const loadNotes = async () => {
     try {
+      console.log('DEBUG: useNotes loadNotes called');
       setLoading(true);
       const storedNotes = await getNotes();
+      console.log('DEBUG: useNotes loaded notes count:', storedNotes.length);
       setNotes(storedNotes);
     } catch (error) {
       console.error('Error loading notes:', error);
@@ -23,8 +25,13 @@ export const useNotes = () => {
 
   const addNote = async (note: Note) => {
     try {
+      console.log('DEBUG: useNotes addNote called with note id:', note.id);
       await saveNote(note);
-      setNotes(prev => [note, ...prev]);
+      setNotes(prev => {
+        const newNotes = [note, ...prev];
+        console.log('DEBUG: useNotes note added to state, new count:', newNotes.length);
+        return newNotes;
+      });
     } catch (error) {
       console.error('Error adding note:', error);
       throw error;

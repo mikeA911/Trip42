@@ -12,7 +12,7 @@ export interface Note {
     longitude: number;
     accuracy?: number;
   };
-  attachedMedia: string[];
+  attachedMedia: string[]; // Now stores media IDs instead of data URLs
   noteType: 'text_note' | 'voice_recording' | 'sign_translation' | 'photo_translation' | 'zaphod_note' | 'ford_note' | 'arthur_note' | 'marvin_note' | 'archive';
   originalText?: string;
   polishedText?: string;
@@ -23,9 +23,27 @@ const SETTINGS_KEY = 'hitchtrip_settings';
 
 export const saveNote = async (note: Note): Promise<void> => {
   try {
+    console.log('DEBUG: saveNote called with note:', {
+      id: note.id,
+      title: note.title,
+      text: note.text?.substring(0, 100),
+      timestamp: note.timestamp,
+      tags: note.tags,
+      attachedMediaCount: note.attachedMedia?.length,
+      noteType: note.noteType,
+      location: note.location
+    });
     const existingNotes = await getNotes();
+    console.log('DEBUG: existingNotes count:', existingNotes.length);
     const updatedNotes = [note, ...existingNotes];
-    await AsyncStorage.setItem(NOTES_KEY, JSON.stringify(updatedNotes));
+    console.log('DEBUG: updatedNotes count:', updatedNotes.length);
+    const jsonString = JSON.stringify(updatedNotes);
+    console.log('DEBUG: JSON string length:', jsonString.length);
+    if (jsonString.length > 4 * 1024 * 1024) { // 4MB limit
+      throw new Error('Note data too large to save. Please reduce attached media size.');
+    }
+    await AsyncStorage.setItem(NOTES_KEY, jsonString);
+    console.log('DEBUG: note saved successfully');
   } catch (error) {
     console.error('Error saving note:', error);
     throw error;
@@ -34,14 +52,20 @@ export const saveNote = async (note: Note): Promise<void> => {
 
 export const getNotes = async (): Promise<Note[]> => {
   try {
+    console.log('DEBUG: getNotes called');
     const notesJson = await AsyncStorage.getItem(NOTES_KEY);
-    if (!notesJson) return [];
+    console.log('DEBUG: notesJson length:', notesJson?.length);
+    if (!notesJson) {
+      console.log('DEBUG: no notesJson, returning empty array');
+      return [];
+    }
 
     const parsedNotes = JSON.parse(notesJson);
+    console.log('DEBUG: parsedNotes count:', parsedNotes.length);
 
     // Validate and filter out corrupted notes
     const validNotes = parsedNotes.filter((note: any) => {
-      return note &&
+      const isValid = note &&
              typeof note.id === 'string' &&
              typeof note.title === 'string' &&
              typeof note.text === 'string' &&
@@ -50,7 +74,22 @@ export const getNotes = async (): Promise<Note[]> => {
              typeof note.translations === 'object' &&
              Array.isArray(note.attachedMedia) &&
              typeof note.noteType === 'string';
+      if (!isValid) {
+        console.log('DEBUG: invalid note:', {
+          id: note?.id,
+          title: note?.title,
+          hasText: typeof note?.text === 'string',
+          hasTimestamp: typeof note?.timestamp === 'string',
+          tagsIsArray: Array.isArray(note?.tags),
+          translationsIsObject: typeof note?.translations === 'object',
+          attachedMediaIsArray: Array.isArray(note?.attachedMedia),
+          noteType: note?.noteType
+        });
+      }
+      return isValid;
     });
+
+    console.log('DEBUG: validNotes count:', validNotes.length);
 
     // If some notes were filtered out, save the cleaned list
     if (validNotes.length !== parsedNotes.length) {
@@ -99,4 +138,25 @@ export const updateNote = async (updatedNote: Note): Promise<void> => {
 
 export const generateNoteId = (): string => {
   return `note-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+};
+
+export const generateMediaId = (): string => {
+  return `media-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+};
+
+export const saveMedia = async (mediaData: string): Promise<string> => {
+  const mediaId = generateMediaId();
+  const key = `media-${mediaId}`;
+  await AsyncStorage.setItem(key, mediaData);
+  return mediaId;
+};
+
+export const getMedia = async (mediaId: string): Promise<string | null> => {
+  const key = `media-${mediaId}`;
+  return await AsyncStorage.getItem(key);
+};
+
+export const deleteMedia = async (mediaId: string): Promise<void> => {
+  const key = `media-${mediaId}`;
+  await AsyncStorage.removeItem(key);
 };

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, TextInput, TouchableOpacity, Text, Image, Alert, ScrollView, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '../../contexts/ToastContext';
+import { saveMedia, getMedia, deleteMedia } from '../../utils/storage';
 
 interface TypingViewProps {
   typedText: string;
@@ -21,6 +22,27 @@ const TypingView: React.FC<TypingViewProps> = ({
   setAttachedMedia = () => {}
 }) => {
   const { showSuccess, showError } = useToast();
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+
+  useEffect(() => {
+    const loadMedia = async () => {
+      const urls: string[] = [];
+      for (const mediaItem of attachedMedia) {
+        if (mediaItem.startsWith('data:')) {
+          // Old format: data URL
+          urls.push(mediaItem);
+        } else {
+          // New format: media ID
+          const url = await getMedia(mediaItem);
+          if (url) {
+            urls.push(url);
+          }
+        }
+      }
+      setMediaUrls(urls);
+    };
+    loadMedia();
+  }, [attachedMedia]);
   const handlePhotoOptions = () => {
     const isWebPlatform = Platform.OS === 'web' || typeof window !== 'undefined';
     
@@ -87,8 +109,22 @@ const TypingView: React.FC<TypingViewProps> = ({
 
       if (!result.canceled && result.assets[0]) {
         const imageUri = result.assets[0].uri;
-        setAttachedMedia([...attachedMedia, imageUri]);
-        showSuccess('Photo attached successfully!');
+        // For native, uri is file path, but we need data URL
+        // Since we have base64: true, use base64
+        const base64 = result.assets[0].base64;
+        if (base64) {
+          const mimeType = result.assets[0].type || 'image/jpeg';
+          const dataUrl = `data:${mimeType};base64,${base64}`;
+          try {
+            const mediaId = await saveMedia(dataUrl);
+            setAttachedMedia([...attachedMedia, mediaId]);
+            showSuccess('Photo attached successfully!');
+          } catch (error) {
+            showError('Failed to save photo');
+          }
+        } else {
+          showError('Failed to get photo data');
+        }
       }
     } catch (error) {
       console.error('Error attaching photo:', error);
@@ -106,14 +142,19 @@ const TypingView: React.FC<TypingViewProps> = ({
       
       document.body.appendChild(input);
       
-      input.onchange = (e) => {
+      input.onchange = async (e) => {
         const file = (e.target as HTMLInputElement).files?.[0];
         if (file) {
           const reader = new FileReader();
-          reader.onload = (event) => {
+          reader.onload = async (event) => {
             const result = event.target?.result as string;
-            setAttachedMedia([...attachedMedia, result]);
-            showSuccess(`Photo attached: ${file.name}`);
+            try {
+              const mediaId = await saveMedia(result);
+              setAttachedMedia([...attachedMedia, mediaId]);
+              showSuccess(`Photo attached: ${file.name}`);
+            } catch (error) {
+              showError('Failed to save photo');
+            }
             document.body.removeChild(input);
           };
           reader.readAsDataURL(file);
@@ -139,7 +180,16 @@ const TypingView: React.FC<TypingViewProps> = ({
         {
           text: 'Remove',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
+            const mediaItem = attachedMedia[index];
+            if (!mediaItem.startsWith('data:')) {
+              // New format: delete from storage
+              try {
+                await deleteMedia(mediaItem);
+              } catch (error) {
+                console.error('Error deleting media:', error);
+              }
+            }
             setAttachedMedia(attachedMedia.filter((_, i) => i !== index));
           }
         }
@@ -160,11 +210,11 @@ const TypingView: React.FC<TypingViewProps> = ({
         />
 
         {/* Attached Photos Display */}
-        {attachedMedia.length > 0 && (
+        {mediaUrls.length > 0 && (
           <View style={styles.photosContainer}>
-            <Text style={styles.photosTitle}>Attached Media ({attachedMedia.length})</Text>
+            <Text style={styles.photosTitle}>Attached Media ({mediaUrls.length})</Text>
             <View style={styles.photosGrid}>
-              {attachedMedia.map((imageUri, index) => (
+              {mediaUrls.map((imageUri, index) => (
                 <View key={index} style={styles.photoItem}>
                   <Image source={{ uri: imageUri }} style={styles.photoThumbnail} />
                   <TouchableOpacity

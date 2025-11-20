@@ -540,6 +540,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
   };
 
   const handleSaveNote = async (includeGps: boolean, tags: string[]) => {
+    console.log('DEBUG: handleSaveNote called, includeGps:', includeGps, 'tags:', tags, 'attachedMedia length:', attachedMedia.length);
     if (!recordingCurrentNote.polishedNote.trim()) {
       Alert.alert('Error', 'No content to save');
       return;
@@ -549,6 +550,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       let location = undefined;
       if (includeGps) {
         location = await getCurrentLocation();
+        console.log('DEBUG: location obtained:', location);
       }
 
       const note: Note = {
@@ -566,6 +568,16 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         // Audio URI is now stored in attachedMedia array
       };
 
+      console.log('DEBUG: note to save:', {
+        id: note.id,
+        title: note.title,
+        text: note.text?.substring(0, 100),
+        tags: note.tags,
+        attachedMediaCount: note.attachedMedia.length,
+        noteType: note.noteType,
+        location: note.location
+      });
+
       onSaveNote(note);
 
       // Reset form
@@ -580,6 +592,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
       showSuccess('Note saved successfully!');
     } catch (error) {
+      console.error('Error in handleSaveNote:', error);
       Alert.alert('Error', 'Failed to save note');
     }
   };
