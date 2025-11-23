@@ -585,10 +585,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               style={styles.chatbotOption}
               onPress={() => {
                 setShowChatbotSelector(false);
-                const characters: { [key: string]: string } = {
-                  'h2g2': 'arthur', 'QT-GR': 'jules', 'TP': 'colon'
-                };
-                setShowChatbot({ mode: characters[aiTheme] || 'arthur', visible: true });
+                setShowChatbot({ mode: 'chatbotFaq', visible: true });
               }}
             >
               <Text style={styles.chatbotOptionEmoji}>❓</Text>
@@ -603,10 +600,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               onPress={() => {
                 console.log('🎯 Selected Quick Note for theme:', aiTheme);
                 setShowChatbotSelector(false);
-                const characters: { [key: string]: string } = {
-                  'h2g2': 'zaphod', 'QT-GR': 'mia', 'TP': 'nobbs'
-                };
-                setShowChatbot({ mode: characters[aiTheme] || 'zaphod', visible: true });
+                setShowChatbot({ mode: 'chatbotQuickNote', visible: true });
               }}
             >
               <Text style={styles.chatbotOptionEmoji}>📝</Text>
@@ -620,10 +614,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               style={styles.chatbotOption}
               onPress={() => {
                 setShowChatbotSelector(false);
-                const characters: { [key: string]: string } = {
-                  'h2g2': 'ford', 'QT-GR': 'vincent', 'TP': 'vimes'
-                };
-                setShowChatbot({ mode: characters[aiTheme] || 'ford', visible: true });
+                setShowChatbot({ mode: 'chatbotBored', visible: true });
               }}
             >
               <Text style={styles.chatbotOptionEmoji}>😴</Text>

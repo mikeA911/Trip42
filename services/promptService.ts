@@ -293,6 +293,40 @@ export const getThemeCharacter = async (theme: string, characterName: string): P
   }
 };
 
+export const getThemeCharactersDetails = async (theme: string): Promise<Array<{ character?: string; avatar?: string; promptType: string }>> => {
+  try {
+    const cachedPrompts = await getCachedPromptsForTheme(theme);
+    if (cachedPrompts) {
+      return cachedPrompts.map(p => ({
+        character: p.character,
+        avatar: p.avatar,
+        promptType: p.prompt_type
+      })).filter(p => p.character); // Only return entries with characters
+    }
+
+    // Fallback to loading theme prompts if not directly cached as list
+    const themeData = await loadThemePrompts(theme);
+    // This part is tricky because loadThemePrompts returns a simplified object.
+    // We might need to re-fetch or rely on getCachedPromptsForTheme being populated by loadThemePrompts
+    
+    // If loadThemePrompts was called, it should have populated the cache.
+    // Let's try getCachedPromptsForTheme again
+    const cachedPromptsRetry = await getCachedPromptsForTheme(theme);
+    if (cachedPromptsRetry) {
+      return cachedPromptsRetry.map(p => ({
+        character: p.character,
+        avatar: p.avatar,
+        promptType: p.prompt_type
+      })).filter(p => p.character);
+    }
+
+    return [];
+  } catch (error) {
+    console.error('Error getting theme characters details:', error);
+    return [];
+  }
+};
+
 export const clearThemeCache = (theme?: string) => {
   if (theme) {
     themeCache.delete(theme);

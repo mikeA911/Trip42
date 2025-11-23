@@ -7,7 +7,7 @@ import { useNotes } from '../hooks/useNotes';
 import { Note, generateNoteId } from '../utils/storage';
 import { deductCredits, CREDIT_PRICING, checkCreditsAndNotify } from '../utils/credits';
 import { useToast } from '../contexts/ToastContext';
-import { getPrompt, getCharacterForPromptType } from '../services/promptService';
+import { getPrompt, getCharacterForPromptType, getThemeCharactersDetails } from '../services/promptService';
 
 interface ChatbotModalProps {
   visible: boolean;
@@ -59,54 +59,85 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
   const [currentPromptType, setCurrentPromptType] = useState<string>('chatbotFaq');
   const { notes } = useNotes();
 
-  const fallbackMappings: { [theme: string]: Array<{ character?: string; avatar?: string; promptType?: string }> } = {
-    'h2g2': [
-      { character: 'Arthur', avatar: 'arturBent.png', promptType: 'chatbotFaq' },
-      { character: 'Zaphod', avatar: 'zaphodBabblefish.png', promptType: 'chatbotQuickNote' },
-      { character: 'Ford', avatar: 'fordPretext.png', promptType: 'chatbotBored' }
-    ],
-    'QT-GR': [
-      { character: 'Jules', avatar: 'jules.png', promptType: 'chatbotFaq' },
-      { character: 'Mia', avatar: 'mia.png', promptType: 'chatbotQuickNote' },
-      { character: 'Vincent', avatar: 'vincent.png', promptType: 'chatbotBored' }
-    ],
-    'TP': [
-      { character: 'Colon', avatar: 'colon.png', promptType: 'chatbotFaq' },
-      { character: 'Nobbs', avatar: 'nobbs.png', promptType: 'chatbotQuickNote' },
-      { character: 'Vimes', avatar: 'vimes.png', promptType: 'chatbotBored' }
-    ]
-  };
-
   useEffect(() => {
-    const characters = fallbackMappings[theme] || fallbackMappings['h2g2'];
-    setThemeCharacters(characters);
+    const loadCharacters = async () => {
+      // If chatbotName and chatbotAvatar are provided (e.g. from MapTool), we don't necessarily need to load all theme characters immediately
+      // but it's good practice to have them.
+      // However, we should prioritize the passed props.
 
-    let mode = initialMode;
-    let promptType = 'chatbotFaq';
-    if (mode) {
-        const char = characters.find(c => c.promptType === mode);
-        if (char) {
-            mode = char.character?.toLowerCase();
-            promptType = char.promptType || 'chatbotFaq';
-        } else {
-            promptType = mode;
+      let characters = await getThemeCharactersDetails(theme);
+      
+      // Fallback if no characters found (shouldn't happen if DB is populated, but good for safety)
+      if (characters.length === 0) {
+        // Minimal fallback for h2g2 if DB fails
+        if (theme === 'h2g2') {
+           characters = [
+            { character: 'Arthur', avatar: 'arturBent.png', promptType: 'chatbotFaq' },
+            { character: 'Zaphod', avatar: 'zaphodBabblefish.png', promptType: 'chatbotQuickNote' },
+            { character: 'Ford', avatar: 'fordPretext.png', promptType: 'chatbotBored' }
+          ];
         }
-    }
+      }
+      
+      setThemeCharacters(characters);
 
-    // If chatbotName is provided (e.g., from MapTool), use it as the mode
-    if (chatbotName) {
+      // Determine initial mode and prompt type
+      let mode = initialMode;
+      let promptType = 'chatbotFaq';
+
+      // If chatbotName is explicitly provided, use it
+      if (chatbotName) {
         setCurrentMode(chatbotName.toLowerCase());
         setCurrentPromptType(initialMode || 'chatbotFaq');
         return;
-    }
+      }
 
-    setCurrentMode(mode || characters[0]?.character?.toLowerCase() || 'arthur');
-    setCurrentPromptType(promptType);
+      // If initialMode is a promptType (e.g. 'chatbotFaq'), find the corresponding character
+      if (mode) {
+        const charByPromptType = characters.find(c => c.promptType === mode);
+        if (charByPromptType) {
+          mode = charByPromptType.character?.toLowerCase();
+          promptType = charByPromptType.promptType;
+        } else {
+          // If initialMode is a character name
+          const charByName = characters.find(c => c.character?.toLowerCase() === mode?.toLowerCase());
+          if (charByName) {
+             promptType = charByName.promptType;
+          } else {
+             // Fallback or direct usage
+             promptType = mode; // Might be a prompt type that isn't in the list?
+          }
+        }
+      }
 
+      // Default to first character or Arthur if nothing found
+      const defaultChar = characters.find(c => c.promptType === 'chatbotFaq') || characters[0];
+      setCurrentMode(mode || defaultChar?.character?.toLowerCase() || 'arthur');
+      setCurrentPromptType(promptType);
+    };
+
+    loadCharacters();
   }, [theme, initialMode, chatbotName]);
 
   const getAvatar = (characterName: string) => {
+    // If chatbotAvatar prop is provided and matches current mode (or we are in a single-mode view like MapTool), use it
+    if (chatbotAvatar && chatbotName?.toLowerCase() === characterName.toLowerCase()) {
+        // chatbotAvatar is likely a require() result or uri passed from parent
+        // But wait, MapTool passes a string filename usually?
+        // Let's check MapTool. It passes themeCharacter.avatar which is a string filename.
+        // So we still need to map it.
+        // Actually MapTool passes `chatbotAvatar={themeCharacter.avatar}`.
+        // If we want to support direct image source passing, we'd need to change MapTool or handle it here.
+        // For now, let's assume it's a filename string and we look it up in the map.
+    }
+
     const character = themeCharacters.find(char => char.character?.toLowerCase() === characterName.toLowerCase());
+    
+    // If we have a chatbotAvatar prop and it's the current character, use that filename preference
+    const avatarFilename = (chatbotName?.toLowerCase() === characterName.toLowerCase() && chatbotAvatar)
+        ? chatbotAvatar
+        : character?.avatar;
+
     const avatarMap: { [key: string]: any } = {
       'arturBent.png': require('../public/icons/arturBent.png'),
       'zaphodBabblefish.png': require('../public/icons/zaphodBabblefish.png'),
@@ -117,8 +148,16 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
       'colon.png': require('../public/icons/colon.png'),
       'nobbs.png': require('../public/icons/nobbs.png'),
       'vimes.png': require('../public/icons/vimes.png'),
+      'marvin.png': require('../public/icons/marvin.png'),
+      'carrot.png': require('../public/icons/carrot.png'),
+      'ook.png': require('../public/icons/ook.png'),
+      'butch.png': require('../public/icons/butch.png'),
+      'marsellus.png': require('../public/icons/marsellus.png'),
+      'wolf.png': require('../public/icons/wolf.png'),
+      'pumpkinRingo.png': require('../public/icons/pumpkinRingo.png'),
     };
-    return character?.avatar ? avatarMap[character.avatar] : require('../public/icons/HitchTrip.png');
+    
+    return avatarFilename && avatarMap[avatarFilename] ? avatarMap[avatarFilename] : require('../public/icons/HitchTrip.png');
   };
 
   const getModeTitle = (characterName: string) => {
