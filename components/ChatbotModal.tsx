@@ -171,26 +171,27 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
   useEffect(() => {
     if (visible && messages.length === 0) {
       const loadGreeting = async () => {
-        const greeting = await getInitialGreeting(currentMode);
+        const greeting = await getInitialGreeting(currentPromptType);
         setMessages([{ id: '1', text: greeting, isUser: false, timestamp: new Date() }]);
       };
       loadGreeting();
     }
-  }, [visible, currentMode]);
+  }, [visible, currentPromptType]);
 
-  const getInitialGreeting = async (mode: ChatbotMode): Promise<string> => {
-    const character = themeCharacters.find(c => c.character?.toLowerCase() === mode);
-    const promptType = character?.promptType;
+  const getInitialGreeting = async (promptType: string): Promise<string> => {
     try {
-      const characterData = await getCharacterForPromptType(theme, promptType as any);
+      const characterData = await getCharacterForPromptType(theme, promptType);
       if (characterData.initialGreeting) {
         return characterData.initialGreeting;
       }
     } catch (error) {
       console.log('⚠️ Could not load character greeting, using fallback');
     }
+    
+    // Find character for this prompt type for fallback name
+    const character = themeCharacters.find(c => c.promptType === promptType);
     // Generic fallback if no initialGreeting in table
-    return `Hello! I'm ${character?.character || mode}. How can I help you?`;
+    return `Hello! I'm ${character?.character || 'your assistant'}. How can I help you?`;
   };
   
   const getRecentNotesContext = (promptType: string): string => {
@@ -243,8 +244,11 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
     setIsLoading(true);
 
     try {
-      const currentCharacter = themeCharacters.find(char => char.character?.toLowerCase() === currentMode.toLowerCase());
-      const promptType = currentCharacter?.promptType;
+      const currentCharacter = themeCharacters.find(char => char.promptType === currentPromptType);
+      // Fallback to finding by name if promptType match fails (shouldn't happen)
+      const characterToUse = currentCharacter || themeCharacters.find(char => char.character?.toLowerCase() === currentMode.toLowerCase());
+      
+      const promptType = currentPromptType;
       let response: string;
 
       if (promptType === 'chatbotQuickNote') {
@@ -270,7 +274,7 @@ export const ChatbotModal: React.FC<ChatbotModalProps> = ({
       } else {
         const themePrompt = await getPrompt(theme, promptType as any);
         const basePrompt = promptType === 'chatbotFaq' ? CHATBOT_PROMPTS.arthur : CHATBOT_PROMPTS.ford;
-        const prompt = `${themePrompt || basePrompt}${getRecentNotesContext(promptType || 'chatbotFaq')}\n\nUser: ${inputText}\n\nRespond as ${currentCharacter?.character}:`;
+        const prompt = `${themePrompt || basePrompt}${getRecentNotesContext(promptType || 'chatbotFaq')}\n\nUser: ${inputText}\n\nRespond as ${characterToUse?.character}:`;
         const aiResponse = await translateTextWithGemini(prompt, 'en', 'en', undefined, prompt);
         response = aiResponse.text;
         if(messages.length >= 1) setShowChatSaveButtons(true);
