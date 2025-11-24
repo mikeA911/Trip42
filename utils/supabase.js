@@ -585,7 +585,8 @@ export const loadNotesFromSupabase = async (userId, sinceDate = null) => {
       tags: note.tags || [],
       noteType: note.note_type,
       location: note.location,
-      attachedImages: note.attached_images || [],
+      attachedMedia: note.attached_images || [], // Map DB attached_images to app attachedMedia
+      attachedImages: note.attached_images || [], // Keep for backward compatibility
       audioUri: note.audio_url,
       signImageUrl: note.sign_image_url,
       translations: note.translations || {},
@@ -667,6 +668,9 @@ export const syncNotesToCloud = async (notesToSync, deviceId) => {
           }
         }
 
+        // Use attachedMedia as primary source, fallback to attachedImages
+        const mediaList = note.attachedMedia || note.attachedImages || note.attachedImageUrls || [];
+
         const normalizedNote = {
           id: noteId,
           title: note.title || 'Untitled Note',
@@ -676,7 +680,7 @@ export const syncNotesToCloud = async (notesToSync, deviceId) => {
           translations: note.translations || {},
           noteType: noteType,
           signImageUrl: note.signImageUrl,
-          attachedImages: note.attachedImages || note.attachedImageUrls || [],
+          attachedImages: mediaList, // Map app attachedMedia to DB attachedImages
           audioUri: note.audioUri || note.originalAudioUrl,
           location: note.location || note.gps,
           tags: note.tags || [],
@@ -708,35 +712,55 @@ export const syncNotesToCloud = async (notesToSync, deviceId) => {
           }
         }
 
-        // Add attached images
-        if (note.attachedImages && note.attachedImages.length > 0) {
-          console.log('Note has', note.attachedImages.length, 'attached images');
-          for (let index = 0; index < note.attachedImages.length; index++) {
-            const imageUri = note.attachedImages[index];
-            console.log(`Image ${index}:`, imageUri);
-            if (imageUri.startsWith('file://')) {
+        // Add attached media (images/files)
+        // Use the mediaList we extracted earlier
+        if (mediaList && mediaList.length > 0) {
+          console.log('Note has', mediaList.length, 'attached media files');
+          for (let index = 0; index < mediaList.length; index++) {
+            const mediaUri = mediaList[index];
+            console.log(`Media ${index}:`, mediaUri);
+            if (mediaUri.startsWith('file://') || mediaUri.includes('/DCIM/') || mediaUri.includes('/Downloads/')) {
               try {
-                const response = await fetch(imageUri);
+                const response = await fetch(mediaUri);
                 const blob = await response.blob();
                 const base64Data = await blobToBase64(blob);
+                
+                // Determine file type
+                let fileType = 'image';
+                let mimeType = 'image/jpeg';
+                let extension = 'jpg';
+                
+                if (mediaUri.endsWith('.png')) {
+                  mimeType = 'image/png';
+                  extension = 'png';
+                } else if (mediaUri.endsWith('.m4a')) {
+                  fileType = 'audio';
+                  mimeType = 'audio/m4a';
+                  extension = 'm4a';
+                } else if (mediaUri.endsWith('.mp3')) {
+                  fileType = 'audio';
+                  mimeType = 'audio/mpeg';
+                  extension = 'mp3';
+                }
+
                 noteMediaFiles.push({
                   fileData: base64Data,
-                  fileName: `image-${noteId}-${index}.jpg`,
-                  fileType: 'image',
-                  mimeType: 'image/jpeg',
+                  fileName: `media-${noteId}-${index}.${extension}`,
+                  fileType: fileType,
+                  mimeType: mimeType,
                   fileSize: blob.size,
-                  localUri: imageUri
+                  localUri: mediaUri
                 });
-                console.log(`Added image ${index} to media files`);
+                console.log(`Added media ${index} to media files`);
               } catch (error) {
-                console.error(`Error reading attached image ${index}:`, error);
+                console.error(`Error reading attached media ${index}:`, error);
               }
             } else {
-              console.log(`Skipping image ${index} - not a file:// URI`);
+              console.log(`Skipping media ${index} - not a local URI`);
             }
           }
         } else {
-          console.log('Note has no attached images');
+          console.log('Note has no attached media');
         }
 
         // Add audio
@@ -978,7 +1002,8 @@ export const reconcileNotesFromWeb = async (deviceId, timePeriod = '1 day', note
                 note.note_type === 'text_note' ? 'text' :
                 note.note_type === 'app' ? 'app' : 'text',
       location: note.location,
-      attachedImages: note.attached_images || [],
+      attachedMedia: note.attached_images || [], // Map DB attached_images to app attachedMedia
+      attachedImages: note.attached_images || [], // Keep for backward compatibility
       audioUri: note.audio_url,
       signImageUrl: note.sign_image_url,
       translations: note.translations || {},

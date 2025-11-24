@@ -184,6 +184,15 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               let mediaData: string;
               if (mediaItem.startsWith('data:')) {
                 mediaData = mediaItem;
+              } else if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
+                // File path - read and convert to data URL
+                const fileContent = await FileSystem.readAsStringAsync(mediaItem, {
+                  encoding: FileSystem.EncodingType.Base64,
+                });
+                const mimeType = mediaItem.includes('/DCIM/') || mediaItem.endsWith('.jpg') || mediaItem.endsWith('.jpeg') ? 'image/jpeg' :
+                                mediaItem.endsWith('.png') ? 'image/png' :
+                                mediaItem.endsWith('.m4a') ? 'audio/m4a' : 'application/octet-stream';
+                mediaData = `data:${mimeType};base64,${fileContent}`;
               } else {
                 mediaData = await getMedia(mediaItem) || '';
               }

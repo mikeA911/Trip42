@@ -37,30 +37,37 @@ export const shareNote = async (platform, selectedNote) => {
   shareText += `\n\n_Sent from ikeNotes on ${timestamp}_`;
   console.log('🎯 DEBUG: Final share text length:', shareText.length);
 
-  // Check if there are images to attach
-  const hasImages = (selectedNote.attachedImages && selectedNote.attachedImages.length > 0) ||
+  // Check if there are images/media to attach
+  // Use attachedMedia as the primary source, fallback to legacy properties if needed
+  const mediaList = selectedNote.attachedMedia || [];
+  const hasImages = mediaList.length > 0 ||
+                    (selectedNote.attachedImages && selectedNote.attachedImages.length > 0) ||
                     selectedNote.signImageUrl;
 
-  console.log('🎯 DEBUG: Has images:', hasImages);
+  console.log('🎯 DEBUG: Has images/media:', hasImages);
+  console.log('🎯 DEBUG: attachedMedia count:', mediaList.length);
   console.log('🎯 DEBUG: attachedImages count:', selectedNote.attachedImages?.length || 0);
   console.log('🎯 DEBUG: has signImageUrl:', !!selectedNote.signImageUrl);
 
   if (hasImages) {
     // Count total images
-    const imageCount = (selectedNote.attachedImages?.length || 0) +
-                      (selectedNote.signImageUrl ? 1 : 0);
+    let imageCount = mediaList.length;
+    if (imageCount === 0) {
+      // Fallback to legacy counts
+      imageCount = (selectedNote.attachedImages?.length || 0) + (selectedNote.signImageUrl ? 1 : 0);
+    }
 
     console.log('🎯 DEBUG: Total image count:', imageCount);
 
     // Show user options for sharing with images
     Alert.alert(
-      'Share Note with Images',
-      `This note has ${imageCount} image${imageCount > 1 ? 's' : ''}.\n\nChoose how to share:`,
+      'Share Note with Media',
+      `This note has ${imageCount} media file${imageCount > 1 ? 's' : ''}.\n\nChoose how to share:`,
       [
         {
-          text: 'Share Text + Images',
+          text: 'Share Text + Media',
           onPress: () => {
-            console.log('🎯 DEBUG: User chose Share Text + Images');
+            console.log('🎯 DEBUG: User chose Share Text + Media');
             shareNoteWithImages(shareText, platform, selectedNote);
           }
         },
@@ -73,9 +80,9 @@ export const shareNote = async (platform, selectedNote) => {
           style: 'default'
         },
         {
-          text: 'Copy Image Paths',
+          text: 'Copy Media Links',
           onPress: () => {
-            console.log('🎯 DEBUG: User chose Copy Image Paths');
+            console.log('🎯 DEBUG: User chose Copy Media Links');
             copyImagePathsToClipboard(selectedNote);
           },
           style: 'default'
@@ -90,58 +97,76 @@ export const shareNote = async (platform, selectedNote) => {
   }
 };
 
-// Share note with images
+// Share note with images/media
 export const shareNoteWithImages = async (shareText, platform, selectedNote) => {
   try {
     // Show uploading progress
-    Alert.alert('Uploading Images', 'Please wait while we upload your images for sharing...');
+    Alert.alert('Uploading Media', 'Please wait while we upload your media for sharing...');
 
-    // Collect all image URIs
-    let imageUris = [];
+    // Collect all media URIs
+    let mediaUris = [];
+    
+    // Use attachedMedia if available (new standard)
+    if (selectedNote.attachedMedia && selectedNote.attachedMedia.length > 0) {
+      mediaUris = [...selectedNote.attachedMedia];
+    } else {
+      // Fallback to legacy properties
+      // Add sign image if available
+      if (selectedNote.signImageUrl) {
+        mediaUris.push(selectedNote.signImageUrl);
+      }
 
-    // Add sign image if available
-    if (selectedNote.signImageUrl) {
-      imageUris.push(selectedNote.signImageUrl);
+      // Add attached images if available
+      if (selectedNote.attachedImages && selectedNote.attachedImages.length > 0) {
+        mediaUris = [...mediaUris, ...selectedNote.attachedImages];
+      }
     }
 
-    // Add attached images if available
-    if (selectedNote.attachedImages && selectedNote.attachedImages.length > 0) {
-      imageUris = [...imageUris, ...selectedNote.attachedImages];
-    }
+    console.log(`Uploading ${mediaUris.length} media files for sharing...`);
 
-    console.log(`Uploading ${imageUris.length} images for sharing...`);
-
-    // Upload all images to sharing bucket and get URLs
+    // Upload all media to sharing bucket and get URLs
     const { uploadImageForSharing } = await import('../supabase');
     const uploadedUrls = [];
 
-    for (let i = 0; i < imageUris.length; i++) {
+    for (let i = 0; i < mediaUris.length; i++) {
       try {
-        console.log(`Uploading image ${i + 1}/${imageUris.length}...`);
-        const publicUrl = await uploadImageForSharing(imageUris[i]);
+        console.log(`Uploading media ${i + 1}/${mediaUris.length}...`);
+        // Check if it's a media ID (not a URI) and resolve it if needed
+        // But uploadImageForSharing expects a URI or base64
+        // If it's a local file path, uploadImageForSharing handles it
+        const publicUrl = await uploadImageForSharing(mediaUris[i]);
         uploadedUrls.push(publicUrl);
-        console.log(`Image ${i + 1} uploaded successfully`);
+        console.log(`Media ${i + 1} uploaded successfully`);
       } catch (uploadError) {
-        console.error(`Failed to upload image ${i + 1}:`, uploadError);
-        // Continue with other images even if one fails
+        console.error(`Failed to upload media ${i + 1}:`, uploadError);
+        // Continue with other media even if one fails
       }
     }
 
     if (uploadedUrls.length === 0) {
-      throw new Error('Failed to upload any images');
+      throw new Error('Failed to upload any media');
     }
 
-    // Add image URLs to the share text
-    shareText += '\n\n🖼️ *Images:*';
+    // Add media URLs to the share text
+    shareText += '\n\n📎 *Media:*';
     uploadedUrls.forEach((url, index) => {
-      const imageType = index === 0 && selectedNote.signImageUrl ? 'Sign' :
-                       index === 0 ? 'Photo' : `Photo ${index + 1}`;
-      shareText += `\n${imageType}: ${url}`;
+      // Determine label based on note type and index
+      let label = `File ${index + 1}`;
+      
+      if (selectedNote.noteType === 'sign_translation' && index === 0) {
+        label = 'Sign Image';
+      } else if (selectedNote.noteType === 'voice_recording' && index === 0) {
+        label = 'Audio Recording';
+      } else {
+        label = `Media ${index + 1}`;
+      }
+      
+      shareText += `\n${label}: ${url}`;
     });
 
-    if (uploadedUrls.length < imageUris.length) {
-      const failedCount = imageUris.length - uploadedUrls.length;
-      shareText += `\n\n⚠️ ${failedCount} image${failedCount > 1 ? 's' : ''} failed to upload`;
+    if (uploadedUrls.length < mediaUris.length) {
+      const failedCount = mediaUris.length - uploadedUrls.length;
+      shareText += `\n\n⚠️ ${failedCount} file${failedCount > 1 ? 's' : ''} failed to upload`;
     }
 
 
@@ -240,90 +265,97 @@ export const copyNoteToClipboard = async (selectedNote) => {
       clipboardText += `\n\n📍 *Location:* ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
     }
 
-    // Check if there are images to upload
-    const hasImages = (selectedNote.attachedImages && selectedNote.attachedImages.length > 0) ||
-                      selectedNote.signImageUrl;
+    // Check if there are media files to upload
+    const mediaList = selectedNote.attachedMedia || [];
+    const hasMediaFiles = mediaList.length > 0 ||
+                          (selectedNote.attachedImages && selectedNote.attachedImages.length > 0) ||
+                          selectedNote.signImageUrl;
 
     let uploadedUrls = [];
     let hasMedia = false;
 
-    if (hasImages) {
-      // Count total images
-      const imageCount = (selectedNote.attachedImages?.length || 0) +
-                        (selectedNote.signImageUrl ? 1 : 0);
-
-      
-
+    if (hasMediaFiles) {
       // Show uploading progress
-      Alert.alert('Uploading Images', 'Please wait while we upload your images for sharing...');
+      Alert.alert('Uploading Media', 'Please wait while we upload your media for sharing...');
 
-      // Collect all image URIs
-      let imageUris = [];
+      // Collect all media URIs
+      let mediaUris = [];
 
-      // Add sign image if available
-      if (selectedNote.signImageUrl) {
-        imageUris.push(selectedNote.signImageUrl);
+      if (mediaList.length > 0) {
+        mediaUris = [...mediaList];
+      } else {
+        // Fallback
+        if (selectedNote.signImageUrl) {
+          mediaUris.push(selectedNote.signImageUrl);
+        }
+        if (selectedNote.attachedImages && selectedNote.attachedImages.length > 0) {
+          mediaUris = [...mediaUris, ...selectedNote.attachedImages];
+        }
       }
 
-      // Add attached images if available
-      if (selectedNote.attachedImages && selectedNote.attachedImages.length > 0) {
-        imageUris = [...imageUris, ...selectedNote.attachedImages];
-      }
-
-      // Upload all images to sharing bucket and get URLs
+      // Upload all media to sharing bucket and get URLs
       const { uploadImageForSharing } = await import('../supabase');
 
-      for (let i = 0; i < imageUris.length; i++) {
+      for (let i = 0; i < mediaUris.length; i++) {
         try {
-          console.log(`Uploading image ${i + 1}/${imageUris.length}...`);
-          const publicUrl = await uploadImageForSharing(imageUris[i]);
+          console.log(`Uploading media ${i + 1}/${mediaUris.length}...`);
+          const publicUrl = await uploadImageForSharing(mediaUris[i]);
           uploadedUrls.push(publicUrl);
-          console.log(`Image ${i + 1} uploaded successfully`);
+          console.log(`Media ${i + 1} uploaded successfully`);
         } catch (uploadError) {
-          console.error(`Failed to upload image ${i + 1}:`, uploadError);
-          // Continue with other images even if one fails
+          console.error(`Failed to upload media ${i + 1}:`, uploadError);
+          // Continue with other media even if one fails
         }
       }
 
       if (uploadedUrls.length === 0) {
-        throw new Error('Failed to upload any images');
+        throw new Error('Failed to upload any media');
       }
 
-      // Add image URLs to clipboard text
-      clipboardText += '\n\n🖼️ *Images:*';
+      // Add media URLs to clipboard text
+      clipboardText += '\n\n📎 *Media:*';
       uploadedUrls.forEach((url, index) => {
-        const imageType = index === 0 && selectedNote.signImageUrl ? 'Sign' :
-                          index === 0 ? 'Photo' : `Photo ${index + 1}`;
-        clipboardText += `\n${imageType}: ${url}`;
+        let label = `File ${index + 1}`;
+        if (selectedNote.noteType === 'sign_translation' && index === 0) {
+          label = 'Sign Image';
+        } else if (selectedNote.noteType === 'voice_recording' && index === 0) {
+          label = 'Audio Recording';
+        } else {
+          label = `Media ${index + 1}`;
+        }
+        clipboardText += `\n${label}: ${url}`;
       });
 
-      if (uploadedUrls.length < imageUris.length) {
-        const failedCount = imageUris.length - uploadedUrls.length;
-        clipboardText += `\n\n⚠️ ${failedCount} image${failedCount > 1 ? 's' : ''} failed to upload`;
+      if (uploadedUrls.length < mediaUris.length) {
+        const failedCount = mediaUris.length - uploadedUrls.length;
+        clipboardText += `\n\n⚠️ ${failedCount} file${failedCount > 1 ? 's' : ''} failed to upload`;
       }
 
       hasMedia = true;
-      console.log('All images uploaded for clipboard copy');
+      console.log('All media uploaded for clipboard copy');
     } else {
-      // No images, add media URLs directly (for audio and any existing URLs)
-      // Add sign image URL if available (shouldn't happen if hasImages is false, but safety check)
-      if (selectedNote.signImageUrl) {
+      // No media files to upload, but check for existing URLs in legacy fields
+      // Add sign image URL if available
+      if (selectedNote.signImageUrl && !selectedNote.signImageUrl.startsWith('file://')) {
         clipboardText += '\n\n🖼️ *Sign Image:*';
         clipboardText += `\n${selectedNote.signImageUrl}`;
         hasMedia = true;
       }
 
-      // Add attached images URLs if available (shouldn't happen if hasImages is false, but safety check)
+      // Add attached images URLs if available
       if (selectedNote.attachedImages && selectedNote.attachedImages.length > 0) {
-        if (!hasMedia) {
-          clipboardText += '\n\n🖼️ *Images:*';
-          hasMedia = true;
-        } else {
-          clipboardText += '\n\n📎 *Attached Images:*';
+        const remoteImages = selectedNote.attachedImages.filter(url => !url.startsWith('file://'));
+        if (remoteImages.length > 0) {
+          if (!hasMedia) {
+            clipboardText += '\n\n🖼️ *Images:*';
+            hasMedia = true;
+          } else {
+            clipboardText += '\n\n📎 *Attached Images:*';
+          }
+          remoteImages.forEach((url, index) => {
+            clipboardText += `\nPhoto ${index + 1}: ${url}`;
+          });
         }
-        selectedNote.attachedImages.forEach((url, index) => {
-          clipboardText += `\nPhoto ${index + 1}: ${url}`;
-        });
       }
     }
 
@@ -508,59 +540,56 @@ export const showShareOptions = (selectedNote, onShareViaEmail = null) => {
   );
 };
 
-// Copy image URLs to clipboard (upload to sharing bucket first)
+// Copy media URLs to clipboard (upload to sharing bucket first)
 export const copyImagePathsToClipboard = async (selectedNote) => {
   try {
-    console.log('Copying image URLs to clipboard - uploading to sharing bucket first...');
+    console.log('Copying media URLs to clipboard - uploading to sharing bucket first...');
 
     // Show uploading progress
-    Alert.alert('Uploading Images', 'Please wait while we upload your images for sharing...');
+    Alert.alert('Uploading Media', 'Please wait while we upload your media for sharing...');
 
-    let imageUrls = [];
+    let mediaUrls = [];
     const { uploadImageForSharing } = await import('../supabase');
 
-    // Upload sign image if available
-    if (selectedNote.signImageUrl) {
+    // Collect media URIs
+    let mediaUris = [];
+    if (selectedNote.attachedMedia && selectedNote.attachedMedia.length > 0) {
+      mediaUris = [...selectedNote.attachedMedia];
+    } else {
+      if (selectedNote.signImageUrl) mediaUris.push(selectedNote.signImageUrl);
+      if (selectedNote.attachedImages) mediaUris = [...mediaUris, ...selectedNote.attachedImages];
+    }
+
+    for (let i = 0; i < mediaUris.length; i++) {
       try {
-        console.log('Uploading sign image for clipboard copy...');
-        const publicUrl = await uploadImageForSharing(selectedNote.signImageUrl);
-        imageUrls.push(`Sign Image: ${publicUrl}`);
-        console.log('Sign image uploaded successfully');
+        console.log(`Uploading media ${i + 1}/${mediaUris.length}...`);
+        const publicUrl = await uploadImageForSharing(mediaUris[i]);
+        
+        let label = `Media ${i + 1}`;
+        if (selectedNote.noteType === 'sign_translation' && i === 0) label = 'Sign Image';
+        else if (selectedNote.noteType === 'voice_recording' && i === 0) label = 'Audio';
+        
+        mediaUrls.push(`${label}: ${publicUrl}`);
+        console.log(`Media ${i + 1} uploaded successfully`);
       } catch (uploadError) {
-        console.error('Failed to upload sign image:', uploadError);
-        // Continue without this image
+        console.error(`Failed to upload media ${i + 1}:`, uploadError);
       }
     }
 
-    // Upload attached images if available
-    if (selectedNote.attachedImages && selectedNote.attachedImages.length > 0) {
-      for (let i = 0; i < selectedNote.attachedImages.length; i++) {
-        try {
-          console.log(`Uploading attached image ${i + 1}/${selectedNote.attachedImages.length}...`);
-          const publicUrl = await uploadImageForSharing(selectedNote.attachedImages[i]);
-          imageUrls.push(`Photo ${i + 1}: ${publicUrl}`);
-          console.log(`Attached image ${i + 1} uploaded successfully`);
-        } catch (uploadError) {
-          console.error(`Failed to upload attached image ${i + 1}:`, uploadError);
-          // Continue with other images
-        }
-      }
+    if (mediaUrls.length === 0) {
+      throw new Error('Failed to upload any media');
     }
 
-    if (imageUrls.length === 0) {
-      throw new Error('Failed to upload any images');
-    }
-
-    const urlsText = imageUrls.join('\n');
+    const urlsText = mediaUrls.join('\n');
     Clipboard.setString(urlsText);
 
     Alert.alert(
-      'Image URLs Copied',
-      `Image URLs have been copied to clipboard!\n\nImages will be accessible for 30 days.\n\nYou can now share these links in your messaging app.`,
+      'Media URLs Copied',
+      `Media URLs have been copied to clipboard!\n\nFiles will be accessible for 30 days.\n\nYou can now share these links in your messaging app.`,
       [{ text: 'OK' }]
     );
   } catch (error) {
-    console.error('Error copying image URLs:', error);
-    Alert.alert('Error', 'Failed to upload and copy image URLs to clipboard.');
+    console.error('Error copying media URLs:', error);
+    Alert.alert('Error', 'Failed to upload and copy media URLs to clipboard.');
   }
 };
