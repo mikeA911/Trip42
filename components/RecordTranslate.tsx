@@ -320,42 +320,61 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
                 const response = await fetch(result);
                 const blob = await response.blob();
 
-                // Try to save as actual file
+                // Try to save as actual file to standard directories
                 let fileUri = result; // fallback to data URL
 
-                // Check if File System Access API is available
-                if ('showSaveFilePicker' in window) {
-                  try {
-                    const fileHandle = await (window as any).showSaveFilePicker({
-                      suggestedName: `sign_${Date.now()}.jpg`,
-                      types: [{
-                        description: 'Image files',
-                        accept: {
-                          'image/jpeg': ['.jpg', '.jpeg'],
-                          'image/png': ['.png'],
-                          'image/gif': ['.gif'],
-                          'image/webp': ['.webp'],
-                          'image/bmp': ['.bmp']
-                        }
-                      }]
-                    });
+                // Try automatic download to Downloads folder (works in most browsers)
+                try {
+                  // Create a download link and trigger it
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `sign_${Date.now()}.jpg`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
 
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(blob);
-                    await writable.close();
+                  // Create a file:// style URI for consistency
+                  fileUri = `file://downloads/sign_${Date.now()}.jpg`;
+                  console.log('DEBUG: Image downloaded to Downloads folder:', fileUri);
+                } catch (downloadError) {
+                  console.log('DEBUG: Automatic download failed, trying File System Access API');
 
-                    // Get the file URL from the handle
-                    fileUri = URL.createObjectURL(await fileHandle.getFile());
-                    console.log('DEBUG: Image saved using File System Access API:', fileUri);
-                  } catch (fsError) {
-                    // User cancelled or API not supported, fall back to blob URL
-                    console.log('DEBUG: File System Access API failed, using blob URL');
+                  // Fallback: File System Access API (user chooses location)
+                  if ('showSaveFilePicker' in window) {
+                    try {
+                      const fileHandle = await (window as any).showSaveFilePicker({
+                        suggestedName: `sign_${Date.now()}.jpg`,
+                        types: [{
+                          description: 'Image files',
+                          accept: {
+                            'image/jpeg': ['.jpg', '.jpeg'],
+                            'image/png': ['.png'],
+                            'image/gif': ['.gif'],
+                            'image/webp': ['.webp'],
+                            'image/bmp': ['.bmp']
+                          }
+                        }]
+                      });
+
+                      const writable = await fileHandle.createWritable();
+                      await writable.write(blob);
+                      await writable.close();
+
+                      // Create file:// style URI for consistency
+                      fileUri = `file://${fileHandle.name}`;
+                      console.log('DEBUG: Image saved using File System Access API:', fileUri);
+                    } catch (fsError) {
+                      // User cancelled or API not supported
+                      console.log('DEBUG: File System Access API failed, using blob URL');
+                      fileUri = URL.createObjectURL(blob);
+                    }
+                  } else {
+                    // Final fallback: blob URL
                     fileUri = URL.createObjectURL(blob);
+                    console.log('DEBUG: Using blob URL as final fallback:', fileUri);
                   }
-                } else {
-                  // Fallback: create blob URL (still file-like)
-                  fileUri = URL.createObjectURL(blob);
-                  console.log('DEBUG: Using blob URL as file URI:', fileUri);
                 }
 
                 // Set the translated text and move to tabs for editing
@@ -539,46 +558,64 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
           // Save audio to trip42Media directory
           if (Platform.OS === 'web') {
-            // For web/PWA, save as actual file using File System Access API
+            // For web/PWA, save as actual file to Downloads folder
             try {
               const response = await fetch(uri!);
               const blob = await response.blob();
 
               let audioUri = uri!; // fallback
 
-              // Check if File System Access API is available
-              if ('showSaveFilePicker' in window) {
-                try {
-                  const fileHandle = await (window as any).showSaveFilePicker({
-                    suggestedName: `recording_${Date.now()}.m4a`,
-                    types: [{
-                      description: 'Audio files',
-                      accept: {
-                        'audio/m4a': ['.m4a'],
-                        'audio/mp3': ['.mp3'],
-                        'audio/wav': ['.wav'],
-                        'audio/ogg': ['.ogg'],
-                        'audio/webm': ['.webm']
-                      }
-                    }]
-                  });
+              // Try automatic download to Downloads folder
+              try {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `recording_${Date.now()}.m4a`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
 
-                  const writable = await fileHandle.createWritable();
-                  await writable.write(blob);
-                  await writable.close();
+                // Create file:// style URI for consistency
+                audioUri = `file://downloads/recording_${Date.now()}.m4a`;
+                console.log('DEBUG: Audio downloaded to Downloads folder:', audioUri);
+              } catch (downloadError) {
+                console.log('DEBUG: Automatic download failed for audio, trying File System Access API');
 
-                  // Get the file URL from the handle
-                  audioUri = URL.createObjectURL(await fileHandle.getFile());
-                  console.log('DEBUG: Audio saved using File System Access API:', audioUri);
-                } catch (fsError) {
-                  // User cancelled or API not supported, fall back to blob URL
-                  console.log('DEBUG: File System Access API failed for audio, using blob URL');
+                // Fallback: File System Access API
+                if ('showSaveFilePicker' in window) {
+                  try {
+                    const fileHandle = await (window as any).showSaveFilePicker({
+                      suggestedName: `recording_${Date.now()}.m4a`,
+                      types: [{
+                        description: 'Audio files',
+                        accept: {
+                          'audio/m4a': ['.m4a'],
+                          'audio/mp3': ['.mp3'],
+                          'audio/wav': ['.wav'],
+                          'audio/ogg': ['.ogg'],
+                          'audio/webm': ['.webm']
+                        }
+                      }]
+                    });
+
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+
+                    // Create file:// style URI for consistency
+                    audioUri = `file://${fileHandle.name}`;
+                    console.log('DEBUG: Audio saved using File System Access API:', audioUri);
+                  } catch (fsError) {
+                    // User cancelled or API not supported
+                    console.log('DEBUG: File System Access API failed for audio, using blob URL');
+                    audioUri = URL.createObjectURL(blob);
+                  }
+                } else {
+                  // Final fallback: blob URL
                   audioUri = URL.createObjectURL(blob);
+                  console.log('DEBUG: Using blob URL for audio as final fallback:', audioUri);
                 }
-              } else {
-                // Fallback: create blob URL (still file-like)
-                audioUri = URL.createObjectURL(blob);
-                console.log('DEBUG: Using blob URL for audio:', audioUri);
               }
 
               setAttachedMedia(prev => [...prev, audioUri]);
