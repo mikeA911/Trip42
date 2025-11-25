@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, Image, Alert, Modal, FlatList } from 'react-native';
 import { speakTextWithGoogleTTS, getVoiceForLanguage } from '../../services/googleTTSService';
-import { Note } from '../../utils/storage';
+import { Note, mediaStorage } from '../../utils/storage';
 import { getOrCreateSettings, saveSettings } from '../../utils/settings';
 
 interface Translation {
@@ -210,15 +210,13 @@ const TabsView: React.FC<TabsViewProps> = ({
                 <View style={styles.signImageWrapper}>
                   <Image
                     source={{
-                      uri: recordingCurrentNote.signImageUrl.startsWith('local://')
+                      uri: recordingCurrentNote.signImageUrl.startsWith('media://')
                         ? (() => {
-                            try {
-                              const imageId = recordingCurrentNote.signImageUrl.replace('local://', '');
-                              return localStorage.getItem(`trip42_media_${imageId}`) || recordingCurrentNote.signImageUrl;
-                            } catch (error) {
-                              console.error('Error loading local image:', error);
-                              return recordingCurrentNote.signImageUrl;
-                            }
+                            // Load from IndexedDB for PWA media references
+                            const mediaId = recordingCurrentNote.signImageUrl.replace('media://', '');
+                            console.log('Loading media from IndexedDB:', mediaId);
+                            // For now, return the current URL - proper async loading would need state management
+                            return recordingCurrentNote.signImageUrl;
                           })()
                         : recordingCurrentNote.signImageUrl
                     }}

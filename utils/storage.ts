@@ -1,7 +1,76 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-// Storage wrapper for PWA compatibility - try AsyncStorage first, fallback to localStorage
+// IndexedDB wrapper for PWA media storage
+const indexedDBStorage = {
+  dbName: 'Trip42Media',
+  storeName: 'media',
+
+  async initDB(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, 1);
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName);
+        }
+      };
+    });
+  },
+
+  async setItem(key: string, value: string): Promise<void> {
+    try {
+      const db = await this.initDB();
+      const transaction = db.transaction([this.storeName], 'readwrite');
+      const store = transaction.objectStore(this.storeName);
+      await new Promise<void>((resolve, reject) => {
+        const request = store.put(value, key);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+      db.close();
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async getItem(key: string): Promise<string | null> {
+    try {
+      const db = await this.initDB();
+      const transaction = db.transaction([this.storeName], 'readonly');
+      const store = transaction.objectStore(this.storeName);
+      return new Promise<string | null>((resolve, reject) => {
+        const request = store.get(key);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
+      });
+    } catch (error) {
+      return null;
+    }
+  },
+
+  async removeItem(key: string): Promise<void> {
+    try {
+      const db = await this.initDB();
+      const transaction = db.transaction([this.storeName], 'readwrite');
+      const store = transaction.objectStore(this.storeName);
+      await new Promise<void>((resolve, reject) => {
+        const request = store.delete(key);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+      db.close();
+    } catch (error) {
+      throw error;
+    }
+  }
+};
+
+// Storage wrapper for notes - try AsyncStorage first, fallback to localStorage
 const storage = {
   getItem: async (key: string): Promise<string | null> => {
     console.log('DEBUG: storage.getItem called for key:', key);
@@ -72,6 +141,39 @@ const storage = {
         console.error('DEBUG: Both AsyncStorage and localStorage failed for removeItem:', localError);
         throw localError;
       }
+    }
+  }
+};
+
+// Media storage for PWAs - uses IndexedDB to store file data separately
+export const mediaStorage = {
+  async saveMedia(mediaId: string, dataUrl: string): Promise<void> {
+    if (Platform.OS === 'web') {
+      console.log('DEBUG: Saving media to IndexedDB:', mediaId, 'size:', dataUrl.length);
+      await indexedDBStorage.setItem(mediaId, dataUrl);
+    } else {
+      // For native apps, media is already saved to filesystem
+      console.log('DEBUG: Media storage not needed for native apps');
+    }
+  },
+
+  async getMedia(mediaId: string): Promise<string | null> {
+    if (Platform.OS === 'web') {
+      console.log('DEBUG: Loading media from IndexedDB:', mediaId);
+      return await indexedDBStorage.getItem(mediaId);
+    } else {
+      // For native apps, return the file URI directly
+      return null;
+    }
+  },
+
+  async deleteMedia(mediaId: string): Promise<void> {
+    if (Platform.OS === 'web') {
+      console.log('DEBUG: Deleting media from IndexedDB:', mediaId);
+      await indexedDBStorage.removeItem(mediaId);
+    } else {
+      // For native apps, file deletion is handled elsewhere
+      console.log('DEBUG: Media deletion not needed for native apps');
     }
   }
 };

@@ -17,7 +17,7 @@ import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system/legacy';
 import { translateTextWithGemini, translateSignWithGemini, transcribeAudioWithGemini, polishNoteWithGemini } from '../services/geminiService';
 import { speakTextWithGoogleTTS, getVoiceForLanguage } from '../services/googleTTSService';
-import { Note, generateNoteId } from '../utils/storage';
+import { Note, generateNoteId, mediaStorage } from '../utils/storage';
 import { getOrCreateSettings, saveSettings } from '../utils/settings';
 import { deductCredits, CREDIT_PRICING, getCredits, checkCreditsAndNotify } from '../utils/credits';
 import { LANGUAGES } from './SettingsPage';
@@ -312,30 +312,38 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
               showSuccess('DEBUG: Web translation completed');
 
-              // For web/PWA, store the image data separately and use a reference
-              const imageId = `web_image_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+              // For web/PWA, store the image data in IndexedDB and use a reference
+              const mediaId = `web_sign_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+              console.log('DEBUG: Storing web image in IndexedDB with ID:', mediaId);
+
               try {
-                // Store the full data URL in a separate localStorage key
-                localStorage.setItem(`trip42_media_${imageId}`, result);
-                console.log('DEBUG: Stored web image data in localStorage, size:', result.length);
+                // Store the actual image data in IndexedDB
+                await mediaStorage.saveMedia(mediaId, result);
+                showSuccess('DEBUG: Image stored in IndexedDB successfully');
+
+                // Create a blob URL for immediate display (temporary, will be replaced when loading from IndexedDB)
+                const response = await fetch(result);
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
 
                 // Set the translated text and move to tabs for editing
                 setRecordingCurrentNote({
                   rawTranscription: translationResult.translation,
                   polishedNote: translationResult.translation,
-                  signImageUrl: `local://${imageId}`, // Use a reference instead of the full data
+                  signImageUrl: blobUrl, // Use blob URL for display
                   audioUri: undefined
                 });
 
                 showSuccess('DEBUG: Web recording current note set');
 
-                // Add the reference to attached media
-                setAttachedMedia([`local://${imageId}`]);
+                // Add the media reference to attached media
+                setAttachedMedia([`media://${mediaId}`]);
+                showSuccess('DEBUG: Media reference added to attachedMedia');
               } catch (storageError) {
-                console.error('DEBUG: Failed to store image in localStorage:', storageError);
-                showSuccess('DEBUG: Falling back to storing data URL directly (may exceed quota)');
+                console.error('DEBUG: Failed to store image in IndexedDB:', storageError);
+                showSuccess('DEBUG: IndexedDB storage failed, falling back to direct storage');
 
-                // Fallback: store the data URL directly (will likely exceed quota)
+                // Fallback: store as data URL directly (may cause quota issues)
                 setRecordingCurrentNote({
                   rawTranscription: translationResult.translation,
                   polishedNote: translationResult.translation,
