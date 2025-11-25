@@ -330,7 +330,13 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
                       suggestedName: `sign_${Date.now()}.jpg`,
                       types: [{
                         description: 'Image files',
-                        accept: { 'image/jpeg': ['.jpg', '.jpeg'] }
+                        accept: {
+                          'image/jpeg': ['.jpg', '.jpeg'],
+                          'image/png': ['.png'],
+                          'image/gif': ['.gif'],
+                          'image/webp': ['.webp'],
+                          'image/bmp': ['.bmp']
+                        }
                       }]
                     });
 
@@ -547,7 +553,13 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
                     suggestedName: `recording_${Date.now()}.m4a`,
                     types: [{
                       description: 'Audio files',
-                      accept: { 'audio/m4a': ['.m4a'], 'audio/mp3': ['.mp3'] }
+                      accept: {
+                        'audio/m4a': ['.m4a'],
+                        'audio/mp3': ['.mp3'],
+                        'audio/wav': ['.wav'],
+                        'audio/ogg': ['.ogg'],
+                        'audio/webm': ['.webm']
+                      }
                     }]
                   });
 
