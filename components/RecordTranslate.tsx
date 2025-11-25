@@ -312,32 +312,61 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
               showSuccess('DEBUG: Web translation completed');
 
-              // For web/PWA, create a blob URL (file-like object) and use it as the file URI
-              console.log('DEBUG: Creating blob URL for web image');
+              // For web/PWA, save as actual file using File System Access API or OPFS
+              console.log('DEBUG: Saving web image as actual file');
 
               try {
-                // Convert data URL to blob and create a blob URL (acts like a file URI)
+                // Convert data URL to blob
                 const response = await fetch(result);
                 const blob = await response.blob();
-                const blobUrl = URL.createObjectURL(blob);
 
-                console.log('DEBUG: Blob URL created:', blobUrl);
+                // Try to save as actual file
+                let fileUri = result; // fallback to data URL
+
+                // Check if File System Access API is available
+                if ('showSaveFilePicker' in window) {
+                  try {
+                    const fileHandle = await (window as any).showSaveFilePicker({
+                      suggestedName: `sign_${Date.now()}.jpg`,
+                      types: [{
+                        description: 'Image files',
+                        accept: { 'image/jpeg': ['.jpg', '.jpeg'] }
+                      }]
+                    });
+
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+
+                    // Get the file URL from the handle
+                    fileUri = URL.createObjectURL(await fileHandle.getFile());
+                    console.log('DEBUG: Image saved using File System Access API:', fileUri);
+                  } catch (fsError) {
+                    // User cancelled or API not supported, fall back to blob URL
+                    console.log('DEBUG: File System Access API failed, using blob URL');
+                    fileUri = URL.createObjectURL(blob);
+                  }
+                } else {
+                  // Fallback: create blob URL (still file-like)
+                  fileUri = URL.createObjectURL(blob);
+                  console.log('DEBUG: Using blob URL as file URI:', fileUri);
+                }
 
                 // Set the translated text and move to tabs for editing
                 setRecordingCurrentNote({
                   rawTranscription: translationResult.translation,
                   polishedNote: translationResult.translation,
-                  signImageUrl: blobUrl, // This is a file-like URI
+                  signImageUrl: fileUri,
                   audioUri: undefined
                 });
 
                 console.log('DEBUG: Web recording current note set');
 
-                // Add the blob URL to attached media (this is the file URI)
-                setAttachedMedia([blobUrl]);
-                console.log('DEBUG: Blob URL added to attachedMedia as file URI');
+                // Add the file URI to attached media
+                setAttachedMedia([fileUri]);
+                console.log('DEBUG: File URI added to attachedMedia');
               } catch (error) {
-                console.error('DEBUG: Failed to create blob URL:', error);
+                console.error('DEBUG: Failed to save image file:', error);
                 console.log('DEBUG: Falling back to data URL');
 
                 // Fallback: store as data URL directly
@@ -473,22 +502,6 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       let uri = recordingRef.current.getURI();
 
       if (uri) {
-        // For web/PWA, convert blob URLs to data URLs for persistence
-        if (Platform.OS === 'web' && uri.startsWith('blob:')) {
-          try {
-            const response = await fetch(uri);
-            const blob = await response.blob();
-            const dataUrl = await new Promise<string>((resolve) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(reader.result as string);
-              reader.readAsDataURL(blob);
-            });
-            uri = dataUrl;
-          } catch (error) {
-            console.error('Failed to convert blob to data URL:', error);
-            // Continue with original URI if conversion fails
-          }
-        }
 
         setIsTranscribing(true);
         setIsProcessingRecording(true);
@@ -520,8 +533,48 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
           // Save audio to trip42Media directory
           if (Platform.OS === 'web') {
-            // For web, uri is data URL, keep as is
-            setAttachedMedia(prev => [...prev, uri!]);
+            // For web/PWA, save as actual file using File System Access API
+            try {
+              const response = await fetch(uri!);
+              const blob = await response.blob();
+
+              let audioUri = uri!; // fallback
+
+              // Check if File System Access API is available
+              if ('showSaveFilePicker' in window) {
+                try {
+                  const fileHandle = await (window as any).showSaveFilePicker({
+                    suggestedName: `recording_${Date.now()}.m4a`,
+                    types: [{
+                      description: 'Audio files',
+                      accept: { 'audio/m4a': ['.m4a'], 'audio/mp3': ['.mp3'] }
+                    }]
+                  });
+
+                  const writable = await fileHandle.createWritable();
+                  await writable.write(blob);
+                  await writable.close();
+
+                  // Get the file URL from the handle
+                  audioUri = URL.createObjectURL(await fileHandle.getFile());
+                  console.log('DEBUG: Audio saved using File System Access API:', audioUri);
+                } catch (fsError) {
+                  // User cancelled or API not supported, fall back to blob URL
+                  console.log('DEBUG: File System Access API failed for audio, using blob URL');
+                  audioUri = URL.createObjectURL(blob);
+                }
+              } else {
+                // Fallback: create blob URL (still file-like)
+                audioUri = URL.createObjectURL(blob);
+                console.log('DEBUG: Using blob URL for audio:', audioUri);
+              }
+
+              setAttachedMedia(prev => [...prev, audioUri]);
+            } catch (error) {
+              console.error('Failed to save audio file:', error);
+              // Fallback to original URI
+              setAttachedMedia(prev => [...prev, uri!]);
+            }
           } else {
             // For native, copy to trip42Media directory
             try {
