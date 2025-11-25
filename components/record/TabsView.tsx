@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, Image, Alert, Modal, FlatList } from 'react-native';
 import { speakTextWithGoogleTTS, getVoiceForLanguage } from '../../services/googleTTSService';
-import { Note, mediaStorage } from '../../utils/storage';
+import { Note } from '../../utils/storage';
 import { getOrCreateSettings, saveSettings } from '../../utils/settings';
 
 interface Translation {
@@ -209,17 +209,7 @@ const TabsView: React.FC<TabsViewProps> = ({
                 <Text style={styles.signImageLabel}>Captured Sign Image</Text>
                 <View style={styles.signImageWrapper}>
                   <Image
-                    source={{
-                      uri: recordingCurrentNote.signImageUrl.startsWith('media://')
-                        ? (() => {
-                            // Load from IndexedDB for PWA media references
-                            const mediaId = recordingCurrentNote.signImageUrl.replace('media://', '');
-                            console.log('Loading media from IndexedDB:', mediaId);
-                            // For now, return the current URL - proper async loading would need state management
-                            return recordingCurrentNote.signImageUrl;
-                          })()
-                        : recordingCurrentNote.signImageUrl
-                    }}
+                    source={{ uri: recordingCurrentNote.signImageUrl }}
                     style={styles.signImage}
                     resizeMode="cover"
                   />

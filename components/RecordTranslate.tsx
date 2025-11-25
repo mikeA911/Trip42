@@ -17,7 +17,7 @@ import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system/legacy';
 import { translateTextWithGemini, translateSignWithGemini, transcribeAudioWithGemini, polishNoteWithGemini } from '../services/geminiService';
 import { speakTextWithGoogleTTS, getVoiceForLanguage } from '../services/googleTTSService';
-import { Note, generateNoteId, mediaStorage } from '../utils/storage';
+import { Note, generateNoteId } from '../utils/storage';
 import { getOrCreateSettings, saveSettings } from '../utils/settings';
 import { deductCredits, CREDIT_PRICING, getCredits, checkCreditsAndNotify } from '../utils/credits';
 import { LANGUAGES } from './SettingsPage';
@@ -312,38 +312,35 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
               showSuccess('DEBUG: Web translation completed');
 
-              // For web/PWA, store the image data in IndexedDB and use a reference
-              const mediaId = `web_sign_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-              console.log('DEBUG: Storing web image in IndexedDB with ID:', mediaId);
+              // For web/PWA, create a blob URL (file-like object) and use it as the file URI
+              console.log('DEBUG: Creating blob URL for web image');
 
               try {
-                // Store the actual image data in IndexedDB
-                await mediaStorage.saveMedia(mediaId, result);
-                showSuccess('DEBUG: Image stored in IndexedDB successfully');
-
-                // Create a blob URL for immediate display (temporary, will be replaced when loading from IndexedDB)
+                // Convert data URL to blob and create a blob URL (acts like a file URI)
                 const response = await fetch(result);
                 const blob = await response.blob();
                 const blobUrl = URL.createObjectURL(blob);
+
+                console.log('DEBUG: Blob URL created:', blobUrl);
 
                 // Set the translated text and move to tabs for editing
                 setRecordingCurrentNote({
                   rawTranscription: translationResult.translation,
                   polishedNote: translationResult.translation,
-                  signImageUrl: blobUrl, // Use blob URL for display
+                  signImageUrl: blobUrl, // This is a file-like URI
                   audioUri: undefined
                 });
 
-                showSuccess('DEBUG: Web recording current note set');
+                console.log('DEBUG: Web recording current note set');
 
-                // Add the media reference to attached media
-                setAttachedMedia([`media://${mediaId}`]);
-                showSuccess('DEBUG: Media reference added to attachedMedia');
-              } catch (storageError) {
-                console.error('DEBUG: Failed to store image in IndexedDB:', storageError);
-                showSuccess('DEBUG: IndexedDB storage failed, falling back to direct storage');
+                // Add the blob URL to attached media (this is the file URI)
+                setAttachedMedia([blobUrl]);
+                console.log('DEBUG: Blob URL added to attachedMedia as file URI');
+              } catch (error) {
+                console.error('DEBUG: Failed to create blob URL:', error);
+                console.log('DEBUG: Falling back to data URL');
 
-                // Fallback: store as data URL directly (may cause quota issues)
+                // Fallback: store as data URL directly
                 setRecordingCurrentNote({
                   rawTranscription: translationResult.translation,
                   polishedNote: translationResult.translation,
