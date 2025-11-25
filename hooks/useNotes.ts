@@ -27,15 +27,24 @@ export const useNotes = () => {
     try {
       console.log('DEBUG: useNotes addNote called with note id:', note.id);
       console.log('DEBUG: useNotes note type:', note.noteType, 'attachedMedia count:', note.attachedMedia?.length || 0);
+
+      console.log('DEBUG: useNotes calling saveNote...');
       await saveNote(note);
-      console.log('DEBUG: useNotes saveNote completed');
+      console.log('DEBUG: useNotes saveNote completed successfully');
+
+      console.log('DEBUG: useNotes updating state...');
       setNotes(prev => {
         const newNotes = [note, ...prev];
         console.log('DEBUG: useNotes note added to state, new count:', newNotes.length);
         return newNotes;
       });
+
+      console.log('DEBUG: useNotes addNote completed successfully');
     } catch (error) {
-      console.error('Error adding note:', error);
+      console.error('DEBUG: Error in useNotes addNote:', error);
+      console.error('DEBUG: Error type:', typeof error);
+      console.error('DEBUG: Error message:', error instanceof Error ? error.message : 'Unknown error');
+      console.error('DEBUG: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       throw error;
     }
   };

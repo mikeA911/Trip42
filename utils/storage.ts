@@ -1,4 +1,44 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+
+// Storage wrapper for PWA compatibility
+const storage = {
+  getItem: async (key: string): Promise<string | null> => {
+    if (Platform.OS === 'web') {
+      try {
+        return localStorage.getItem(key);
+      } catch (error) {
+        console.error('localStorage getItem error:', error);
+        return null;
+      }
+    }
+    return AsyncStorage.getItem(key);
+  },
+  setItem: async (key: string, value: string): Promise<void> => {
+    if (Platform.OS === 'web') {
+      try {
+        localStorage.setItem(key, value);
+      } catch (error) {
+        console.error('localStorage setItem error:', error);
+        throw error;
+      }
+      return;
+    }
+    return AsyncStorage.setItem(key, value);
+  },
+  removeItem: async (key: string): Promise<void> => {
+    if (Platform.OS === 'web') {
+      try {
+        localStorage.removeItem(key);
+      } catch (error) {
+        console.error('localStorage removeItem error:', error);
+        throw error;
+      }
+      return;
+    }
+    return AsyncStorage.removeItem(key);
+  }
+};
 
 export interface Note {
   id: string;
@@ -33,20 +73,32 @@ export const saveNote = async (note: Note): Promise<void> => {
       noteType: note.noteType,
       location: note.location
     });
+
+    console.log('DEBUG: Getting existing notes...');
     const existingNotes = await getNotes();
     console.log('DEBUG: existingNotes count:', existingNotes.length);
+
+    console.log('DEBUG: Creating updated notes array...');
     const updatedNotes = [note, ...existingNotes];
     console.log('DEBUG: updatedNotes count:', updatedNotes.length);
+
+    console.log('DEBUG: Converting to JSON string...');
     const jsonString = JSON.stringify(updatedNotes);
     console.log('DEBUG: JSON string length:', jsonString.length);
+
     if (jsonString.length > 4 * 1024 * 1024) { // 4MB limit
+      console.log('DEBUG: JSON size exceeds 4MB limit');
       throw new Error('Note data too large to save. Please reduce attached media size.');
     }
-    console.log('DEBUG: About to save to AsyncStorage');
-    await AsyncStorage.setItem(NOTES_KEY, jsonString);
-    console.log('DEBUG: note saved successfully to AsyncStorage');
+
+    console.log('DEBUG: About to save to storage...');
+    await storage.setItem(NOTES_KEY, jsonString);
+    console.log('DEBUG: note saved successfully to storage');
   } catch (error) {
-    console.error('Error saving note:', error);
+    console.error('DEBUG: Error saving note:', error);
+    console.error('DEBUG: Error type:', typeof error);
+    console.error('DEBUG: Error message:', error instanceof Error ? error.message : 'Unknown error');
+    console.error('DEBUG: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     throw error;
   }
 };
@@ -54,7 +106,7 @@ export const saveNote = async (note: Note): Promise<void> => {
 export const getNotes = async (): Promise<Note[]> => {
   try {
     console.log('DEBUG: getNotes called');
-    const notesJson = await AsyncStorage.getItem(NOTES_KEY);
+    const notesJson = await storage.getItem(NOTES_KEY);
     console.log('DEBUG: notesJson length:', notesJson?.length);
     if (!notesJson) {
       console.log('DEBUG: no notesJson, returning empty array');
@@ -95,7 +147,7 @@ export const getNotes = async (): Promise<Note[]> => {
     // If some notes were filtered out, save the cleaned list
     if (validNotes.length !== parsedNotes.length) {
       console.warn(`Filtered out ${parsedNotes.length - validNotes.length} corrupted notes`);
-      await AsyncStorage.setItem(NOTES_KEY, JSON.stringify(validNotes));
+      await storage.setItem(NOTES_KEY, JSON.stringify(validNotes));
     }
 
     return validNotes;
@@ -103,7 +155,7 @@ export const getNotes = async (): Promise<Note[]> => {
     console.error('Error getting notes:', error);
     // If parsing fails completely, try to clear corrupted data
     try {
-      await AsyncStorage.removeItem(NOTES_KEY);
+      await storage.removeItem(NOTES_KEY);
       console.warn('Cleared corrupted notes data');
     } catch (clearError) {
       console.error('Error clearing corrupted data:', clearError);
@@ -116,7 +168,7 @@ export const deleteNote = async (noteId: string): Promise<void> => {
   try {
     const existingNotes = await getNotes();
     const updatedNotes = existingNotes.filter(note => note.id !== noteId);
-    await AsyncStorage.setItem(NOTES_KEY, JSON.stringify(updatedNotes));
+    await storage.setItem(NOTES_KEY, JSON.stringify(updatedNotes));
   } catch (error) {
     console.error('Error deleting note:', error);
     throw error;
@@ -129,7 +181,7 @@ export const updateNote = async (updatedNote: Note): Promise<void> => {
     const updatedNotes = existingNotes.map(note =>
       note.id === updatedNote.id ? updatedNote : note
     );
-    await AsyncStorage.setItem(NOTES_KEY, JSON.stringify(updatedNotes));
+    await storage.setItem(NOTES_KEY, JSON.stringify(updatedNotes));
   } catch (error) {
     console.error('Error updating note:', error);
     throw error;
