@@ -179,6 +179,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
       // Check if we're running in a PWA or web environment
       const isWebPlatform = Platform.OS === 'web';
+      showSuccess('DEBUG: Platform.OS = ' + Platform.OS + ', isWebPlatform = ' + isWebPlatform);
 
       if (isWebPlatform) {
         showSuccess('DEBUG: Using web platform, calling handleWebSignTranslation');
@@ -632,18 +633,24 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
   const handleSaveNote = async (includeGps: boolean, tags: string[]) => {
     console.log('DEBUG: handleSaveNote called, includeGps:', includeGps, 'tags:', tags, 'attachedMedia length:', attachedMedia.length);
+    showSuccess('DEBUG: handleSaveNote called with ' + tags.length + ' tags');
+
     if (!recordingCurrentNote.polishedNote.trim()) {
+      showSuccess('DEBUG: No content to save, showing alert');
       Alert.alert('Error', 'No content to save');
       return;
     }
 
     try {
+      showSuccess('DEBUG: Getting location if requested');
       let location = undefined;
       if (includeGps) {
         location = await getCurrentLocation();
         console.log('DEBUG: location obtained:', location);
+        showSuccess('DEBUG: Location obtained: ' + (location ? 'yes' : 'no'));
       }
 
+      showSuccess('DEBUG: Creating note object');
       const note: Note = {
         id: generateNoteId(),
         title: noteTitle || `Note ${new Date().toLocaleDateString()}`,
@@ -669,8 +676,11 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         location: note.location
       });
 
+      showSuccess('DEBUG: About to call onSaveNote');
       await onSaveNote(note);
+      showSuccess('DEBUG: onSaveNote completed successfully');
 
+      showSuccess('DEBUG: Resetting form');
       // Reset form
       setRecordingViewMode('actions');
       setRecordingCurrentNote({ rawTranscription: '', polishedNote: '', signImageUrl: undefined, audioUri: undefined });
@@ -684,6 +694,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       showSuccess('Note saved successfully!');
     } catch (error) {
       console.error('Error in handleSaveNote:', error);
+      showSuccess('DEBUG: Error in handleSaveNote: ' + (error instanceof Error ? error.message : 'Unknown error'));
       Alert.alert('Error', 'Failed to save note');
     }
   };
