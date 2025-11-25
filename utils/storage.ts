@@ -4,38 +4,51 @@ import { Platform } from 'react-native';
 // Storage wrapper for PWA compatibility
 const storage = {
   getItem: async (key: string): Promise<string | null> => {
+    console.log('DEBUG: storage.getItem called for key:', key, 'Platform.OS:', Platform.OS);
     if (Platform.OS === 'web') {
+      console.log('DEBUG: Using localStorage for getItem');
       try {
-        return localStorage.getItem(key);
+        const result = localStorage.getItem(key);
+        console.log('DEBUG: localStorage.getItem result:', result ? 'found' : 'null');
+        return result;
       } catch (error) {
-        console.error('localStorage getItem error:', error);
+        console.error('DEBUG: localStorage getItem error:', error);
         return null;
       }
     }
+    console.log('DEBUG: Using AsyncStorage for getItem');
     return AsyncStorage.getItem(key);
   },
   setItem: async (key: string, value: string): Promise<void> => {
+    console.log('DEBUG: storage.setItem called for key:', key, 'Platform.OS:', Platform.OS, 'value length:', value.length);
     if (Platform.OS === 'web') {
+      console.log('DEBUG: Using localStorage for setItem');
       try {
         localStorage.setItem(key, value);
+        console.log('DEBUG: localStorage.setItem successful');
       } catch (error) {
-        console.error('localStorage setItem error:', error);
+        console.error('DEBUG: localStorage setItem error:', error);
         throw error;
       }
       return;
     }
+    console.log('DEBUG: Using AsyncStorage for setItem');
     return AsyncStorage.setItem(key, value);
   },
   removeItem: async (key: string): Promise<void> => {
+    console.log('DEBUG: storage.removeItem called for key:', key, 'Platform.OS:', Platform.OS);
     if (Platform.OS === 'web') {
+      console.log('DEBUG: Using localStorage for removeItem');
       try {
         localStorage.removeItem(key);
+        console.log('DEBUG: localStorage.removeItem successful');
       } catch (error) {
-        console.error('localStorage removeItem error:', error);
+        console.error('DEBUG: localStorage removeItem error:', error);
         throw error;
       }
       return;
     }
+    console.log('DEBUG: Using AsyncStorage for removeItem');
     return AsyncStorage.removeItem(key);
   }
 };
