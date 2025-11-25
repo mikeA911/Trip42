@@ -14,6 +14,7 @@ import {
 import { Audio } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import * as FileSystem from 'expo-file-system/legacy';
 import { translateTextWithGemini, translateSignWithGemini, transcribeAudioWithGemini, polishNoteWithGemini } from '../services/geminiService';
 import { speakTextWithGoogleTTS, getVoiceForLanguage } from '../services/googleTTSService';
 import { Note, generateNoteId } from '../utils/storage';
@@ -109,7 +110,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
   const recordingRef = useRef<Audio.Recording | null>(null);
 
-  const handleAutoSaveSignTranslation = async () => {
+  const handleAutoSaveSignTranslation = async (currentMedia?: string[]) => {
     // Auto-save sign translation notes for better UX
     if (!recordingCurrentNote.polishedNote.trim()) {
       return;
@@ -123,11 +124,11 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         timestamp: new Date().toISOString(),
         tags: ['sign-translation'],
         translations: {},
-        attachedMedia: attachedMedia,
+        attachedMedia: currentMedia || attachedMedia,
         noteType: 'sign_translation',
       };
 
-      onSaveNote(note);
+      await onSaveNote(note);
     } catch (error) {
       console.error('Auto-save failed:', error);
       // Don't show error to user as this is just an auto-save
@@ -203,6 +204,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           });
 
           // Save the sign image to Downloads/trip42Media directory
+          let finalMediaUri = result.assets[0].uri;
           try {
             const mediaDir = FileSystem.documentDirectory + 'Downloads/trip42Media/';
             await FileSystem.makeDirectoryAsync(mediaDir, { intermediates: true });
@@ -212,6 +214,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
               from: result.assets[0].uri,
               to: destinationUri
             });
+            finalMediaUri = destinationUri;
             setAttachedMedia([destinationUri]);
           } catch (error) {
             console.error('Failed to save sign image:', error);
@@ -223,7 +226,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           setActiveRecordingTab('polished');
 
           // Auto-save sign translation notes immediately for better UX
-          handleAutoSaveSignTranslation();
+          await handleAutoSaveSignTranslation([finalMediaUri]);
           showSuccess('Sign translation completed and note saved automatically!');
         }
       }
@@ -276,7 +279,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
               setActiveRecordingTab('polished');
    
               // Auto-save sign translation notes immediately for better UX
-              handleAutoSaveSignTranslation();
+              await handleAutoSaveSignTranslation([result]);
               showSuccess('Sign translation completed and note saved automatically!');
             };
             reader.readAsDataURL(file);
@@ -612,7 +615,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         location: note.location
       });
 
-      onSaveNote(note);
+      await onSaveNote(note);
 
       // Reset form
       setRecordingViewMode('actions');
