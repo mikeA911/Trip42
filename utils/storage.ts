@@ -42,8 +42,9 @@ export const saveNote = async (note: Note): Promise<void> => {
     if (jsonString.length > 4 * 1024 * 1024) { // 4MB limit
       throw new Error('Note data too large to save. Please reduce attached media size.');
     }
+    console.log('DEBUG: About to save to AsyncStorage');
     await AsyncStorage.setItem(NOTES_KEY, jsonString);
-    console.log('DEBUG: note saved successfully');
+    console.log('DEBUG: note saved successfully to AsyncStorage');
   } catch (error) {
     console.error('Error saving note:', error);
     throw error;

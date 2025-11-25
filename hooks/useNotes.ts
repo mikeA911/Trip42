@@ -26,7 +26,9 @@ export const useNotes = () => {
   const addNote = async (note: Note) => {
     try {
       console.log('DEBUG: useNotes addNote called with note id:', note.id);
+      console.log('DEBUG: useNotes note type:', note.noteType, 'attachedMedia count:', note.attachedMedia?.length || 0);
       await saveNote(note);
+      console.log('DEBUG: useNotes saveNote completed');
       setNotes(prev => {
         const newNotes = [note, ...prev];
         console.log('DEBUG: useNotes note added to state, new count:', newNotes.length);

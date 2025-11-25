@@ -112,11 +112,14 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
   const handleAutoSaveSignTranslation = async (currentMedia?: string[]) => {
     // Auto-save sign translation notes for better UX
+    showSuccess('DEBUG: handleAutoSaveSignTranslation called');
     if (!recordingCurrentNote.polishedNote.trim()) {
+      showSuccess('DEBUG: No polished note content, skipping auto-save');
       return;
     }
 
     try {
+      showSuccess('DEBUG: Creating note object for auto-save');
       const note: Note = {
         id: generateNoteId(),
         title: `Sign Translation - ${new Date().toLocaleDateString()}`,
@@ -128,8 +131,11 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         noteType: 'sign_translation',
       };
 
+      showSuccess('DEBUG: Note created, calling onSaveNote');
       await onSaveNote(note);
+      showSuccess('DEBUG: onSaveNote completed successfully');
     } catch (error) {
+      showSuccess('DEBUG: Auto-save failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
       console.error('Auto-save failed:', error);
       // Don't show error to user as this is just an auto-save
     }
@@ -138,9 +144,12 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
   // Handler functions for the new component structure
   const handleSignTranslation = async () => {
     try {
+      showSuccess('DEBUG: Starting sign translation process');
+
       // Check credits first
       const hasCredits = await checkCreditsAndNotify(CREDIT_PRICING.SIGN_TRANSLATION, 'Sign Language Translation');
       if (!hasCredits) {
+        showSuccess('DEBUG: Insufficient credits for sign translation');
         // Show alert and offer to navigate to credits page
         Alert.alert(
           'Insufficient Credits',
@@ -156,33 +165,46 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         return;
       }
 
+      showSuccess('DEBUG: Credits check passed');
+
       // Deduct credits for sign translation
       const creditDeducted = await deductCredits(CREDIT_PRICING.SIGN_TRANSLATION, 'Sign Language Translation');
       if (!creditDeducted) {
+        showSuccess('DEBUG: Failed to deduct credits');
         Alert.alert('Error', 'Failed to process credits. Please try again.');
         return;
       }
 
+      showSuccess('DEBUG: Credits deducted successfully');
+
       // Check if we're running in a PWA or web environment
       const isWebPlatform = Platform.OS === 'web';
-      
+
       if (isWebPlatform) {
+        showSuccess('DEBUG: Using web platform, calling handleWebSignTranslation');
         // Handle web/PWA environment with file input fallback
         await handleWebSignTranslation();
         return;
       }
 
+      showSuccess('DEBUG: Using native platform');
+
       // Original native logic for iOS/Android
       // Request camera permissions
+      showSuccess('DEBUG: Requesting camera permissions');
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
+        showSuccess('DEBUG: Camera permission denied');
         Alert.alert('Permission needed', 'Camera permission is required for sign translation');
         return;
       }
 
+      showSuccess('DEBUG: Camera permission granted');
+
       setIsProcessing(true);
       setProcessingMessage('Marvin is analyzing...');
 
+      showSuccess('DEBUG: Launching camera');
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
@@ -190,10 +212,16 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         base64: true,
       });
 
+      showSuccess('DEBUG: Camera result received');
+
       if (!result.canceled && result.assets[0]) {
+        showSuccess('DEBUG: Photo taken successfully');
         const base64Image = result.assets[0].base64;
         if (base64Image) {
+          showSuccess('DEBUG: Processing translation with Gemini');
           const translationResult = await translateSignWithGemini(base64Image, targetLanguage);
+
+          showSuccess('DEBUG: Translation completed');
 
           // Set the translated text and move to tabs for editing
           setRecordingCurrentNote({
@@ -203,9 +231,12 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             audioUri: undefined
           });
 
+          showSuccess('DEBUG: Recording current note set');
+
           // Save the sign image to Downloads/trip42Media directory
           let finalMediaUri = result.assets[0].uri;
           try {
+            showSuccess('DEBUG: Saving media to filesystem');
             const mediaDir = FileSystem.documentDirectory + 'Downloads/trip42Media/';
             await FileSystem.makeDirectoryAsync(mediaDir, { intermediates: true });
             const fileName = `sign_${Date.now()}_${Math.random().toString(36).substring(2, 15)}.jpg`;
@@ -216,7 +247,9 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             });
             finalMediaUri = destinationUri;
             setAttachedMedia([destinationUri]);
+            showSuccess('DEBUG: Media saved to filesystem successfully');
           } catch (error) {
+            showSuccess('DEBUG: Failed to save media to filesystem, using original URI');
             console.error('Failed to save sign image:', error);
             // Fallback to original URI
             setAttachedMedia([result.assets[0].uri]);
@@ -225,12 +258,19 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           setRecordingViewMode('tabs');
           setActiveRecordingTab('polished');
 
+          showSuccess('DEBUG: UI updated, calling auto-save');
+
           // Auto-save sign translation notes immediately for better UX
           await handleAutoSaveSignTranslation([finalMediaUri]);
           showSuccess('Sign translation completed and note saved automatically!');
+        } else {
+          showSuccess('DEBUG: No base64 image data received');
         }
+      } else {
+        showSuccess('DEBUG: Camera cancelled or no photo taken');
       }
     } catch (error) {
+      showSuccess('DEBUG: Error in sign translation: ' + (error instanceof Error ? error.message : 'Unknown error'));
       Alert.alert('Error', 'Failed to process sign translation');
     } finally {
       setIsProcessing(false);
@@ -240,29 +280,36 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
   const handleWebSignTranslation = async () => {
     return new Promise<void>((resolve) => {
+      showSuccess('DEBUG: handleWebSignTranslation called');
+
       // Create a hidden file input element for web/PWA
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
       input.setAttribute('capture', 'environment');
-      
+
       input.onchange = async (event) => {
         const file = (event.target as HTMLInputElement).files?.[0];
         if (file) {
+          showSuccess('DEBUG: Web file selected');
           setIsProcessing(true);
           setProcessingMessage('Marvin is analyzing...');
           showSuccess('Sign translation started - this may take a moment...');
-          showSuccess('Sign translation started - this may take a moment...');
 
           try {
+            showSuccess('DEBUG: Converting file to base64');
             // Convert file to base64 data URL for React Native compatibility
             const reader = new FileReader();
             reader.onload = async (e) => {
               const result = e.target?.result as string;
+              showSuccess('DEBUG: File converted to data URL');
               // Extract base64 data (remove data:image/jpeg;base64, prefix if present)
               const base64Data = result.split(',')[1] || result;
-              
+
+              showSuccess('DEBUG: Calling Gemini translation');
               const translationResult = await translateSignWithGemini(base64Data, targetLanguage);
+
+              showSuccess('DEBUG: Web translation completed');
 
               // Set the translated text and move to tabs for editing
               setRecordingCurrentNote({
@@ -272,23 +319,30 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
                 audioUri: undefined
               });
 
+              showSuccess('DEBUG: Web recording current note set');
+
               // Add the sign image to attached media
               setAttachedMedia([result]);
 
               setRecordingViewMode('tabs');
               setActiveRecordingTab('polished');
-   
+
+              showSuccess('DEBUG: Web UI updated, calling auto-save');
+
               // Auto-save sign translation notes immediately for better UX
               await handleAutoSaveSignTranslation([result]);
               showSuccess('Sign translation completed and note saved automatically!');
             };
             reader.readAsDataURL(file);
           } catch (error) {
+            showSuccess('DEBUG: Web sign translation error: ' + (error instanceof Error ? error.message : 'Unknown error'));
             Alert.alert('Error', 'Failed to process sign translation');
           } finally {
             setIsProcessing(false);
             setProcessingMessage('');
           }
+        } else {
+          showSuccess('DEBUG: No file selected in web');
         }
         resolve();
       };
