@@ -263,7 +263,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
           // Auto-save sign translation notes immediately for better UX
           await handleAutoSaveSignTranslation([finalMediaUri]);
-          showSuccess('Sign translation completed and note saved automatically!');
+          // Note: Auto-save success message removed since it's misleading when save fails
         } else {
           showSuccess('DEBUG: No base64 image data received');
         }
@@ -332,7 +332,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
               // Auto-save sign translation notes immediately for better UX
               await handleAutoSaveSignTranslation([result]);
-              showSuccess('Sign translation completed and note saved automatically!');
+              // Note: Auto-save success message removed since it's misleading when save fails
             };
             reader.readAsDataURL(file);
           } catch (error) {

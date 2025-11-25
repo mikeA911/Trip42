@@ -1,55 +1,78 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-// Storage wrapper for PWA compatibility
+// Storage wrapper for PWA compatibility - try AsyncStorage first, fallback to localStorage
 const storage = {
   getItem: async (key: string): Promise<string | null> => {
-    console.log('DEBUG: storage.getItem called for key:', key, 'Platform.OS:', Platform.OS);
-    if (Platform.OS === 'web') {
-      console.log('DEBUG: Using localStorage for getItem');
+    console.log('DEBUG: storage.getItem called for key:', key);
+
+    // Try AsyncStorage first (works in native apps and some PWAs)
+    try {
+      console.log('DEBUG: Trying AsyncStorage.getItem first');
+      const result = await AsyncStorage.getItem(key);
+      console.log('DEBUG: AsyncStorage.getItem successful, result:', result ? 'found' : 'null');
+      return result;
+    } catch (asyncError) {
+      console.log('DEBUG: AsyncStorage.getItem failed, trying localStorage:', asyncError instanceof Error ? asyncError.message : String(asyncError));
+
+      // Fallback to localStorage (works in PWAs)
       try {
         const result = localStorage.getItem(key);
         console.log('DEBUG: localStorage.getItem result:', result ? 'found' : 'null');
         return result;
-      } catch (error) {
-        console.error('DEBUG: localStorage getItem error:', error);
+      } catch (localError) {
+        console.error('DEBUG: Both AsyncStorage and localStorage failed for getItem:', localError);
         return null;
       }
     }
-    console.log('DEBUG: Using AsyncStorage for getItem');
-    return AsyncStorage.getItem(key);
   },
+
   setItem: async (key: string, value: string): Promise<void> => {
-    console.log('DEBUG: storage.setItem called for key:', key, 'Platform.OS:', Platform.OS, 'value length:', value.length);
-    if (Platform.OS === 'web') {
-      console.log('DEBUG: Using localStorage for setItem');
+    console.log('DEBUG: storage.setItem called for key:', key, 'value length:', value.length);
+
+    // Try AsyncStorage first (works in native apps and some PWAs)
+    try {
+      console.log('DEBUG: Trying AsyncStorage.setItem first');
+      await AsyncStorage.setItem(key, value);
+      console.log('DEBUG: AsyncStorage.setItem successful');
+      return;
+    } catch (asyncError) {
+      console.log('DEBUG: AsyncStorage.setItem failed, trying localStorage:', asyncError instanceof Error ? asyncError.message : String(asyncError));
+
+      // Fallback to localStorage (works in PWAs)
       try {
         localStorage.setItem(key, value);
         console.log('DEBUG: localStorage.setItem successful');
-      } catch (error) {
-        console.error('DEBUG: localStorage setItem error:', error);
-        throw error;
+        return;
+      } catch (localError) {
+        console.error('DEBUG: Both AsyncStorage and localStorage failed for setItem:', localError);
+        throw localError;
       }
-      return;
     }
-    console.log('DEBUG: Using AsyncStorage for setItem');
-    return AsyncStorage.setItem(key, value);
   },
+
   removeItem: async (key: string): Promise<void> => {
-    console.log('DEBUG: storage.removeItem called for key:', key, 'Platform.OS:', Platform.OS);
-    if (Platform.OS === 'web') {
-      console.log('DEBUG: Using localStorage for removeItem');
+    console.log('DEBUG: storage.removeItem called for key:', key);
+
+    // Try AsyncStorage first
+    try {
+      console.log('DEBUG: Trying AsyncStorage.removeItem first');
+      await AsyncStorage.removeItem(key);
+      console.log('DEBUG: AsyncStorage.removeItem successful');
+      return;
+    } catch (asyncError) {
+      console.log('DEBUG: AsyncStorage.removeItem failed, trying localStorage:', asyncError instanceof Error ? asyncError.message : String(asyncError));
+
+      // Fallback to localStorage
       try {
         localStorage.removeItem(key);
         console.log('DEBUG: localStorage.removeItem successful');
-      } catch (error) {
-        console.error('DEBUG: localStorage removeItem error:', error);
-        throw error;
+        return;
+      } catch (localError) {
+        console.error('DEBUG: Both AsyncStorage and localStorage failed for removeItem:', localError);
+        throw localError;
       }
-      return;
     }
-    console.log('DEBUG: Using AsyncStorage for removeItem');
-    return AsyncStorage.removeItem(key);
   }
 };
 
