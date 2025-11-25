@@ -312,18 +312,38 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
               showSuccess('DEBUG: Web translation completed');
 
-              // Set the translated text and move to tabs for editing
-              setRecordingCurrentNote({
-                rawTranscription: translationResult.translation,
-                polishedNote: translationResult.translation,
-                signImageUrl: result,
-                audioUri: undefined
-              });
+              // For web/PWA, store the image data separately and use a reference
+              const imageId = `web_image_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+              try {
+                // Store the full data URL in a separate localStorage key
+                localStorage.setItem(`trip42_media_${imageId}`, result);
+                console.log('DEBUG: Stored web image data in localStorage, size:', result.length);
 
-              showSuccess('DEBUG: Web recording current note set');
+                // Set the translated text and move to tabs for editing
+                setRecordingCurrentNote({
+                  rawTranscription: translationResult.translation,
+                  polishedNote: translationResult.translation,
+                  signImageUrl: `local://${imageId}`, // Use a reference instead of the full data
+                  audioUri: undefined
+                });
 
-              // Add the sign image to attached media
-              setAttachedMedia([result]);
+                showSuccess('DEBUG: Web recording current note set');
+
+                // Add the reference to attached media
+                setAttachedMedia([`local://${imageId}`]);
+              } catch (storageError) {
+                console.error('DEBUG: Failed to store image in localStorage:', storageError);
+                showSuccess('DEBUG: Falling back to storing data URL directly (may exceed quota)');
+
+                // Fallback: store the data URL directly (will likely exceed quota)
+                setRecordingCurrentNote({
+                  rawTranscription: translationResult.translation,
+                  polishedNote: translationResult.translation,
+                  signImageUrl: result,
+                  audioUri: undefined
+                });
+                setAttachedMedia([result]);
+              }
 
               setRecordingViewMode('tabs');
               setActiveRecordingTab('polished');

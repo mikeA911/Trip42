@@ -209,7 +209,19 @@ const TabsView: React.FC<TabsViewProps> = ({
                 <Text style={styles.signImageLabel}>Captured Sign Image</Text>
                 <View style={styles.signImageWrapper}>
                   <Image
-                    source={{ uri: recordingCurrentNote.signImageUrl }}
+                    source={{
+                      uri: recordingCurrentNote.signImageUrl.startsWith('local://')
+                        ? (() => {
+                            try {
+                              const imageId = recordingCurrentNote.signImageUrl.replace('local://', '');
+                              return localStorage.getItem(`trip42_media_${imageId}`) || recordingCurrentNote.signImageUrl;
+                            } catch (error) {
+                              console.error('Error loading local image:', error);
+                              return recordingCurrentNote.signImageUrl;
+                            }
+                          })()
+                        : recordingCurrentNote.signImageUrl
+                    }}
                     style={styles.signImage}
                     resizeMode="cover"
                   />
