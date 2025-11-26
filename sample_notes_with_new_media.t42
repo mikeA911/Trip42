@@ -1,0 +1,62 @@
+{
+  "version": "1.0",
+  "exportedAt": "2025-11-26T02:47:00.000Z",
+  "notes": [
+    {
+      "id": "note-sample-1",
+      "title": "Marvin the Paranoid Android (New Media Format)",
+      "text": "Life? Don't talk to me about life. Here I am, brain the size of a planet, and they ask me to pick up a piece of paper.",
+      "timestamp": "2025-11-26T01:00:00.000Z",
+      "tags": ["marvin", "hitchhikers", "depressed"],
+      "attachedMedia": [
+        "media/note-sample-1/img_1732582800000.jpg"
+      ],
+      "noteType": "text_note"
+    },
+    {
+      "id": "note-sample-2",
+      "title": "Don't Panic! (Voice + Photo)",
+      "text": "The answer to the ultimate question of life, the universe, and everything is 42.",
+      "timestamp": "2025-11-26T01:15:00.000Z",
+      "tags": ["hitchhikers", "42", "answer"],
+      "attachedMedia": [
+        "media/note-sample-2/img_1732583100000.jpg",
+        "media/note-sample-2/audio_1732583100000.m4a"
+      ],
+      "noteType": "voice_recording",
+      "originalText": "The answer to the ultimate question of life, the universe, and everything is 42."
+    },
+    {
+      "id": "note-sample-3",
+      "title": "Zaphod Beeblebrox (Sign Language)",
+      "text": "I'm Zaphod Beeblebrox, President of the Galaxy, and I'm here to party!",
+      "timestamp": "2025-11-26T01:30:00.000Z",
+      "tags": ["zaphod", "president", "party"],
+      "attachedMedia": [
+        "media/note-sample-3/img_1732583400000.jpg"
+      ],
+      "noteType": "sign_translation",
+      "originalText": "I'm Zaphod Beeblebrox, the coolest guy in the galaxy."
+    },
+    {
+      "id": "note-sample-4",
+      "title": "Multi-Media Note",
+      "text": "This note demonstrates the new media storage system with multiple attachments including photos and audio recordings.",
+      "timestamp": "2025-11-26T01:45:00.000Z",
+      "tags": ["demo", "multimedia", "storage"],
+      "attachedMedia": [
+        "media/note-sample-4/img_1732583700000.jpg",
+        "media/note-sample-4/img_1732583705000.jpg",
+        "media/note-sample-4/audio_1732583710000.m4a",
+        "media/note-sample-4/thumb_img_1732583700000.jpg",
+        "media/note-sample-4/thumb_img_1732583705000.jpg"
+      ],
+      "noteType": "text_note",
+      "location": {
+        "latitude": 37.7749,
+        "longitude": -122.4194,
+        "accuracy": 10
+      }
+    }
+  ]
+}

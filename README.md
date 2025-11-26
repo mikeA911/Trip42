@@ -324,6 +324,54 @@ const SUPPORTED_LANGUAGES = [
 ];
 ```
 
+## 📄 Note File Structure
+
+### New Media Storage Format (v1.0+)
+Trip42 uses a modern JSON-based note format with path-based media references:
+
+```json
+{
+  "version": "1.0",
+  "exportedAt": "2025-11-26T02:47:00.000Z",
+  "notes": [
+    {
+      "id": "note-sample-1",
+      "title": "Sample Note",
+      "text": "Note content here...",
+      "timestamp": "2025-11-26T01:00:00.000Z",
+      "tags": ["tag1", "tag2"],
+      "attachedMedia": [
+        "media/note-sample-1/img_1732582800000.jpg",
+        "media/note-sample-1/audio_1732582800000.m4a"
+      ],
+      "noteType": "text_note",
+      "location": {
+        "latitude": 37.7749,
+        "longitude": -122.4194,
+        "accuracy": 10
+      },
+      "originalText": "Original transcription if applicable"
+    }
+  ]
+}
+```
+
+#### Media Path Format
+- **Images**: `media/{noteId}/img_{timestamp}.jpg`
+- **Thumbnails**: `media/{noteId}/thumb_img_{timestamp}.jpg`
+- **Audio**: `media/{noteId}/audio_{timestamp}.m4a`
+- **Videos**: `media/{noteId}/video_{timestamp}.mp4`
+
+#### Backward Compatibility
+- **Legacy Format**: Base64 data URLs in `attachedMedia` array
+- **Migration**: Automatic conversion when importing old notes
+- **Mixed Support**: Can handle both formats simultaneously
+
+### Sample Files
+- **`sample_notes_with_new_media.t42`**: Demonstrates new path-based media storage
+- **`sample_notes_with_media.t42`**: Legacy format with embedded base64 data
+- **`simple_sample_note.t42`**: Basic note structure
+
 ## 🔒 Privacy & Security
 
 - **No personal data collection** for anonymous users
