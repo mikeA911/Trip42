@@ -33,8 +33,10 @@ Trip42 is a comprehensive mobile application that combines voice recording, sign
 - **AI-powered note polishing** for better clarity
 - **Tag-based organization** with custom tags
 - **Location tracking** with GPS coordinates
-- **Photo attachments** for visual context
-- **Sync-ready architecture** for cloud backup
+- **Advanced media storage** with OPFS/IndexedDB backend
+- **Automatic image compression** and thumbnail generation
+- **Cloud sharing** with Supabase integration
+- **Cross-platform media compatibility**
 
 ### 💰 Credit System
 - **Device fingerprinting** for anonymous user identification
@@ -73,8 +75,13 @@ Trip42 is a comprehensive mobile application that combines voice recording, sign
 - **Supabase** for:
   - Voucher redemption
   - User management
-  - Cloud sync capabilities
-- **AsyncStorage** for local data persistence
+  - Cloud media sharing
+- **AsyncStorage** for local note persistence
+- **Media Storage System**:
+  - Origin Private File System (OPFS) for modern browsers
+  - IndexedDB fallback for compatibility
+  - Expo File System for native apps
+  - Automatic compression and thumbnail generation
 
 ### Device Integration
 - **Expo Camera** for photo capture
@@ -97,22 +104,67 @@ Trip42/
 │   ├── CreditsTab.tsx           # Credit management
 │   ├── NotesList.tsx            # Note display
 │   └── LandingPage.tsx          # Welcome screen
+├── media-storage/
+│   ├── MediaStorage.ts           # Core media storage utilities
+│   ├── useNoteMedia.tsx          # React hook for media management
+│   ├── supabaseUploader.ts       # Cloud upload utilities
+│   ├── platformDetector.ts       # Platform detection
+│   └── adapters/
+│       ├── web-opfs.ts           # Origin Private File System
+│       ├── indexeddb-fallback.ts # IndexedDB fallback
+│       └── native-expo.ts        # React Native file system
 ├── services/
-│   ├── geminiService.ts         # AI service integration
-│   └── googleTTSService.ts      # Text-to-speech
+│   ├── geminiService.ts          # AI service integration
+│   └── googleTTSService.ts       # Text-to-speech
 ├── utils/
-│   ├── storage.ts               # Note persistence
-│   └── credits.ts               # Credit management
+│   ├── storage.ts                # Note persistence
+│   └── credits.ts                # Credit management
 └── hooks/
-    └── useNotes.ts              # Note state management
+    └── useNotes.ts               # Note state management
 ```
 
 ### Data Flow
 1. **User Interaction** → Component State Updates
 2. **AI Processing** → Gemini API calls
 3. **Credit Deduction** → Local storage updates
-4. **Note Saving** → AsyncStorage persistence
-5. **Optional Sync** → Supabase cloud storage
+4. **Media Storage** → OPFS/IndexedDB with path-based references
+5. **Note Saving** → AsyncStorage persistence with media path references
+6. **Optional Sharing** → Supabase upload for cloud sharing
+
+### Media Storage Strategy
+Trip42 uses a modern, cross-platform media storage architecture that prioritizes performance, privacy, and accessibility:
+
+#### Storage Architecture
+- **Origin Private File System (OPFS)**: Primary storage for Chromium-based browsers (Chrome, Edge, etc.)
+- **IndexedDB Fallback**: Automatic fallback for browsers without OPFS support
+- **Native Expo File System**: For React Native mobile apps
+- **Path-based Storage**: Media referenced by paths like `media/note-123/img_456.jpg` in note's `attachedMedia` array
+
+#### Images
+- **Automatic compression**: Images compressed to 1600px max dimension with 80% JPEG quality
+- **Thumbnail generation**: 320px thumbnails created automatically for performance
+- **Cross-platform compatibility**: Works identically across web and native platforms
+- **Privacy-first**: Files stored locally, never uploaded without explicit user consent
+
+#### Audio
+- **High-quality preservation**: Voice recordings stored in native formats (M4A)
+- **Efficient storage**: No quality loss during storage process
+- **Instant access**: Fast loading and playback capabilities
+- **Device integration**: Accessible through standard file system APIs
+
+#### File Organization
+- **Hierarchical structure**: `media/{noteId}/{filename}` for logical organization
+- **Unique identifiers**: Timestamp + random string prevents filename conflicts
+- **Metadata separation**: File data stored separately from note metadata
+- **Reference system**: Notes contain paths, not embedded file data
+
+#### Benefits
+- **Performance**: Faster loading with compressed images and efficient storage
+- **Privacy**: Files remain local until explicitly shared/uploaded
+- **Cross-platform**: Consistent behavior across web browsers and mobile apps
+- **Scalability**: Efficient storage for large media collections
+- **Future-proof**: Ready for cloud sync and advanced features
+- **User control**: Clear separation between app data and user media
 
 ## 🔐 PWA & Platform Permissions
 

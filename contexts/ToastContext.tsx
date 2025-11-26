@@ -32,12 +32,14 @@ interface ToastProviderProps {
 
 export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [toastCounter, setToastCounter] = useState(0);
 
   const showToast = useCallback((message: string, type: ToastType, duration = 3000) => {
-    const id = Date.now().toString();
+    const id = `${Date.now()}-${toastCounter}`;
+    setToastCounter(prev => prev + 1);
     const newToast: ToastItem = { id, message, type, duration };
     setToasts(prev => [...prev, newToast]);
-  }, []);
+  }, [toastCounter]);
 
   const showSuccess = useCallback((message: string, duration = 3000) => {
     showToast(message, 'success', duration);

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert, Image, Platform } from 'react-native';
 import { Audio } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
+import { saveMediaForNote } from '../../media-storage/MediaStorage';
 
 interface RecordingViewProps {
   recordingText: string;
@@ -15,6 +16,7 @@ interface RecordingViewProps {
   recording: Audio.Recording | null;
   attachedMedia: string[];
   setAttachedMedia: (media: string[]) => void;
+  noteId: string; // Temporary note ID for media storage
 }
 
 const RecordingView: React.FC<RecordingViewProps> = ({
@@ -28,7 +30,8 @@ const RecordingView: React.FC<RecordingViewProps> = ({
   onResumeRecording,
   recording,
   attachedMedia,
-  setAttachedMedia
+  setAttachedMedia,
+  noteId
 }) => {
   const [audioLevel, setAudioLevel] = useState(0);
   const [recordingStatus, setRecordingStatus] = useState<'ready' | 'recording' | 'paused' | 'stopped'>('ready');
@@ -96,9 +99,18 @@ const RecordingView: React.FC<RecordingViewProps> = ({
       });
 
       if (!result.canceled && result.assets[0]) {
-        const imageUri = result.assets[0].uri;
-        setAttachedMedia([...attachedMedia, imageUri]);
-        // No alert - just return to recording interface
+        const file = result.assets[0];
+        const blob = await fetch(file.uri).then(r => r.blob());
+        const fileObj = new File([blob], file.fileName || 'photo.jpg', { type: file.type || 'image/jpeg' });
+
+        try {
+          const result = await saveMediaForNote(noteId, fileObj, file.fileName || undefined);
+          const { path } = result as { path: string; thumbPath?: string };
+          setAttachedMedia([...attachedMedia, path]);
+        } catch (error) {
+          console.error('Failed to save media:', error);
+          Alert.alert('Error', 'Failed to attach photo');
+        }
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to take photo. This feature may not be available in your current environment.');
@@ -112,17 +124,17 @@ const RecordingView: React.FC<RecordingViewProps> = ({
     input.accept = 'image/*';
     input.setAttribute('capture', 'environment');
     
-    input.onchange = (event) => {
+    input.onchange = async (event) => {
       const file = (event.target as HTMLInputElement).files?.[0];
       if (file) {
-        // Convert file to base64 data URL for React Native compatibility
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const result = e.target?.result as string;
-          setAttachedMedia([...attachedMedia, result]);
-          // No alert - just return to recording interface
-        };
-        reader.readAsDataURL(file);
+        try {
+          const result = await saveMediaForNote(noteId, file, file.name);
+          const { path } = result as { path: string; thumbPath?: string };
+          setAttachedMedia([...attachedMedia, path]);
+        } catch (error) {
+          console.error('Failed to save media:', error);
+          Alert.alert('Error', 'Failed to attach photo');
+        }
       }
     };
 

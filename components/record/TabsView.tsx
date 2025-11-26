@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, TextInput, ScrollView, Image, Alert, Moda
 import { speakTextWithGoogleTTS, getVoiceForLanguage } from '../../services/googleTTSService';
 import { Note } from '../../utils/storage';
 import { getOrCreateSettings, saveSettings } from '../../utils/settings';
+import { getPreviewURL } from '../../media-storage/MediaStorage';
 
 interface Translation {
   text: string;
@@ -23,37 +24,38 @@ interface Language {
 }
 
 interface TabsViewProps {
-  recordingViewMode: string;
-  setRecordingViewMode: (mode: string) => void;
-  activeRecordingTab: string;
-  setActiveRecordingTab: (tab: string) => void;
-  recordingCurrentNote: RecordingCurrentNote;
-  setRecordingCurrentNote: (note: RecordingCurrentNote) => void;
-  targetLanguage: string;
-  setTargetLanguage: (lang: string) => void;
-  availableLanguages: Language[];
-  showLanguageDropdown: boolean;
-  setShowLanguageDropdown: (show: boolean) => void;
-  newLanguageCode: string;
-  setNewLanguageCode: (code: string) => void;
-  newLanguageName: string;
-  setNewLanguageName: (name: string) => void;
-  translatedText: Translation | null;
-  multipleTranslations: { [key: string]: Translation };
-  isProcessing: boolean;
-  onTranslate: () => void;
-  onAddLanguage: () => void;
-  onSpeakTranslation: () => void;
-  onSpeakTranslationForLang: (langCode: string) => void;
-  onSaveNote: (includeGps: boolean, tags: string[]) => void;
-  onCancel: () => void;
-  tags: string[];
-  setTags: (tags: string[]) => void;
-  tagInput: string;
-  setTagInput: (input: string) => void;
-  onAddTag: (tag: string) => void;
-  onShowTagInfo: (tag: string) => void;
-  onCancelTranslation: () => void;
+   recordingViewMode: string;
+   setRecordingViewMode: (mode: string) => void;
+   activeRecordingTab: string;
+   setActiveRecordingTab: (tab: string) => void;
+   recordingCurrentNote: RecordingCurrentNote;
+   setRecordingCurrentNote: (note: RecordingCurrentNote) => void;
+   targetLanguage: string;
+   setTargetLanguage: (lang: string) => void;
+   availableLanguages: Language[];
+   showLanguageDropdown: boolean;
+   setShowLanguageDropdown: (show: boolean) => void;
+   newLanguageCode: string;
+   setNewLanguageCode: (code: string) => void;
+   newLanguageName: string;
+   setNewLanguageName: (name: string) => void;
+   translatedText: Translation | null;
+   multipleTranslations: { [key: string]: Translation };
+   isProcessing: boolean;
+   onTranslate: () => void;
+   onAddLanguage: () => void;
+   onSpeakTranslation: () => void;
+   onSpeakTranslationForLang: (langCode: string) => void;
+   onSaveNote: (includeGps: boolean, tags: string[]) => void;
+   onCancel: () => void;
+   tags: string[];
+   setTags: (tags: string[]) => void;
+   tagInput: string;
+   setTagInput: (input: string) => void;
+   onAddTag: (tag: string) => void;
+   onShowTagInfo: (tag: string) => void;
+   onCancelTranslation: () => void;
+   attachedMedia: string[];
 }
 
 const TabsView: React.FC<TabsViewProps> = ({
@@ -87,13 +89,15 @@ const TabsView: React.FC<TabsViewProps> = ({
   setTagInput,
   onAddTag,
   onShowTagInfo,
-  onCancelTranslation
+  onCancelTranslation,
+  attachedMedia
 }) => {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [includeGps, setIncludeGps] = useState(false);
   const [showTagSelector, setShowTagSelector] = useState(false);
   const [noteTags, setNoteTags] = useState<string[]>([]);
   const [enabledTags, setEnabledTags] = useState<string[]>([]);
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
 
   // Load user preferred language from settings
   useEffect(() => {
@@ -128,6 +132,32 @@ const TabsView: React.FC<TabsViewProps> = ({
     // availableLanguages is now passed from parent and filtered by enabledLanguages
     // No need to load here as it's handled in RecordTranslate.tsx
   }, [availableLanguages]);
+
+  // Load media URLs when attachedMedia changes
+  useEffect(() => {
+    const loadMedia = async () => {
+      const urls: string[] = [];
+      for (const mediaItem of attachedMedia) {
+        if (mediaItem.startsWith('media/')) {
+          try {
+            const url = await getPreviewURL(mediaItem);
+            urls.push(url);
+          } catch (error) {
+            console.error('Failed to get preview URL for', mediaItem, error);
+            urls.push(''); // Placeholder
+          }
+        } else if (mediaItem.startsWith('data:') || mediaItem.startsWith('file://')) {
+          // Legacy support for data URLs or file URIs
+          urls.push(mediaItem);
+        } else {
+          // Media ID - try to get from storage (legacy)
+          urls.push(''); // Placeholder for now
+        }
+      }
+      setMediaUrls(urls);
+    };
+    loadMedia();
+  }, [attachedMedia]);
 
   // Set default language to English if not defined
   useEffect(() => {
@@ -203,16 +233,22 @@ const TabsView: React.FC<TabsViewProps> = ({
 
         {activeRecordingTab === 'original' && (
           <View style={styles.contentArea}>
-            {/* Sign Image Display */}
-            {recordingCurrentNote.signImageUrl && (
-              <View style={styles.signImageContainer}>
-                <Text style={styles.signImageLabel}>Captured Sign Image</Text>
-                <View style={styles.signImageWrapper}>
-                  <Image
-                    source={{ uri: recordingCurrentNote.signImageUrl }}
-                    style={styles.signImage}
-                    resizeMode="cover"
-                  />
+            {/* Attached Media Display */}
+            {mediaUrls.length > 0 && (
+              <View style={styles.attachedMediaContainer}>
+                <Text style={styles.mediaLabel}>Attached Media ({mediaUrls.length})</Text>
+                <View style={styles.mediaGrid}>
+                  {mediaUrls.map((mediaUri, index) => (
+                    mediaUri ? (
+                      <View key={index} style={styles.mediaItem}>
+                        <Image
+                          source={{ uri: mediaUri }}
+                          style={styles.mediaImage}
+                          resizeMode="cover"
+                        />
+                      </View>
+                    ) : null
+                  ))}
                 </View>
               </View>
             )}
@@ -1024,6 +1060,34 @@ const styles = {
   signImage: {
     width: 250,
     height: 200,
+    borderRadius: 8,
+  },
+  attachedMediaContainer: {
+    marginBottom: 20,
+  },
+  mediaLabel: {
+    color: '#f59e0b',
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+    marginBottom: 10,
+    textAlign: 'center' as const,
+  },
+  mediaGrid: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    justifyContent: 'center' as const,
+    gap: 10,
+  },
+  mediaItem: {
+    width: 120,
+    height: 120,
+    borderRadius: 8,
+    overflow: 'hidden' as const,
+    backgroundColor: '#1f2937',
+  },
+  mediaImage: {
+    width: '100%' as const,
+    height: '100%' as const,
     borderRadius: 8,
   },
   modalOverlay: {

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, TextInput, TouchableOpacity, Text, Image, Alert, ScrollView, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useToast } from '../../contexts/ToastContext';
-import { generateMediaId, getMedia, saveMedia, deleteMedia } from '../../utils/storage';
+import { useNoteMedia } from '../../media-storage/useNoteMedia';
+import type { Note } from '../../utils/storage';
 
 
 interface TypingViewProps {
@@ -11,8 +12,8 @@ interface TypingViewProps {
   setTypedText: (text: string) => void;
   onDone: () => void;
   onCancel: () => void;
-  attachedMedia?: string[];
-  setAttachedMedia?: (media: string[]) => void;
+  noteId: string; // Temporary note ID for media storage
+  onMediaChange?: (paths: string[]) => void; // Callback to update attachedMedia in parent
 }
 
 const TypingView: React.FC<TypingViewProps> = ({
@@ -20,38 +21,29 @@ const TypingView: React.FC<TypingViewProps> = ({
   setTypedText,
   onDone,
   onCancel,
-  attachedMedia = [],
-  setAttachedMedia = () => {}
+  noteId,
+  onMediaChange
 }) => {
   const { showSuccess, showError } = useToast();
-  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+
+  // Create temporary note for useNoteMedia - memoized to prevent infinite re-renders
+  const tempNote: Note = useMemo(() => ({
+    id: noteId,
+    title: '',
+    text: '',
+    timestamp: new Date().toISOString(),
+    tags: [],
+    translations: {},
+    attachedMedia: [],
+    noteType: 'text_note'
+  }), [noteId]);
+
+  const { mediaPaths, previewMap, addMedia, removeMedia } = useNoteMedia(tempNote);
 
   useEffect(() => {
-    const loadMedia = async () => {
-      const urls: string[] = [];
-      for (const mediaItem of attachedMedia) {
-        if (mediaItem.startsWith('data:')) {
-          // Data URL - use directly
-          urls.push(mediaItem);
-        } else if (mediaItem.startsWith('file://') || mediaItem.includes('/Downloads/trip42Media/') || mediaItem.includes('/Downloads/')) {
-          // File path
-          urls.push(mediaItem);
-        } else {
-          // Media ID - load from AsyncStorage
-          try {
-            const url = await getMedia(mediaItem);
-            if (url) {
-              urls.push(url);
-            }
-          } catch (error) {
-            console.error('Failed to load media:', error);
-          }
-        }
-      }
-      setMediaUrls(urls);
-    };
-    loadMedia();
-  }, [attachedMedia]);
+    onMediaChange?.(mediaPaths);
+  }, [mediaPaths, onMediaChange]);
+
   const handlePhotoOptions = () => {
     const isWebPlatform = Platform.OS === 'web' && typeof document !== 'undefined';
 
@@ -117,43 +109,17 @@ const TypingView: React.FC<TypingViewProps> = ({
       });
 
       if (!result.canceled && result.assets[0]) {
-        const imageUri = result.assets[0].uri;
+       const file = result.assets[0];
+       const blob = await fetch(file.uri).then(r => r.blob());
+       const fileObj = new File([blob], file.fileName || 'photo.jpg', { type: file.type || 'image/jpeg' });
 
-        try {
-          // Create Downloads/trip42Media directory if it doesn't exist
-          const mediaDir = FileSystem.documentDirectory + 'Downloads/trip42Media/';
-          await FileSystem.makeDirectoryAsync(mediaDir, { intermediates: true });
-
-          // Generate unique filename
-          const fileExtension = imageUri.split('.').pop() || 'jpg';
-          const fileName = `photo_${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExtension}`;
-          const destinationUri = mediaDir + fileName;
-
-          // For Android content:// URIs, we need to read and write the file
-          if (Platform.OS === 'android' && imageUri.startsWith('content://')) {
-            // Read the file content
-            const fileContent = await FileSystem.readAsStringAsync(imageUri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-            // Write to destination
-            await FileSystem.writeAsStringAsync(destinationUri, fileContent, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-          } else {
-            // For iOS or file:// URIs, copy directly
-            await FileSystem.copyAsync({
-              from: imageUri,
-              to: destinationUri
-            });
-          }
-
-          setAttachedMedia([...attachedMedia, destinationUri]);
-          showSuccess('Photo attached successfully!');
-        } catch (error) {
-          console.error('Failed to save photo:', error);
-          showError('Failed to save photo to device storage');
-        }
-      }
+       try {
+         await addMedia(fileObj, file.fileName || undefined);
+       } catch (error) {
+         console.error('Failed to save photo:', error);
+         showError('Failed to save photo');
+       }
+     }
     } catch (error) {
       console.error('Error attaching photo:', error);
       showError('Failed to attach photo. This feature may not be available in your current environment.');
@@ -171,22 +137,20 @@ const TypingView: React.FC<TypingViewProps> = ({
       document.body.appendChild(input);
       
       input.onchange = async (e) => {
-        const file = (e.target as HTMLInputElement).files?.[0];
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = async (event) => {
-            const result = event.target?.result as string;
-            // For PWA, save data URL to AsyncStorage and store ID
-            const mediaId = await saveMedia(result);
-            setAttachedMedia([...attachedMedia, mediaId]);
-            showSuccess(`Photo attached: ${file.name}`);
-            document.body.removeChild(input);
-          };
-          reader.readAsDataURL(file);
-        } else {
-          document.body.removeChild(input);
-        }
-      };
+       const file = (e.target as HTMLInputElement).files?.[0];
+       if (file) {
+         try {
+           await addMedia(file, file.name);
+           document.body.removeChild(input);
+         } catch (error) {
+           console.error('Failed to attach photo:', error);
+           showError('Failed to attach photo');
+           document.body.removeChild(input);
+         }
+       } else {
+         document.body.removeChild(input);
+       }
+     };
       
       input.click();
       
@@ -206,24 +170,13 @@ const TypingView: React.FC<TypingViewProps> = ({
           text: 'Remove',
           style: 'destructive',
           onPress: async () => {
-            const mediaItem = attachedMedia[index];
-            if (mediaItem.startsWith('file://') || mediaItem.includes('/Downloads/trip42Media/') || mediaItem.includes('/Downloads/')) {
-              // File path - delete the file
-              try {
-                await FileSystem.deleteAsync(mediaItem, { idempotent: true });
-              } catch (error) {
-                console.error('Error deleting file:', error);
-              }
-            } else if (!mediaItem.startsWith('data:')) {
-              // Media ID - delete from AsyncStorage
-              try {
-                await deleteMedia(mediaItem);
-              } catch (error) {
-                console.error('Error deleting media:', error);
-              }
+            const path = mediaPaths[index];
+            try {
+              await removeMedia(path);
+            } catch (error) {
+              console.error('Error removing media:', error);
+              showError('Failed to remove photo');
             }
-            // Remove from array
-            setAttachedMedia(attachedMedia.filter((_, i) => i !== index));
           }
         }
       ]
@@ -243,13 +196,13 @@ const TypingView: React.FC<TypingViewProps> = ({
         />
 
         {/* Attached Photos Display */}
-        {mediaUrls.length > 0 && (
+        {mediaPaths.length > 0 && (
           <View style={styles.photosContainer}>
-            <Text style={styles.photosTitle}>Attached Media ({mediaUrls.length})</Text>
+            <Text style={styles.photosTitle}>Attached Media ({mediaPaths.length})</Text>
             <View style={styles.photosGrid}>
-              {mediaUrls.map((imageUri, index) => (
-                <View key={index} style={styles.photoItem}>
-                  <Image source={{ uri: imageUri }} style={styles.photoThumbnail} />
+              {mediaPaths.map((path, index) => (
+                <View key={path} style={styles.photoItem}>
+                  <Image source={{ uri: previewMap[path] || '' }} style={styles.photoThumbnail} />
                   <TouchableOpacity
                     style={styles.removePhotoButton}
                     onPress={() => handleRemovePhoto(index)}

@@ -226,6 +226,44 @@ export const updateNote = async (updatedNote: Note): Promise<void> => {
 };
 
 
+export const generateMediaId = (): string => {
+  return `media-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+};
+
+export const saveMedia = async (mediaId: string, mediaData: string): Promise<void> => {
+  try {
+    console.log('DEBUG: saveMedia called with mediaId:', mediaId, 'data length:', mediaData.length);
+    await storage.setItem(`media_${mediaId}`, mediaData);
+    console.log('DEBUG: Media saved successfully');
+  } catch (error) {
+    console.error('DEBUG: Error saving media:', error);
+    throw error;
+  }
+};
+
+export const getMedia = async (mediaId: string): Promise<string | null> => {
+  try {
+    console.log('DEBUG: getMedia called with mediaId:', mediaId);
+    const mediaData = await storage.getItem(`media_${mediaId}`);
+    console.log('DEBUG: Media retrieved:', mediaData ? 'found' : 'null');
+    return mediaData;
+  } catch (error) {
+    console.error('DEBUG: Error getting media:', error);
+    return null;
+  }
+};
+
+export const deleteMedia = async (mediaId: string): Promise<void> => {
+  try {
+    console.log('DEBUG: deleteMedia called with mediaId:', mediaId);
+    await storage.removeItem(`media_${mediaId}`);
+    console.log('DEBUG: Media deleted successfully');
+  } catch (error) {
+    console.error('DEBUG: Error deleting media:', error);
+    throw error;
+  }
+};
+
 export const generateNoteId = (): string => {
   return `note-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
 };

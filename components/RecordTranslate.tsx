@@ -18,6 +18,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { translateTextWithGemini, translateSignWithGemini, transcribeAudioWithGemini, polishNoteWithGemini } from '../services/geminiService';
 import { speakTextWithGoogleTTS, getVoiceForLanguage } from '../services/googleTTSService';
 import { Note, generateNoteId } from '../utils/storage';
+import { saveMediaForNote } from '../media-storage/MediaStorage';
 import { getOrCreateSettings, saveSettings } from '../utils/settings';
 import { deductCredits, CREDIT_PRICING, getCredits, checkCreditsAndNotify } from '../utils/credits';
 import { LANGUAGES } from './SettingsPage';
@@ -75,6 +76,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
   const [credits, setCredits] = useState(0);
   const [activeTab, setActiveTab] = useState('record'); // Mock active tab
   const [isProcessingGlobal, setIsProcessingGlobal] = useState(false);
+  const [tempNoteId, setTempNoteId] = useState<string>(''); // Temporary note ID for media storage
 
   // Load credits on component mount
   useEffect(() => {
@@ -112,16 +114,14 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
   const handleAutoSaveSignTranslation = async (currentMedia?: string[]) => {
     // Auto-save sign translation notes for better UX
-    showSuccess('DEBUG: handleAutoSaveSignTranslation called');
     if (!recordingCurrentNote.polishedNote.trim()) {
-      showSuccess('DEBUG: No polished note content, skipping auto-save');
       return;
     }
 
     try {
-      showSuccess('DEBUG: Creating note object for auto-save');
+      
       const note: Note = {
-        id: generateNoteId(),
+        id: tempNoteId,
         title: `Sign Translation - ${new Date().toLocaleDateString()}`,
         text: recordingCurrentNote.polishedNote,
         timestamp: new Date().toISOString(),
@@ -131,11 +131,10 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         noteType: 'sign_translation',
       };
 
-      showSuccess('DEBUG: Note created, calling onSaveNote');
+      
       await onSaveNote(note);
-      showSuccess('DEBUG: onSaveNote completed successfully');
+      
     } catch (error) {
-      showSuccess('DEBUG: Auto-save failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
       console.error('Auto-save failed:', error);
       // Don't show error to user as this is just an auto-save
     }
@@ -144,12 +143,12 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
   // Handler functions for the new component structure
   const handleSignTranslation = async () => {
     try {
-      showSuccess('DEBUG: Starting sign translation process');
+      
 
       // Check credits first
       const hasCredits = await checkCreditsAndNotify(CREDIT_PRICING.SIGN_TRANSLATION, 'Sign Language Translation');
       if (!hasCredits) {
-        showSuccess('DEBUG: Insufficient credits for sign translation');
+        
         // Show alert and offer to navigate to credits page
         Alert.alert(
           'Insufficient Credits',
@@ -165,47 +164,50 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         return;
       }
 
-      showSuccess('DEBUG: Credits check passed');
+      
 
       // Deduct credits for sign translation
       const creditDeducted = await deductCredits(CREDIT_PRICING.SIGN_TRANSLATION, 'Sign Language Translation');
       if (!creditDeducted) {
-        showSuccess('DEBUG: Failed to deduct credits');
+        
         Alert.alert('Error', 'Failed to process credits. Please try again.');
         return;
       }
 
-      showSuccess('DEBUG: Credits deducted successfully');
+      
 
       // Check if we're running in a PWA or web environment
       const isWebPlatform = Platform.OS === 'web';
-      showSuccess('DEBUG: Platform.OS = ' + Platform.OS + ', isWebPlatform = ' + isWebPlatform);
 
       if (isWebPlatform) {
-        showSuccess('DEBUG: Using web platform, calling handleWebSignTranslation');
+        
         // Handle web/PWA environment with file input fallback
         await handleWebSignTranslation();
         return;
       }
 
-      showSuccess('DEBUG: Using native platform');
+      
 
       // Original native logic for iOS/Android
       // Request camera permissions
-      showSuccess('DEBUG: Requesting camera permissions');
+      
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        showSuccess('DEBUG: Camera permission denied');
+        
         Alert.alert('Permission needed', 'Camera permission is required for sign translation');
         return;
       }
 
-      showSuccess('DEBUG: Camera permission granted');
+      
+
+      // Generate the final note ID for media storage
+      const noteId = generateNoteId();
+      setTempNoteId(noteId);
 
       setIsProcessing(true);
       setProcessingMessage('Marvin is analyzing...');
 
-      showSuccess('DEBUG: Launching camera');
+      
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
@@ -213,16 +215,16 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         base64: true,
       });
 
-      showSuccess('DEBUG: Camera result received');
+      
 
       if (!result.canceled && result.assets[0]) {
-        showSuccess('DEBUG: Photo taken successfully');
+        
         const base64Image = result.assets[0].base64;
         if (base64Image) {
-          showSuccess('DEBUG: Processing translation with Gemini');
+          
           const translationResult = await translateSignWithGemini(base64Image, targetLanguage);
 
-          showSuccess('DEBUG: Translation completed');
+          
 
           // Set the translated text and move to tabs for editing
           setRecordingCurrentNote({
@@ -232,46 +234,40 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             audioUri: undefined
           });
 
-          showSuccess('DEBUG: Recording current note set');
+          
 
-          // Save the sign image to Downloads/trip42Media directory
-          let finalMediaUri = result.assets[0].uri;
+          // Save the sign image using new media storage
           try {
-            showSuccess('DEBUG: Saving media to filesystem');
-            const mediaDir = FileSystem.documentDirectory + 'Downloads/trip42Media/';
-            await FileSystem.makeDirectoryAsync(mediaDir, { intermediates: true });
-            const fileName = `sign_${Date.now()}_${Math.random().toString(36).substring(2, 15)}.jpg`;
-            const destinationUri = mediaDir + fileName;
-            await FileSystem.copyAsync({
-              from: result.assets[0].uri,
-              to: destinationUri
-            });
-            finalMediaUri = destinationUri;
-            setAttachedMedia([destinationUri]);
-            showSuccess('DEBUG: Media saved to filesystem successfully');
+            
+            const file = result.assets[0];
+            const blob = await fetch(file.uri).then(r => r.blob());
+            const fileObj = new File([blob], file.fileName || 'sign.jpg', { type: file.type || 'image/jpeg' });
+
+            const saveResult = await saveMediaForNote(noteId, fileObj, file.fileName || 'sign.jpg');
+            const { path } = saveResult as { path: string; thumbPath?: string };
+
+            setAttachedMedia([path]);
+
+            setRecordingViewMode('tabs');
+            setActiveRecordingTab('polished');
+
+            
+
+            // Auto-save sign translation notes immediately for better UX
+            await handleAutoSaveSignTranslation([path]);
           } catch (error) {
-            showSuccess('DEBUG: Failed to save media to filesystem, using original URI');
             console.error('Failed to save sign image:', error);
-            // Fallback to original URI
-            setAttachedMedia([result.assets[0].uri]);
+            Alert.alert('Error', 'Failed to save image. Please try again.');
+            return; // Don't proceed with translation if file saving fails
           }
-
-          setRecordingViewMode('tabs');
-          setActiveRecordingTab('polished');
-
-          showSuccess('DEBUG: UI updated, calling auto-save');
-
-          // Auto-save sign translation notes immediately for better UX
-          await handleAutoSaveSignTranslation([finalMediaUri]);
           // Note: Auto-save success message removed since it's misleading when save fails
         } else {
-          showSuccess('DEBUG: No base64 image data received');
+          
         }
       } else {
-        showSuccess('DEBUG: Camera cancelled or no photo taken');
+        
       }
     } catch (error) {
-      showSuccess('DEBUG: Error in sign translation: ' + (error instanceof Error ? error.message : 'Unknown error'));
       Alert.alert('Error', 'Failed to process sign translation');
     } finally {
       setIsProcessing(false);
@@ -281,7 +277,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
   const handleWebSignTranslation = async () => {
     return new Promise<void>((resolve) => {
-      showSuccess('DEBUG: handleWebSignTranslation called');
+      
 
       // Create a hidden file input element for web/PWA
       const input = document.createElement('input');
@@ -292,137 +288,76 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       input.onchange = async (event) => {
         const file = (event.target as HTMLInputElement).files?.[0];
         if (file) {
-          showSuccess('DEBUG: Web file selected');
+          
           setIsProcessing(true);
           setProcessingMessage('Marvin is analyzing...');
-          showSuccess('Sign translation started - this may take a moment...');
 
           try {
-            showSuccess('DEBUG: Converting file to base64');
+            
             // Convert file to base64 data URL for React Native compatibility
             const reader = new FileReader();
             reader.onload = async (e) => {
               const result = e.target?.result as string;
-              showSuccess('DEBUG: File converted to data URL');
+              
               // Extract base64 data (remove data:image/jpeg;base64, prefix if present)
               const base64Data = result.split(',')[1] || result;
 
-              showSuccess('DEBUG: Calling Gemini translation');
+              
               const translationResult = await translateSignWithGemini(base64Data, targetLanguage);
 
-              showSuccess('DEBUG: Web translation completed');
+              
 
-              // For web/PWA, save as actual file using File System Access API or OPFS
-              console.log('DEBUG: Saving web image as actual file');
-
+              // For web/PWA, save using new media storage
+              let savedWebImageUri: string;
               try {
-                // Convert data URL to blob
+                
                 const response = await fetch(result);
                 const blob = await response.blob();
+                const file = new File([blob], `sign_${Date.now()}.jpg`, { type: 'image/jpeg' });
 
-                // Try to save as actual file to standard directories
-                let fileUri = result; // fallback to data URL
+                const saveResult = await saveMediaForNote(tempNoteId, file, file.name);
+                const { path } = saveResult as { path: string; thumbPath?: string };
 
-                // Try automatic download to Downloads folder (works in most browsers)
-                try {
-                  // Create a download link and trigger it
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `sign_${Date.now()}.jpg`;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
-
-                  // Create a file:// style URI for consistency
-                  fileUri = `file://downloads/sign_${Date.now()}.jpg`;
-                  console.log('DEBUG: Image downloaded to Downloads folder:', fileUri);
-                } catch (downloadError) {
-                  console.log('DEBUG: Automatic download failed, trying File System Access API');
-
-                  // Fallback: File System Access API (user chooses location)
-                  if ('showSaveFilePicker' in window) {
-                    try {
-                      const fileHandle = await (window as any).showSaveFilePicker({
-                        suggestedName: `sign_${Date.now()}.jpg`,
-                        types: [{
-                          description: 'Image files',
-                          accept: {
-                            'image/jpeg': ['.jpg', '.jpeg'],
-                            'image/png': ['.png'],
-                            'image/gif': ['.gif'],
-                            'image/webp': ['.webp'],
-                            'image/bmp': ['.bmp']
-                          }
-                        }]
-                      });
-
-                      const writable = await fileHandle.createWritable();
-                      await writable.write(blob);
-                      await writable.close();
-
-                      // Create file:// style URI for consistency
-                      fileUri = `file://${fileHandle.name}`;
-                      console.log('DEBUG: Image saved using File System Access API:', fileUri);
-                    } catch (fsError) {
-                      // User cancelled or API not supported
-                      console.log('DEBUG: File System Access API failed, using blob URL');
-                      fileUri = URL.createObjectURL(blob);
-                    }
-                  } else {
-                    // Final fallback: blob URL
-                    fileUri = URL.createObjectURL(blob);
-                    console.log('DEBUG: Using blob URL as final fallback:', fileUri);
-                  }
-                }
-
-                // Set the translated text and move to tabs for editing
-                setRecordingCurrentNote({
-                  rawTranscription: translationResult.translation,
-                  polishedNote: translationResult.translation,
-                  signImageUrl: fileUri,
-                  audioUri: undefined
-                });
-
-                console.log('DEBUG: Web recording current note set');
-
-                // Add the file URI to attached media
-                setAttachedMedia([fileUri]);
-                console.log('DEBUG: File URI added to attachedMedia');
-              } catch (error) {
-                console.error('DEBUG: Failed to save image file:', error);
-                console.log('DEBUG: Falling back to data URL');
-
-                // Fallback: store as data URL directly
-                setRecordingCurrentNote({
-                  rawTranscription: translationResult.translation,
-                  polishedNote: translationResult.translation,
-                  signImageUrl: result,
-                  audioUri: undefined
-                });
-                setAttachedMedia([result]);
+                savedWebImageUri = path;
+                
+              } catch (saveError) {
+                console.error('DEBUG: Failed to save web image:', saveError);
+                Alert.alert('Error', 'Failed to save image. Please try again.');
+                return; // Don't proceed with translation if file saving fails
               }
+
+              // Set the translated text and move to tabs for editing
+              setRecordingCurrentNote({
+                rawTranscription: translationResult.translation,
+                polishedNote: translationResult.translation,
+                signImageUrl: savedWebImageUri,
+                audioUri: undefined
+              });
+
+              
+
+              // Add the file URI to attached media
+              setAttachedMedia([savedWebImageUri]);
+              
 
               setRecordingViewMode('tabs');
               setActiveRecordingTab('polished');
 
-              showSuccess('DEBUG: Web UI updated, calling auto-save');
+              
 
               // Auto-save sign translation notes immediately for better UX
-              await handleAutoSaveSignTranslation([result]);
+              await handleAutoSaveSignTranslation([savedWebImageUri]);
               // Note: Auto-save success message removed since it's misleading when save fails
             };
             reader.readAsDataURL(file);
           } catch (error) {
-            showSuccess('DEBUG: Web sign translation error: ' + (error instanceof Error ? error.message : 'Unknown error'));
             Alert.alert('Error', 'Failed to process sign translation');
           } finally {
             setIsProcessing(false);
             setProcessingMessage('');
           }
         } else {
-          showSuccess('DEBUG: No file selected in web');
+          
         }
         resolve();
       };
@@ -456,6 +391,10 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       Alert.alert('Error', 'Failed to process credits. Please try again.');
       return;
     }
+
+    // Generate the final note ID for media storage
+    const noteId = generateNoteId();
+    setTempNoteId(noteId);
 
     // Start recording immediately
     setRecordingViewMode('recording');
@@ -513,6 +452,9 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
   };
 
   const handleTextInput = () => {
+    // Generate the final note ID for media storage (will be used when saving)
+    const noteId = generateNoteId();
+    setTempNoteId(noteId);
     setRecordingViewMode('typing');
   };
 
@@ -556,97 +498,28 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             audioUri: uri
           });
 
-          // Save audio to trip42Media directory
-          if (Platform.OS === 'web') {
-            // For web/PWA, save as actual file to Downloads folder
-            try {
-              const response = await fetch(uri!);
-              const blob = await response.blob();
+          // Save audio using new media storage
+          try {
+            
+            const response = await fetch(uri!);
+            const blob = await response.blob();
+            const file = new File([blob], `recording_${Date.now()}.m4a`, { type: 'audio/m4a' });
 
-              let audioUri = uri!; // fallback
+            const saveResult = await saveMediaForNote(tempNoteId, file, file.name);
+            const { path } = saveResult as { path: string; thumbPath?: string };
 
-              // Try automatic download to Downloads folder
-              try {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `recording_${Date.now()}.m4a`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-
-                // Create file:// style URI for consistency
-                audioUri = `file://downloads/recording_${Date.now()}.m4a`;
-                console.log('DEBUG: Audio downloaded to Downloads folder:', audioUri);
-              } catch (downloadError) {
-                console.log('DEBUG: Automatic download failed for audio, trying File System Access API');
-
-                // Fallback: File System Access API
-                if ('showSaveFilePicker' in window) {
-                  try {
-                    const fileHandle = await (window as any).showSaveFilePicker({
-                      suggestedName: `recording_${Date.now()}.m4a`,
-                      types: [{
-                        description: 'Audio files',
-                        accept: {
-                          'audio/m4a': ['.m4a'],
-                          'audio/mp3': ['.mp3'],
-                          'audio/wav': ['.wav'],
-                          'audio/ogg': ['.ogg'],
-                          'audio/webm': ['.webm']
-                        }
-                      }]
-                    });
-
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(blob);
-                    await writable.close();
-
-                    // Create file:// style URI for consistency
-                    audioUri = `file://${fileHandle.name}`;
-                    console.log('DEBUG: Audio saved using File System Access API:', audioUri);
-                  } catch (fsError) {
-                    // User cancelled or API not supported
-                    console.log('DEBUG: File System Access API failed for audio, using blob URL');
-                    audioUri = URL.createObjectURL(blob);
-                  }
-                } else {
-                  // Final fallback: blob URL
-                  audioUri = URL.createObjectURL(blob);
-                  console.log('DEBUG: Using blob URL for audio as final fallback:', audioUri);
-                }
-              }
-
-              setAttachedMedia(prev => [...prev, audioUri]);
-            } catch (error) {
-              console.error('Failed to save audio file:', error);
-              // Fallback to original URI
-              setAttachedMedia(prev => [...prev, uri!]);
-            }
-          } else {
-            // For native, copy to trip42Media directory
-            try {
-              const mediaDir = FileSystem.documentDirectory + 'Downloads/trip42Media/';
-              await FileSystem.makeDirectoryAsync(mediaDir, { intermediates: true });
-              const fileName = `recording_${Date.now()}.m4a`;
-              const destinationUri = mediaDir + fileName;
-              await FileSystem.copyAsync({
-                from: uri!,
-                to: destinationUri
-              });
-              setAttachedMedia(prev => [...prev, destinationUri]);
-            } catch (error) {
-              console.error('Failed to save audio file:', error);
-              // Fallback to original URI
-              setAttachedMedia(prev => [...prev, uri!]);
-            }
+            setAttachedMedia(prev => [...prev, path]);
+          } catch (error) {
+            console.error('Failed to save audio file:', error);
+            Alert.alert('Error', 'Failed to save audio file. Please try recording again.');
+            // Reset to recording view so user can try again
+            setRecordingViewMode('recording');
+            return;
           }
 
           setRecordingViewMode('tabs');
           setActiveRecordingTab('polished');
 
-          showSuccess('Recording processed successfully!');
         } catch (processingError) {
           Alert.alert('Processing Error', `Failed to process recording: ${processingError instanceof Error ? processingError.message : 'Unknown error'}`);
           // Reset to recording view so user can try again
@@ -758,28 +631,31 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
     }
   };
 
+
   const handleSaveNote = async (includeGps: boolean, tags: string[]) => {
-    console.log('DEBUG: handleSaveNote called, includeGps:', includeGps, 'tags:', tags, 'attachedMedia length:', attachedMedia.length);
-    showSuccess('DEBUG: handleSaveNote called with ' + tags.length + ' tags');
+    
 
     if (!recordingCurrentNote.polishedNote.trim()) {
-      showSuccess('DEBUG: No content to save, showing alert');
+      
       Alert.alert('Error', 'No content to save');
       return;
     }
 
     try {
-      showSuccess('DEBUG: Getting location if requested');
+      
       let location = undefined;
       if (includeGps) {
         location = await getCurrentLocation();
-        console.log('DEBUG: location obtained:', location);
-        showSuccess('DEBUG: Location obtained: ' + (location ? 'yes' : 'no'));
+        
       }
 
-      showSuccess('DEBUG: Creating note object');
+      
+      // Use attached media URIs directly (files are saved locally)
+      const processedMedia = attachedMedia;
+
+      
       const note: Note = {
-        id: generateNoteId(),
+        id: tempNoteId, // Use the ID that was used for media storage
         title: noteTitle || `Note ${new Date().toLocaleDateString()}`,
         text: recordingCurrentNote.polishedNote,
         timestamp: new Date().toISOString(),
@@ -787,27 +663,18 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         translations: Object.keys(multipleTranslations).length > 0 ?
           Object.fromEntries(Object.entries(multipleTranslations).map(([k, v]) => [k, v.text])) : {},
         location: location || undefined,
-        attachedMedia: attachedMedia,
+        attachedMedia: processedMedia,
         noteType: recordingCurrentNote.signImageUrl ? 'sign_translation' : recordingCurrentNote.audioUri ? 'voice_recording' : 'text_note',
         originalText: recordingCurrentNote.rawTranscription,
         // Audio URI is now stored in attachedMedia array
       };
 
-      console.log('DEBUG: note to save:', {
-        id: note.id,
-        title: note.title,
-        text: note.text?.substring(0, 100),
-        tags: note.tags,
-        attachedMediaCount: note.attachedMedia.length,
-        noteType: note.noteType,
-        location: note.location
-      });
 
-      showSuccess('DEBUG: About to call onSaveNote');
+      
       await onSaveNote(note);
-      showSuccess('DEBUG: onSaveNote completed successfully');
+      
 
-      showSuccess('DEBUG: Resetting form');
+      
       // Reset form
       setRecordingViewMode('actions');
       setRecordingCurrentNote({ rawTranscription: '', polishedNote: '', signImageUrl: undefined, audioUri: undefined });
@@ -818,10 +685,8 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       setTags([]);
       setAttachedMedia([]);
 
-      showSuccess('Note saved successfully!');
     } catch (error) {
       console.error('Error in handleSaveNote:', error);
-      showSuccess('DEBUG: Error in handleSaveNote: ' + (error instanceof Error ? error.message : 'Unknown error'));
       Alert.alert('Error', 'Failed to save note');
     }
   };
@@ -854,8 +719,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       // Generate audio using Google Cloud TTS
       const { audioData, contentType } = await speakTextWithGoogleTTS(translatedText.text, currentLang, voice);
 
-      // For now, show a success message (in a real implementation, you'd play the audio)
-      showSuccess(`Audio generated for ${currentLang} using Google Cloud TTS`);
+      // For now, audio generation is complete (in a real implementation, you'd play the audio)
 
     } catch (error) {
       Alert.alert('Error', 'Failed to generate speech for translation');
@@ -877,8 +741,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       // Generate audio using Google Cloud TTS
       const { audioData, contentType } = await speakTextWithGoogleTTS(translation.text, langCode, voice);
 
-      // For now, show a success message (in a real implementation, you'd play the audio)
-      showSuccess(`Audio generated for ${langCode} using Google Cloud TTS`);
+      // For now, audio generation is complete (in a real implementation, you'd play the audio)
 
     } catch (error) {
       Alert.alert('Error', 'Failed to generate speech for translation');
@@ -921,6 +784,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           recording={recording}
           attachedMedia={attachedMedia}
           setAttachedMedia={setAttachedMedia}
+          noteId={tempNoteId}
         />
       );
     }
@@ -959,8 +823,8 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             setActiveRecordingTab('polished');
           }}
           onCancel={() => setRecordingViewMode('actions')}
-          attachedMedia={attachedMedia}
-          setAttachedMedia={setAttachedMedia}
+          noteId={tempNoteId}
+          onMediaChange={(paths: string[]) => setAttachedMedia(paths)}
         />
       );
     }
@@ -1002,6 +866,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           onAddTag={handleAddTag}
           onShowTagInfo={() => {}} // TODO: Implement tag info
           onCancelTranslation={handleCancelTranslation}
+          attachedMedia={attachedMedia}
         />
       );
     }

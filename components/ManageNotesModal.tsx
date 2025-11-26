@@ -13,7 +13,8 @@ import {
   Platform,
   Linking
 } from 'react-native';
-import { Note, saveNote } from '../utils/storage';
+import { Note, saveNote, getMedia } from '../utils/storage';
+import { getPreviewURL, saveMediaForNote, getFileForPath, deleteMediaPath } from '../media-storage/MediaStorage';
 import { getOrCreateSettings, saveSettings } from '../utils/settings';
 import { LANGUAGES } from '../components/SettingsPage';
 import { useNotes } from '../hooks/useNotes';
@@ -23,7 +24,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import { supabase, uploadImageForSharing, blobToBase64 } from '../utils/supabase'; // Corrected import path
-import { getMedia } from '../utils/storage';
+import { uploadNoteMediaToSupabase } from '../media-storage/supabaseUploader';
 import { polishNoteWithGemini } from '../services/geminiService';
 import { Audio } from 'expo-av'; // Import Audio from expo-av
 import { getThemeCharacters } from '../services/promptService'; // Import getThemeCharacters
@@ -69,7 +70,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
 
   useEffect(() => {
     if (visible) {
-      console.log('DEBUG: ManageNotesModal visible, calling refreshNotes');
       refreshNotes();
       setSelectedNotes(new Set());
       setShowNoteDetail(false);
@@ -85,16 +85,27 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         const mediaUrls: string[] = [];
         for (const mediaItem of selectedNote.attachedMedia) {
           if (mediaItem.startsWith('data:')) {
-            // Data URL
+            // Data URL (legacy)
             mediaUrls.push(mediaItem);
           } else if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
-            // File path
+            // File path (legacy)
             mediaUrls.push(mediaItem);
-          } else {
-            // Media ID
-            const url = await getMedia(mediaItem);
-            if (url) {
+          } else if (mediaItem.startsWith('media/')) {
+            // New format: path, get preview URL
+            try {
+              const url = await getPreviewURL(mediaItem);
               mediaUrls.push(url);
+            } catch (error) {
+              console.error('Failed to get preview URL for', mediaItem, error);
+              mediaUrls.push(''); // Placeholder
+            }
+          } else {
+            // Legacy media ID
+            try {
+              const url = await getMedia(mediaItem);
+              if (url) mediaUrls.push(url);
+            } catch (error) {
+              console.error('Failed to load media', mediaItem, error);
             }
           }
         }
@@ -193,8 +204,20 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
                                 mediaItem.endsWith('.png') ? 'image/png' :
                                 mediaItem.endsWith('.m4a') ? 'audio/m4a' : 'application/octet-stream';
                 mediaData = `data:${mimeType};base64,${fileContent}`;
+              } else if (mediaItem.startsWith('media/')) {
+                // New format: get file and convert to data URL
+                const file = await getFileForPath(mediaItem);
+                const base64 = await new Promise<string>((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve((reader.result as string).split(',')[1]);
+                  reader.onerror = reject;
+                  reader.readAsDataURL(file);
+                });
+                mediaData = `data:${file.type};base64,${base64}`;
               } else {
-                mediaData = await getMedia(mediaItem) || '';
+                // Unknown format - skip
+                console.error('Unknown media format for item:', mediaItem);
+                continue;
               }
               if (mediaData) {
                 processedMedia.push(mediaData);
@@ -480,7 +503,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
 
     Alert.alert(
       'Remove Media',
-      'Are you sure you want to remove this media from the note? This will not delete the file from your device.',
+      'Are you sure you want to remove this media from the note? This will delete the file from your device.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -488,6 +511,12 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
           style: 'destructive',
           onPress: async () => {
             try {
+              // Delete the media file if it's a new path
+              if (mediaUriToRemove.startsWith('media/')) {
+                await deleteMediaPath(mediaUriToRemove);
+              }
+              // For old formats, we don't delete the file as per original behavior
+
               const updatedMedia = selectedNote.attachedMedia.filter(uri => uri !== mediaUriToRemove);
               const updatedNote = {
                 ...selectedNote,
@@ -534,25 +563,19 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   };
 
   const handleAddMediaToNote = async (source: 'camera' | 'gallery' = 'gallery') => {
-    console.log('DEBUG: handleAddMediaToNote called, source:', source);
-    
     if (!selectedNote) {
       Alert.alert('Error', 'No note selected');
       return;
     }
-     
+
     // Check if we're running in a PWA or web environment
     const isWebPlatform = Platform.OS === 'web';
-    console.log('DEBUG: Platform check - isWebPlatform:', isWebPlatform);
-     
+
     if (isWebPlatform) {
-      console.log('DEBUG: Web platform detected, calling handleWebMediaAttach');
       // Handle web/PWA environment with file input fallback
       await handleWebMediaAttach();
       return;
     }
-
-    console.log('DEBUG: Native platform detected');
     // Original native logic for iOS/Android
     try {
       let permissionStatus;
@@ -582,37 +605,25 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       });
 
       if (!result.canceled && result.assets[0]) {
-        let mediaUriToSave = result.assets[0].uri;
+        const file = result.assets[0];
+        const blob = await fetch(file.uri).then(r => r.blob());
+        const fileObj = new File([blob], file.fileName || 'photo.jpg', { type: file.type || 'image/jpeg' });
 
-        if (Platform.OS === 'web' && mediaUriToSave.startsWith('blob:')) {
-          // On web, if it's a blob URI, convert it to base64 for persistence
-          try {
-            const response = await fetch(mediaUriToSave);
-            const blob = await response.blob();
-            const mimeType = blob.type;
-            const base64 = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve((reader.result as string).split(',')[1]);
-              reader.onerror = (e) => reject(new Error('FileReader failed'));
-              reader.readAsDataURL(blob);
-            });
-            mediaUriToSave = `data:${mimeType};base64,${base64}`;
-            Alert.alert('Media Added', 'Blob media converted to Base64 for persistence.');
-          } catch (error) {
-            console.error('Error converting blob to base64:', error);
-            Alert.alert('Error', 'Failed to convert media to persistent format. Adding original URI.');
-            // Fallback to original URI if conversion fails
-          }
+        try {
+          const result = await saveMediaForNote(selectedNote.id, fileObj, file.fileName || undefined);
+          const { path } = result as { path: string; thumbPath?: string };
+          const updatedNote = {
+            ...selectedNote,
+            attachedMedia: [...selectedNote.attachedMedia, path]
+          };
+          await editNote(updatedNote);
+          setSelectedNote(updatedNote);
+          refreshNotes();
+          Alert.alert('Success', 'Media added to note!');
+        } catch (error) {
+          console.error('Failed to save media:', error);
+          Alert.alert('Error', 'Failed to add media');
         }
-
-        const updatedNote = {
-          ...selectedNote,
-          attachedMedia: [...selectedNote.attachedMedia, mediaUriToSave]
-        };
-
-        await editNote(updatedNote);
-        setSelectedNote(updatedNote);
-        refreshNotes();
       }
     } catch (error) {
       console.error('Error in handleAddMediaToNote:', error);
@@ -621,26 +632,25 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   };
 
   const handleWebMediaAttach = async () => {
-    console.log('DEBUG: handleWebMediaAttach called');
-    
+
     try {
       // Simple PWA file input approach
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
       input.style.display = 'none';
-      
+
       document.body.appendChild(input);
-      
+
       input.onchange = async (e) => {
         const file = (e.target as HTMLInputElement).files?.[0];
         if (file) {
-          const reader = new FileReader();
-          reader.onload = async (event) => {
-            const result = event.target?.result as string;
+          try {
+            const result = await saveMediaForNote(selectedNote!.id, file, file.name);
+            const { path } = result as { path: string; thumbPath?: string };
             const updatedNote = {
               ...selectedNote!,
-              attachedMedia: [...selectedNote!.attachedMedia, result]
+              attachedMedia: [...selectedNote!.attachedMedia, path]
             };
 
             await editNote(updatedNote);
@@ -648,15 +658,18 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             refreshNotes();
             Alert.alert('Success', `Media attached: ${file.name}`);
             document.body.removeChild(input);
-          };
-          reader.readAsDataURL(file);
+          } catch (error) {
+            console.error('Failed to save media:', error);
+            Alert.alert('Error', 'Failed to attach media');
+            document.body.removeChild(input);
+          }
         } else {
           document.body.removeChild(input);
         }
       };
-      
+
       input.click();
-      
+
     } catch (error) {
       console.error('PWA file attachment error:', error);
       Alert.alert('Error', 'Photo attachment failed in PWA');
@@ -753,25 +766,12 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         try {
           Alert.alert('Copying', 'Uploading media to cloud storage...');
 
-          const mediaItem = selectedNote.attachedMedia[0];
-          let mediaUri: string;
-          if (mediaItem.startsWith('data:')) {
-            mediaUri = mediaItem;
-          } else if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
-            // File path - read and convert to data URL
-            const fileContent = await FileSystem.readAsStringAsync(mediaItem, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-            const mimeType = mediaItem.includes('/DCIM/') ? 'image/jpeg' : 'audio/mpeg';
-            mediaUri = `data:${mimeType};base64,${fileContent}`;
-          } else {
-            // Media ID - load from AsyncStorage
-            mediaUri = await getMedia(mediaItem) || '';
-          }
+          // Use the new upload function for media paths
+          const mediaUrls = await uploadNoteMediaToSupabase(selectedNote);
 
-          if (mediaUri) {
-            // Use the working uploadImageForSharing function from utils/supabase.js
-            const mediaUrl = await uploadImageForSharing(mediaUri);
+          if (mediaUrls && mediaUrls.length > 0) {
+            // Include first media URL in message
+            const mediaUrl = mediaUrls[0];
 
             // Include media URL in message
             message += `\n\n📎 Media: ${mediaUrl}\n\n*Note: Media files are automatically deleted after 30 days for privacy*`;
@@ -840,25 +840,12 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         try {
           Alert.alert('Sharing', 'Uploading media to cloud storage...');
 
-          const mediaItem = selectedNote.attachedMedia[0];
-          let mediaUri: string;
-          if (mediaItem.startsWith('data:')) {
-            mediaUri = mediaItem;
-          } else if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
-            // File path - read and convert to data URL
-            const fileContent = await FileSystem.readAsStringAsync(mediaItem, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-            const mimeType = mediaItem.includes('/DCIM/') ? 'image/jpeg' : 'audio/mpeg';
-            mediaUri = `data:${mimeType};base64,${fileContent}`;
-          } else {
-            // Media ID - load from AsyncStorage
-            mediaUri = await getMedia(mediaItem) || '';
-          }
+          // Use the new upload function for media paths
+          const mediaUrls = await uploadNoteMediaToSupabase(selectedNote);
 
-          if (mediaUri) {
-            // Use the working uploadImageForSharing function from utils/supabase.js
-            const mediaUrl = await uploadImageForSharing(mediaUri);
+          if (mediaUrls && mediaUrls.length > 0) {
+            // Share with first media URL in message
+            const mediaUrl = mediaUrls[0];
 
             // Share with media URL in message
             const shareMessage = `${message}\n\n📎 Media: ${mediaUrl}\n\n*Note: Media files are automatically deleted after 30 days for privacy*`;
