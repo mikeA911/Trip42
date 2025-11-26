@@ -1,0 +1,57 @@
+{
+  "description": "Sample Trip42 ZIP Bundle Structure (for documentation)",
+  "structure": {
+    "Notes-2025-11-26.t42": {
+      "notes.json": [
+        {
+          "id": "note123",
+          "title": "Example Note",
+          "text": "Some text...",
+          "attachedMedia": [
+            "media/note123/img001.jpg",
+            "media/note123/thumb_img001.jpg"
+          ],
+          "tags": ["food", "review"],
+          "noteType": "photo_translation",
+          "timestamp": "2025-11-26T10:00:00Z"
+        },
+        {
+          "id": "note456",
+          "title": "Voice Recording",
+          "text": "Transcribed audio content...",
+          "attachedMedia": [
+            "media/note456/recording001.m4a"
+          ],
+          "tags": ["meeting", "notes"],
+          "noteType": "voice_recording",
+          "timestamp": "2025-11-26T14:30:00Z",
+          "originalText": "Raw transcription before AI polishing"
+        }
+      ],
+      "manifest.json": {
+        "version": "1.0",
+        "exportedAt": "2025-11-26T02:47:00.000Z",
+        "appVersion": "PWA-Beta-06",
+        "noteCount": 2,
+        "mediaCount": 3,
+        "totalSize": 1843200
+      },
+      "media/": {
+        "note123/": {
+          "img001.jpg": "Full-size image file",
+          "thumb_img001.jpg": "Thumbnail image file"
+        },
+        "note456/": {
+          "recording001.m4a": "Audio recording file"
+        }
+      }
+    }
+  },
+  "internalStorage": {
+    "opfsLayout": {
+      "trip42-media/note123/img001.jpg": "Full-size image",
+      "trip42-media/note123/thumb_img001.jpg": "Thumbnail",
+      "trip42-media/note456/recording001.m4a": "Audio file"
+    }
+  }
+}

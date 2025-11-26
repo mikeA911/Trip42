@@ -28,6 +28,7 @@ import { uploadNoteMediaToSupabase } from '../media-storage/supabaseUploader';
 import { polishNoteWithGemini } from '../services/geminiService';
 import { Audio } from 'expo-av'; // Import Audio from expo-av
 import { getThemeCharacters } from '../services/promptService'; // Import getThemeCharacters
+import { exportNotesAsTrip42Bundle, parseTrip42Bundle, createTrip42Bundle } from '../utils/exportUtils';
 
 interface ManageNotesModalProps {
   visible: boolean;
@@ -84,13 +85,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       if (selectedNote && selectedNote.attachedMedia && selectedNote.attachedMedia.length > 0) {
         const mediaUrls: string[] = [];
         for (const mediaItem of selectedNote.attachedMedia) {
-          if (mediaItem.startsWith('data:')) {
-            // Data URL (legacy)
-            mediaUrls.push(mediaItem);
-          } else if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
-            // File path (legacy)
-            mediaUrls.push(mediaItem);
-          } else if (mediaItem.startsWith('media/')) {
+          if (mediaItem.startsWith('media/')) {
             // New format: path, get preview URL
             try {
               const url = await getPreviewURL(mediaItem);
@@ -98,14 +93,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             } catch (error) {
               console.error('Failed to get preview URL for', mediaItem, error);
               mediaUrls.push(''); // Placeholder
-            }
-          } else {
-            // Legacy media ID
-            try {
-              const url = await getMedia(mediaItem);
-              if (url) mediaUrls.push(url);
-            } catch (error) {
-              console.error('Failed to load media', mediaItem, error);
             }
           }
         }
@@ -175,141 +162,32 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   const handleExportSelected = async () => {
     if (selectedNotes.size === 0) return;
 
-    console.log('Starting export for', selectedNotes.size, 'notes');
-    setIsExporting(true);
-    try {
-      const notesToExport = notes.filter(note => selectedNotes.has(note.id));
+    console.log('Starting ZIP bundle export for', selectedNotes.size, 'notes');
 
-      // Create IKE file format for each note
-      const exportPromises = notesToExport.map(async (note) => {
-        const exportNote = { ...note };
-
-        // Process attached media - load data URLs from ids
-        if (exportNote.attachedMedia && exportNote.attachedMedia.length > 0) {
-          const processedMedia: string[] = [];
-
-          for (let i = 0; i < exportNote.attachedMedia.length; i++) {
-            const mediaItem = exportNote.attachedMedia[i];
-  
+    // Prompt for custom filename
+    Alert.prompt(
+      'Export Notes',
+      'Enter a name for your export file (optional):',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Export',
+          onPress: async (customName?: string) => {
+            setIsExporting(true);
             try {
-              let mediaData: string;
-              if (mediaItem.startsWith('data:')) {
-                mediaData = mediaItem;
-              } else if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
-                // File path - read and convert to data URL
-                const fileContent = await FileSystem.readAsStringAsync(mediaItem, {
-                  encoding: FileSystem.EncodingType.Base64,
-                });
-                const mimeType = mediaItem.includes('/DCIM/') || mediaItem.endsWith('.jpg') || mediaItem.endsWith('.jpeg') ? 'image/jpeg' :
-                                mediaItem.endsWith('.png') ? 'image/png' :
-                                mediaItem.endsWith('.m4a') ? 'audio/m4a' : 'application/octet-stream';
-                mediaData = `data:${mimeType};base64,${fileContent}`;
-              } else if (mediaItem.startsWith('media/')) {
-                // New format: get file and convert to data URL
-                const file = await getFileForPath(mediaItem);
-                const base64 = await new Promise<string>((resolve, reject) => {
-                  const reader = new FileReader();
-                  reader.onload = () => resolve((reader.result as string).split(',')[1]);
-                  reader.onerror = reject;
-                  reader.readAsDataURL(file);
-                });
-                mediaData = `data:${file.type};base64,${base64}`;
-              } else {
-                // Unknown format - skip
-                console.error('Unknown media format for item:', mediaItem);
-                continue;
-              }
-              if (mediaData) {
-                processedMedia.push(mediaData);
-              } else {
-                console.error('Media not found for item:', mediaItem);
-              }
-            } catch (mediaError) {
-              console.error('Error loading media for export:', mediaError);
-            }
-          }
+              const notesToExport = notes.filter(note => selectedNotes.has(note.id));
 
-          exportNote.attachedMedia = processedMedia;
-        }
+              await exportNotesAsTrip42Bundle(notesToExport, customName || undefined);
 
-        return exportNote;
-      });
+              const dateStr = new Date().toISOString().split('T')[0];
+              const filename = customName ? `${customName}.t42` : `Notes-${dateStr}.t42`;
 
-      const processedNotes = await Promise.all(exportPromises);
-
-      if (Platform.OS === 'web') {
-        console.log('Exporting to web platform');
-        // For web, use traditional download
-        if (processedNotes.length === 1) {
-          // Single note - download as .ike file
-          const noteJson = JSON.stringify(processedNotes[0], null, 2);
-          const blob = new Blob([noteJson], { type: 'application/json' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `${processedNotes[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.t42`;
-          a.click();
-          URL.revokeObjectURL(url);
-          console.log('Web export completed successfully');
-          Alert.alert(
-            'Success',
-            `Note exported as ${processedNotes[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.t42\n\nFile saved to Downloads folder.`,
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  console.log('Clearing selections after export');
-                  setSelectedNotes(new Set());
-                }
-              }
-            ]
-          );
-        } else {
-          // Multiple notes - create a collection file
-          const collectionData = {
-            version: '1.0',
-            exportedAt: new Date().toISOString(),
-            notes: processedNotes
-          };
-          const jsonBlob = JSON.stringify(collectionData, null, 2);
-          const blob = new Blob([jsonBlob], { type: 'application/json' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `trip42_notes_${new Date().toISOString().split('T')[0]}.t42`;
-          a.click();
-          URL.revokeObjectURL(url);
-          Alert.alert(
-            'Success',
-            `${processedNotes.length} notes exported as collection!\n\nFile saved to Downloads folder.`,
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  setSelectedNotes(new Set());
-                }
-              }
-            ]
-          );
-        }
-      } else {
-        console.log('Exporting to native platform');
-        // For native platforms
-        if (processedNotes.length === 1) {
-          // Single note - save as .ike file
-          const noteJson = JSON.stringify(processedNotes[0], null, 2);
-          const fileName = `${processedNotes[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.t42`;
-
-          try {
-            const documentsDir = FileSystem.documentDirectory;
-            if (documentsDir) {
-              const fileUri = `${documentsDir}${fileName}`;
-              await FileSystem.writeAsStringAsync(fileUri, noteJson, {
-                encoding: FileSystem.EncodingType.UTF8,
-              });
               Alert.alert(
                 'Success',
-                `Note saved to Documents as ${fileName}\n\nLocation: ${fileUri}`,
+                `${notesToExport.length} note${notesToExport.length > 1 ? 's' : ''} exported as "${filename}"!\n\nFile saved to Downloads folder.`,
                 [
                   {
                     text: 'OK',
@@ -319,57 +197,18 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
                   }
                 ]
               );
-            } else {
-              throw new Error('No documents directory available');
+            } catch (error) {
+              console.error('Export error:', error);
+              Alert.alert('Error', 'Failed to export notes as ZIP bundle');
+            } finally {
+              setIsExporting(false);
             }
-          } catch (saveError) {
-            console.error('Error saving file:', saveError);
-            Alert.alert('Error', 'Failed to save note file');
-          }
-        } else {
-          // Multiple notes - save as JSON collection file
-          const collectionData = {
-            version: '1.0',
-            exportedAt: new Date().toISOString(),
-            notes: processedNotes
-          };
-          const jsonBlob = JSON.stringify(collectionData, null, 2);
-          const fileName = `trip42_notes_${new Date().toISOString().split('T')[0]}.t42`;
-
-          try {
-            const documentsDir = FileSystem.documentDirectory;
-            if (documentsDir) {
-              const fileUri = `${documentsDir}${fileName}`;
-              await FileSystem.writeAsStringAsync(fileUri, jsonBlob, {
-                encoding: FileSystem.EncodingType.UTF8,
-              });
-              Alert.alert(
-                'Success',
-                `${processedNotes.length} notes exported as collection!\n\nFile saved to Documents as ${fileName}\n\nLocation: ${fileUri}`,
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => {
-                      setSelectedNotes(new Set());
-                    }
-                  }
-                ]
-              );
-            } else {
-              throw new Error('No documents directory available');
-            }
-          } catch (saveError) {
-            console.error('Error saving file:', saveError);
-            Alert.alert('Error', 'Failed to save notes collection file');
           }
         }
-      }
-    } catch (error) {
-      console.error('Export error:', error);
-      Alert.alert('Error', 'Failed to export notes');
-    } finally {
-      setIsExporting(false);
-    }
+      ],
+      'plain-text',
+      '' // default value
+    );
   };
 
   const handleShareSelected = async () => {
@@ -391,7 +230,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   const handleImportNotes = async () => {
     try {
       if (Platform.OS === 'web') {
-        // For web, use file input
+        // For web, use file input for ZIP bundles
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.t42';
@@ -402,17 +241,25 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             for (let i = 0; i < files.length; i++) {
               const file = files[i];
               if (file.name.endsWith('.t42')) {
-                const text = await file.text();
                 try {
-                  const importedNote: Note = JSON.parse(text);
-                  // Validate the imported note has required fields
-                  if (importedNote.id && importedNote.title && importedNote.text && importedNote.timestamp) {
-                    await saveNote(importedNote);
-                    Alert.alert('Success', `Imported note: ${importedNote.title}`);
-                  } else {
-                    Alert.alert('Error', `Invalid note format in ${file.name}`);
+                  const arrayBuffer = await file.arrayBuffer();
+                  const zipBlob = new Blob([arrayBuffer]);
+
+                  const { notes: importedNotes, manifest } = await parseTrip42Bundle(zipBlob);
+
+                  // Import each note
+                  for (const note of importedNotes) {
+                    // Validate the imported note has required fields
+                    if (note.id && note.title && note.text && note.timestamp) {
+                      await saveNote(note);
+                    } else {
+                      console.error('Invalid note format:', note);
+                    }
                   }
+
+                  Alert.alert('Success', `Imported ${importedNotes.length} note${importedNotes.length > 1 ? 's' : ''} from ${file.name}`);
                 } catch (parseError) {
+                  console.error('Failed to parse ZIP bundle:', parseError);
                   Alert.alert('Error', `Failed to parse ${file.name}`);
                 }
               }
@@ -422,26 +269,37 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         };
         input.click();
       } else {
-        // For native, use DocumentPicker
+        // For native, use DocumentPicker for ZIP bundles
         const result = await DocumentPicker.getDocumentAsync({
-          type: 'application/json',
+          type: 'application/json', // .t42 files are JSON-based
           multiple: true,
         });
 
         if (!result.canceled && result.assets) {
           for (const asset of result.assets) {
             if (asset.name?.endsWith('.t42')) {
-              const text = await FileSystem.readAsStringAsync(asset.uri);
               try {
-                const importedNote: Note = JSON.parse(text);
-                // Validate the imported note has required fields
-                if (importedNote.id && importedNote.title && importedNote.text && importedNote.timestamp) {
-                  await saveNote(importedNote);
-                  Alert.alert('Success', `Imported note: ${importedNote.title}`);
-                } else {
-                  Alert.alert('Error', `Invalid note format in ${asset.name}`);
+                const fileContent = await FileSystem.readAsStringAsync(asset.uri, {
+                  encoding: FileSystem.EncodingType.Base64,
+                });
+                const arrayBuffer = Uint8Array.from(atob(fileContent), c => c.charCodeAt(0));
+                const zipBlob = new Blob([arrayBuffer]);
+
+                const { notes: importedNotes, manifest } = await parseTrip42Bundle(zipBlob);
+
+                // Import each note
+                for (const note of importedNotes) {
+                  // Validate the imported note has required fields
+                  if (note.id && note.title && note.text && note.timestamp) {
+                    await saveNote(note);
+                  } else {
+                    console.error('Invalid note format:', note);
+                  }
                 }
+
+                Alert.alert('Success', `Imported ${importedNotes.length} note${importedNotes.length > 1 ? 's' : ''} from ${asset.name}`);
               } catch (parseError) {
+                console.error('Failed to parse ZIP bundle:', parseError);
                 Alert.alert('Error', `Failed to parse ${asset.name}`);
               }
             }
@@ -450,6 +308,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         }
       }
     } catch (error) {
+      console.error('Import error:', error);
       Alert.alert('Error', 'Failed to import notes');
     }
   };
@@ -511,11 +370,8 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
           style: 'destructive',
           onPress: async () => {
             try {
-              // Delete the media file if it's a new path
-              if (mediaUriToRemove.startsWith('media/')) {
-                await deleteMediaPath(mediaUriToRemove);
-              }
-              // For old formats, we don't delete the file as per original behavior
+              // Delete the media file
+              await deleteMediaPath(mediaUriToRemove);
 
               const updatedMedia = selectedNote.attachedMedia.filter(uri => uri !== mediaUriToRemove);
               const updatedNote = {
@@ -910,71 +766,39 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
     try {
       Alert.alert('Exporting', 'Preparing note with media...');
 
-      // Create a copy of the note for export
-      const exportNote = { ...selectedNote };
+      // Create a ZIP bundle for the single note
+      const zipBlob = await createTrip42Bundle([selectedNote]);
 
-      // Process attached media - ensure they are data URLs
-      if (exportNote.attachedMedia && exportNote.attachedMedia.length > 0) {
-        const processedMedia: string[] = [];
-
-        for (let i = 0; i < exportNote.attachedMedia.length; i++) {
-          const mediaItem = exportNote.attachedMedia[i];
-
-          try {
-            let mediaData: string;
-            if (mediaItem.startsWith('data:')) {
-              // Already a data URL
-              mediaData = mediaItem;
-            } else if (mediaItem.startsWith('file://') || mediaItem.includes('/DCIM/') || mediaItem.includes('/Downloads/')) {
-              // File path - read and convert to data URL
-              const fileContent = await FileSystem.readAsStringAsync(mediaItem, {
-                encoding: FileSystem.EncodingType.Base64,
-              });
-              const mimeType = mediaItem.includes('/DCIM/') ? 'image/jpeg' : 'audio/mpeg'; // Simple detection
-              mediaData = `data:${mimeType};base64,${fileContent}`;
-            } else {
-              // Media ID - load from AsyncStorage
-              mediaData = await getMedia(mediaItem) || '';
-            }
-            if (mediaData) {
-              processedMedia.push(mediaData);
-            } else {
-              console.error('Media not found for item:', mediaItem);
-            }
-          } catch (mediaError) {
-            console.error('Error loading media for export:', mediaError);
-          }
-        }
-
-        exportNote.attachedMedia = processedMedia;
-      }
-
-      const noteJson = JSON.stringify(exportNote, null, 2);
-
-      const fileName = `${selectedNote.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.t42`;
+      const dateStr = new Date().toISOString().split('T')[0];
+      const defaultName = `Notes-${dateStr}`;
+      const filename = `${defaultName}.t42`;
 
       if (Platform.OS === 'web') {
-        // For web, download the file
-        const blob = new Blob([noteJson], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
+        // For web, download the ZIP bundle
+        const url = URL.createObjectURL(zipBlob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = fileName;
+        a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
-        Alert.alert('Success', `Note exported as ${fileName}`);
+        Alert.alert('Success', `Note exported as ${filename}`);
       } else {
-        // For native, save directly to documents directory
+        // For native, save ZIP bundle to documents directory
         try {
           const documentsDir = FileSystem.documentDirectory;
           if (documentsDir) {
-            const fileUri = `${documentsDir}${fileName}`;
+            const fileUri = `${documentsDir}${filename}`;
 
-            await FileSystem.writeAsStringAsync(fileUri, noteJson, {
-              encoding: FileSystem.EncodingType.UTF8,
-            });
-
-            Alert.alert('Success', `Note saved to Documents as ${fileName}\n\nLocation: ${fileUri}`);
+            // Convert blob to base64 for native storage
+            const reader = new FileReader();
+            reader.onload = async () => {
+              const base64Data = (reader.result as string).split(',')[1];
+              await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+              Alert.alert('Success', `Note saved to Documents as ${filename}\n\nLocation: ${fileUri}`);
+            };
+            reader.readAsDataURL(zipBlob);
           } else {
             throw new Error('No documents directory available');
           }

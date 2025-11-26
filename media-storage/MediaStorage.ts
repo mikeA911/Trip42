@@ -4,11 +4,15 @@ import * as opfs from "./adapters/web-opfs";
 import * as idb from "./adapters/indexeddb-fallback";
 import * as native from "./adapters/native-expo";
 
+/** Generate unique media ID */
+export function generateMediaId(): string {
+  return `media_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+}
+
 /** Make canonical media path */
 export function makeMediaPath(noteId: string, filename?: string) {
-  const ts = Date.now();
-  const safeName = filename ? filename.replace(/\s+/g, "_") : `media_${ts}.jpg`;
-  return `media/${noteId}/${safeName}`;
+  const safeName = filename ? filename.replace(/\s+/g, "_") : generateMediaId();
+  return `trip42-media/${noteId}/${safeName}`;
 }
 
 /** Image compression + thumbnail (browser-only) */
@@ -150,7 +154,7 @@ export async function deleteMediaPath(path: string) {
  * When OPFS available use recursive remove; otherwise use idbDeletePrefix
  */
 export async function deleteMediaForNote(noteId: string) {
-  const dirPath = `media/${noteId}`;
+  const dirPath = `trip42-media/${noteId}`;
   if (!isBrowser && isReactNative) {
     await native.deleteNativeFolder(noteId);
     return;
