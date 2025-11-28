@@ -85,8 +85,11 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
       if (selectedNote && selectedNote.attachedMedia && selectedNote.attachedMedia.length > 0) {
         const mediaUrls: string[] = [];
         for (const mediaItem of selectedNote.attachedMedia) {
-          if (mediaItem.startsWith('media/')) {
-            // New format: path, get preview URL
+          if (mediaItem.startsWith('file://')) {
+            // React Native: direct file URI
+            mediaUrls.push(mediaItem);
+          } else if (mediaItem.startsWith('media/') || mediaItem.startsWith('trip42-media/')) {
+            // Browser: path, get preview URL
             try {
               const url = await getPreviewURL(mediaItem);
               mediaUrls.push(url);
@@ -94,6 +97,10 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               console.error('Failed to get preview URL for', mediaItem, error);
               mediaUrls.push(''); // Placeholder
             }
+          } else {
+            // Unknown format, skip
+            console.warn('Unknown media format:', mediaItem);
+            mediaUrls.push('');
           }
         }
         setSelectedNoteMedia(mediaUrls);

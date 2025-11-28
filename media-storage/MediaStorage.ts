@@ -3,6 +3,7 @@ import { supportsOPFS, isBrowser, isReactNative } from "./platformDetector";
 import * as opfs from "./adapters/web-opfs";
 import * as idb from "./adapters/indexeddb-fallback";
 import * as native from "./adapters/native-expo";
+import * as FileSystem from "expo-file-system";
 
 /** Generate unique media ID */
 export function generateMediaId(): string {
@@ -117,8 +118,8 @@ export async function saveMediaForNote(noteId: string, file: File | Blob, sugges
 /** Get File object for path (for uploads) */
 export async function getFileForPath(path: string): Promise<File> {
   if (!isBrowser && isReactNative) {
-    // Native must be implemented in native adapter (expo-file-system reading)
-    throw new Error("Native getFileForPath should be implemented in native adapter.");
+    // Native: read from file system
+    return await native.readNativeFile(path);
   }
   if (supportsOPFS) {
     const f = await opfs.readFile(path);
@@ -139,7 +140,16 @@ export async function getPreviewURL(path: string): Promise<string> {
 /** Delete a single path */
 export async function deleteMediaPath(path: string) {
   if (!isBrowser && isReactNative) {
-    // native remove -> implement in native adapter later
+    // For native, path might be a file:// URI or relative path
+    // Extract filename and delete from app media dir
+    const filename = path.split('/').pop() || path.split('/').pop() || 'unknown';
+    const dir = await native.getAppMediaDir();
+    const localPath = `${dir}${filename}`;
+    try {
+      await FileSystem.deleteAsync(localPath, { idempotent: true });
+    } catch (e) {
+      console.warn('Failed to delete native media file:', e);
+    }
     return;
   }
   if (supportsOPFS) {

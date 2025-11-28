@@ -31,3 +31,59 @@ export async function deleteNativeFolder(noteId: string) {
     await FileSystem.deleteAsync(dir, { idempotent: true });
   } catch (e) { /* ignore */ }
 }
+
+/** readNativeFile returns a File object for a relative path */
+export async function readNativeFile(relPath: string): Promise<File> {
+  const dir = await getAppMediaDir();
+  const localPath = `${dir}${relPath.split('/').pop()!}`; // Get filename from path
+
+  try {
+    const fileInfo = await FileSystem.getInfoAsync(localPath);
+    if (!fileInfo.exists) {
+      throw new Error(`File not found: ${localPath}`);
+    }
+
+    // Read as base64
+    const base64Data = await FileSystem.readAsStringAsync(localPath, {
+      encoding: 'base64',
+    });
+
+    // Convert to blob and then to File
+    const mimeType = getMimeTypeFromPath(relPath);
+    const blob = base64ToBlob(base64Data, mimeType);
+    return new File([blob], relPath.split('/').pop() || 'file.bin', { type: mimeType });
+  } catch (error) {
+    throw new Error(`Failed to read native file: ${error}`);
+  }
+}
+
+function getMimeTypeFromPath(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'gif':
+      return 'image/gif';
+    case 'mp3':
+      return 'audio/mpeg';
+    case 'wav':
+      return 'audio/wav';
+    case 'm4a':
+      return 'audio/mp4';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
+function base64ToBlob(base64: string, mimeType: string): Blob {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: mimeType });
+}
