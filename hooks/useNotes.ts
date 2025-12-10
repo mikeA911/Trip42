@@ -11,10 +11,8 @@ export const useNotes = () => {
 
   const loadNotes = async () => {
     try {
-      console.log('DEBUG: useNotes loadNotes called');
       setLoading(true);
       const storedNotes = await getNotes();
-      console.log('DEBUG: useNotes loaded notes count:', storedNotes.length);
       setNotes(storedNotes);
     } catch (error) {
       console.error('Error loading notes:', error);
@@ -25,26 +23,10 @@ export const useNotes = () => {
 
   const addNote = async (note: Note) => {
     try {
-      console.log('DEBUG: useNotes addNote called with note id:', note.id);
-      console.log('DEBUG: useNotes note type:', note.noteType, 'attachedMedia count:', note.attachedMedia?.length || 0);
-
-      console.log('DEBUG: useNotes calling saveNote...');
       await saveNote(note);
-      console.log('DEBUG: useNotes saveNote completed successfully');
-
-      console.log('DEBUG: useNotes updating state...');
-      setNotes(prev => {
-        const newNotes = [note, ...prev];
-        console.log('DEBUG: useNotes note added to state, new count:', newNotes.length);
-        return newNotes;
-      });
-
-      console.log('DEBUG: useNotes addNote completed successfully');
+      setNotes(prev => [note, ...prev]);
     } catch (error) {
-      console.error('DEBUG: Error in useNotes addNote:', error);
-      console.error('DEBUG: Error type:', typeof error);
-      console.error('DEBUG: Error message:', error instanceof Error ? error.message : 'Unknown error');
-      console.error('DEBUG: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      console.error('Error adding note:', error);
       throw error;
     }
   };

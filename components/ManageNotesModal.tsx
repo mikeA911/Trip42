@@ -68,6 +68,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [showSingleDeleteConfirmation, setShowSingleDeleteConfirmation] = useState(false);
   const [selectedNoteMedia, setSelectedNoteMedia] = useState<string[]>([]);
+  const [showShareOptionsModal, setShowShareOptionsModal] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -579,25 +580,7 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
 
   const handleShareNote = async () => {
     if (!selectedNote) return;
-
-    Alert.alert(
-      'Share Note',
-      'How would you like to share this note?',
-      [
-        {
-          text: 'Copy to Clipboard',
-          onPress: () => handleCopyToClipboard()
-        },
-        {
-          text: 'Share via Telegram',
-          onPress: () => handleShareViaTelegram()
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel'
-        }
-      ]
-    );
+    setShowShareOptionsModal(true);
   };
 
   const handleCopyToClipboard = async () => {
@@ -1271,6 +1254,43 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
                 <TouchableOpacity
                   style={styles.moreOptionCancelButton}
                   onPress={() => setShowMoreOptionsModal(false)}
+                >
+                  <Text style={styles.moreOptionCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Share Options Modal */}
+          <Modal visible={showShareOptionsModal} animationType="fade" transparent={true}>
+            <View style={styles.moreOptionsModalOverlay}>
+              <View style={styles.moreOptionsModalContent}>
+                <Text style={styles.moreOptionsModalTitle}>Share Note</Text>
+                <Text style={styles.shareOptionsSubtitle}>How would you like to share this note?</Text>
+
+                <TouchableOpacity
+                  style={styles.moreOptionButton}
+                  onPress={() => {
+                    setShowShareOptionsModal(false);
+                    handleCopyToClipboard();
+                  }}
+                >
+                  <Text style={styles.moreOptionText}>📋 Copy to Clipboard</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.moreOptionButton}
+                  onPress={() => {
+                    setShowShareOptionsModal(false);
+                    handleShareViaTelegram();
+                  }}
+                >
+                  <Text style={styles.moreOptionText}>📱 Share via Telegram</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.moreOptionCancelButton}
+                  onPress={() => setShowShareOptionsModal(false)}
                 >
                   <Text style={styles.moreOptionCancelText}>Cancel</Text>
                 </TouchableOpacity>
@@ -2165,6 +2185,12 @@ const styles = {
     fontSize: 18,
     fontWeight: 'bold' as const,
     color: '#f59e0b',
+    textAlign: 'center' as const,
+    marginBottom: 20,
+  },
+  shareOptionsSubtitle: {
+    fontSize: 14,
+    color: '#d1d5db',
     textAlign: 'center' as const,
     marginBottom: 20,
   },
