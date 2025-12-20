@@ -157,9 +157,21 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
   const handleSignTranslation = async () => {
     try {
       console.log('DEBUG: handleSignTranslation started');
-      if (Platform.OS === 'web') {
-        window.alert('INIT: Sign translation started');
+
+      // Check if we're running in a PWA or web environment - do this FIRST
+      const isWebPlatform = Platform.OS === 'web';
+
+      if (isWebPlatform) {
+        console.log('DEBUG: Using web platform flow');
+        window.alert('INIT: Sign translation starting (web mode)');
+        // For web, we need to trigger file input IMMEDIATELY during user gesture
+        // Do credits/ID generation after file is selected
+        await handleWebSignTranslationWithEarlyInput();
+        return;
       }
+
+      // Native path continues with original flow
+      window.alert('INIT: Sign translation started');
 
       // Check credits first
       const hasCredits = await checkCreditsAndNotify(CREDIT_PRICING.SIGN_TRANSLATION, 'Sign Language Translation');
@@ -198,21 +210,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       const noteId = generateNoteId();
       setTempNoteId(noteId);
       console.log('DEBUG: Generated note ID:', noteId);
-      if (Platform.OS === 'web') {
-        window.alert(`INIT: Ready! Note ID: ${noteId.substring(0, 10)}...`);
-      } else {
-        Alert.alert('INIT', `Ready! Note ID: ${noteId.substring(0, 10)}...`);
-      }
-
-      // Check if we're running in a PWA or web environment
-      const isWebPlatform = Platform.OS === 'web';
-
-      if (isWebPlatform) {
-        console.log('DEBUG: Using web platform flow');
-        // Handle web/PWA environment with file input fallback
-        await handleWebSignTranslation();
-        return;
-      }
+      Alert.alert('INIT', `Ready! Note ID: ${noteId.substring(0, 10)}...`);
 
       
 
@@ -321,26 +319,56 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
     }
   };
 
-  const handleWebSignTranslation = async () => {
+  const handleWebSignTranslationWithEarlyInput = async () => {
     return new Promise<void>((resolve, reject) => {
-      console.log('DEBUG: handleWebSignTranslation called');
-      window.alert('WEB: Creating file input dialog...');
+      console.log('DEBUG: handleWebSignTranslationWithEarlyInput called');
 
-      // Create a hidden file input element for web/PWA
+      // Create file input IMMEDIATELY while in user gesture context
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
       input.setAttribute('capture', 'environment');
 
       console.log('DEBUG: File input element created');
-      window.alert('WEB: File input created, setting up handlers...');
 
       input.onchange = async (event) => {
         const file = (event.target as HTMLInputElement).files?.[0];
         if (file) {
-          
           console.log('DEBUG: Web file selected');
-          window.alert('WEB Step 1: Image file selected');
+          window.alert('WEB Step 1: Image file selected, checking credits...');
+          
+          // NOW check credits AFTER file is selected
+          try {
+            const hasCredits = await checkCreditsAndNotify(CREDIT_PRICING.SIGN_TRANSLATION, 'Sign Language Translation');
+            if (!hasCredits) {
+              window.alert('ERROR: Insufficient credits');
+              resolve();
+              return;
+            }
+
+            // Deduct credits
+            const creditDeducted = await deductCredits(CREDIT_PRICING.SIGN_TRANSLATION, 'Sign Language Translation');
+            if (!creditDeducted) {
+              window.alert('ERROR: Failed to process credits');
+              resolve();
+              return;
+            }
+
+            window.alert('WEB Step 2: Credits deducted, generating note ID...');
+
+            // Generate note ID
+            const noteId = generateNoteId();
+            setTempNoteId(noteId);
+            console.log('DEBUG: Generated note ID:', noteId);
+
+            window.alert(`WEB Step 3: Note ID: ${noteId.substring(0, 10)}...`);
+            
+          } catch (error) {
+            window.alert(`ERROR in credits/ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            resolve();
+            return;
+          }
+
           setIsProcessing(true);
           setProcessingMessage('Marvin is analyzing...');
 
@@ -358,14 +386,14 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
               const translationResult = await translateSignWithGemini(base64Data, targetLanguage);
 
               console.log('DEBUG: Translation result:', translationResult);
-              window.alert(`WEB Step 2: Translated: ${translationResult.translation.substring(0, 50)}...`);
+              window.alert(`WEB Step 4: Translated: ${translationResult.translation.substring(0, 50)}...`);
               
 
               // For web/PWA, save using new media storage
               let savedWebImageUri: string;
               try {
                 console.log('DEBUG: Saving web image with tempNoteId:', tempNoteId);
-                window.alert(`WEB Step 3: Saving image with ID: ${tempNoteId.substring(0, 10)}...`);
+                window.alert(`WEB Step 5: Saving image with ID: ${tempNoteId.substring(0, 10)}...`);
                 const response = await fetch(result);
                 const blob = await response.blob();
                 const file = new File([blob], `sign_${Date.now()}.jpg`, { type: 'image/jpeg' });
@@ -375,7 +403,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
                 savedWebImageUri = path;
                 console.log('DEBUG: Web image saved successfully at:', savedWebImageUri);
-                window.alert(`WEB Step 4: Image saved at: ${savedWebImageUri.substring(0, 40)}...`);
+                window.alert(`WEB Step 6: Image saved at: ${savedWebImageUri.substring(0, 40)}...`);
               } catch (saveError) {
                 console.error('DEBUG: Failed to save web image:', saveError);
                 console.error('DEBUG: Save error details:', JSON.stringify(saveError, null, 2));
@@ -392,7 +420,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
               });
 
               console.log('DEBUG: Setting recording current note');
-              window.alert('WEB Step 5: Note state set, calling auto-save...');
+              window.alert('WEB Step 7: Note state set, calling auto-save...');
 
               // Add the file URI to attached media
               setAttachedMedia([savedWebImageUri]);
@@ -422,17 +450,10 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         resolve();
       };
 
-      console.log('DEBUG: About to trigger input.click()');
-      window.alert('WEB: About to open camera/file picker...');
-      try {
-        input.click();
-        console.log('DEBUG: input.click() called');
-        window.alert('WEB: Camera/file picker should open now');
-      } catch (error) {
-        console.error('DEBUG: Error clicking input:', error);
-        window.alert(`ERROR clicking input: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        reject(error);
-      }
+      // Trigger input click IMMEDIATELY while still in user gesture
+      console.log('DEBUG: Triggering input.click()');
+      input.click();
+      console.log('DEBUG: input.click() called - file picker should open');
     });
   };
 
