@@ -251,6 +251,8 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           showSuccess(`Translation: ${translationResult.translation.substring(0, 30)}...`);
 
           // Set the translated text and move to tabs for editing
+          console.log('DEBUG: Setting recording current note state');
+          showSuccess('Setting note content...');
           setRecordingCurrentNote({
             rawTranscription: translationResult.translation,
             polishedNote: translationResult.translation,
@@ -258,19 +260,27 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             audioUri: undefined
           });
 
-          
+          console.log('DEBUG: Note state set, preparing to save image');
+          showSuccess('Preparing to save image...');
 
           // Save the sign image using new media storage
           try {
             
+            console.log('DEBUG: Starting image save process');
             showSuccess('Saving image...');
             const file = result.assets[0];
+            console.log('DEBUG: Fetching blob from uri:', file.uri);
             const blob = await fetch(file.uri).then(r => r.blob());
+            console.log('DEBUG: Blob fetched, creating File object');
             const fileObj = new File([blob], file.fileName || 'sign.jpg', { type: file.type || 'image/jpeg' });
 
+            console.log('DEBUG: Calling saveMediaForNote with noteId:', noteId);
+            showSuccess('Uploading to storage...');
             const saveResult = await saveMediaForNote(noteId, fileObj, file.fileName || 'sign.jpg');
+            console.log('DEBUG: saveMediaForNote result:', saveResult);
             const { path } = saveResult as { path: string; thumbPath?: string };
 
+            console.log('DEBUG: Setting attached media to:', path);
             setAttachedMedia([path]);
             showSuccess(`Image saved: ${path.substring(0, 20)}...`);
 
@@ -284,8 +294,13 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             await handleAutoSaveSignTranslation([path]);
             showSuccess('Sign translation auto-saved!');
           } catch (error) {
-            console.error('Failed to save sign image:', error);
-            Alert.alert('Error', 'Failed to save image. Please try again.');
+            console.error('DEBUG: Failed to save sign image:', error);
+            console.error('DEBUG: Error details:', JSON.stringify(error, null, 2));
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            showError(`Image save failed: ${errorMsg}`);
+            Alert.alert('Error', `Failed to save image: ${errorMsg}. Please try again.`);
+            setIsProcessing(false);
+            setProcessingMessage('');
             return; // Don't proceed with translation if file saving fails
           }
           // Note: Auto-save success message removed since it's misleading when save fails
@@ -296,7 +311,10 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         console.log('DEBUG: Image picker was cancelled');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to process sign translation');
+      console.error('DEBUG: Sign translation failed:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      showError(`Sign translation failed: ${errorMsg}`);
+      Alert.alert('Error', `Failed to process sign translation: ${errorMsg}`);
     } finally {
       setIsProcessing(false);
       setProcessingMessage('');
