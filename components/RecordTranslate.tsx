@@ -157,7 +157,6 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
   const handleSignTranslation = async () => {
     try {
       console.log('DEBUG: handleSignTranslation started');
-      showSuccess('Starting sign translation...');
 
       // Check credits first
       const hasCredits = await checkCreditsAndNotify(CREDIT_PRICING.SIGN_TRANSLATION, 'Sign Language Translation');
@@ -196,7 +195,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       const noteId = generateNoteId();
       setTempNoteId(noteId);
       console.log('DEBUG: Generated note ID:', noteId);
-      showSuccess(`✓ Ready - ID: ${noteId.substring(0, 8)}...`, 2000);
+      Alert.alert('INIT', `Ready! Note ID: ${noteId.substring(0, 10)}...`);
 
       // Check if we're running in a PWA or web environment
       const isWebPlatform = Platform.OS === 'web';
@@ -330,6 +329,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         if (file) {
           
           console.log('DEBUG: Web file selected');
+          Alert.alert('WEB Step 1', 'Image file selected');
           setIsProcessing(true);
           setProcessingMessage('Marvin is analyzing...');
 
@@ -344,18 +344,17 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
               const base64Data = result.split(',')[1] || result;
 
               console.log('DEBUG: Calling translateSignWithGemini');
-              showSuccess('Translating sign (web)...');
               const translationResult = await translateSignWithGemini(base64Data, targetLanguage);
 
               console.log('DEBUG: Translation result:', translationResult);
-              showSuccess(`Translation: ${translationResult.translation.substring(0, 30)}...`);
+              Alert.alert('WEB Step 2', `Translated: ${translationResult.translation.substring(0, 50)}...`);
               
 
               // For web/PWA, save using new media storage
               let savedWebImageUri: string;
               try {
                 console.log('DEBUG: Saving web image with tempNoteId:', tempNoteId);
-                showSuccess(`Saving image with ID: ${tempNoteId.substring(0, 8)}...`);
+                Alert.alert('WEB Step 3', `Saving image with ID: ${tempNoteId.substring(0, 10)}...`);
                 const response = await fetch(result);
                 const blob = await response.blob();
                 const file = new File([blob], `sign_${Date.now()}.jpg`, { type: 'image/jpeg' });
@@ -365,11 +364,11 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
                 savedWebImageUri = path;
                 console.log('DEBUG: Web image saved successfully at:', savedWebImageUri);
-                showSuccess(`Image saved: ${savedWebImageUri.substring(0, 20)}...`);
+                Alert.alert('WEB Step 4', `Image saved at: ${savedWebImageUri.substring(0, 40)}...`);
               } catch (saveError) {
                 console.error('DEBUG: Failed to save web image:', saveError);
                 console.error('DEBUG: Save error details:', JSON.stringify(saveError, null, 2));
-                Alert.alert('Error', 'Failed to save image. Please try again.');
+                Alert.alert('ERROR at web image save', `Failed to save image: ${saveError instanceof Error ? saveError.message : 'Unknown error'}`);
                 return; // Don't proceed with translation if file saving fails
               }
 
@@ -381,9 +380,8 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
                 audioUri: undefined
               });
 
-              
-
               console.log('DEBUG: Setting recording current note');
+              Alert.alert('WEB Step 5', 'Note state set, calling auto-save...');
 
               // Add the file URI to attached media
               setAttachedMedia([savedWebImageUri]);
@@ -393,16 +391,15 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
               setActiveRecordingTab('polished');
 
               console.log('DEBUG: Calling handleAutoSaveSignTranslation');
-              showSuccess('Attempting auto-save (web)...');
 
               // Auto-save sign translation notes immediately for better UX
               await handleAutoSaveSignTranslation([savedWebImageUri]);
-              showSuccess('Sign translation auto-saved!');
-              // Note: Auto-save success message removed since it's misleading when save fails
+              Alert.alert('WEB Success!', 'Note saved successfully!');
             };
             reader.readAsDataURL(file);
           } catch (error) {
-            Alert.alert('Error', 'Failed to process sign translation');
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            Alert.alert('ERROR in web processing', `Failed to process sign translation: ${errorMsg}`);
           } finally {
             setIsProcessing(false);
             setProcessingMessage('');
