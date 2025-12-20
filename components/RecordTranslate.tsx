@@ -294,7 +294,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           }
 
           setIsProcessing(true);
-          setProcessingMessage('Marvin is analyzing...');
+          setProcessingMessage('Compressing image...');
 
           try {
             // Convert file to base64 data URL for React Native compatibility
@@ -313,9 +313,13 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
                 const result = e.target?.result as string;
                 
                 // Compress image to reduce size for Gemini API (max 800px, 70% quality)
+                setProcessingMessage('Optimizing image for translation...');
                 const compressedBase64 = await compressImageForAPI(result, 800, 0.7);
 
+                setProcessingMessage('Translating sign with AI...');
                 const translationResult = await translateSignWithGemini(compressedBase64, targetLanguage);
+                
+                setProcessingMessage('Saving translation...');
 
                 // For web/PWA, save using new media storage
                 let savedWebImageUri: string;
@@ -348,8 +352,11 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
                 setRecordingViewMode('tabs');
                 setActiveRecordingTab('polished');
 
+                setProcessingMessage('Finalizing note...');
                 // Auto-save sign translation notes immediately for better UX
                 await handleAutoSaveSignTranslation([savedWebImageUri]);
+                
+                showSuccess('Sign translation saved!');
               } catch (innerError) {
                 console.error('Error in reader.onload:', innerError);
                 Alert.alert('Error', `Processing failed: ${innerError instanceof Error ? innerError.message : 'Unknown error'}`);
@@ -891,6 +898,16 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         <Text style={styles.creditsText}>{credits}c</Text>
       </View>
       {renderCurrentView()}
+      
+      {/* Processing overlay for sign translation */}
+      {isProcessing && processingMessage && (
+        <View style={styles.processingOverlay}>
+          <View style={styles.processingBox}>
+            <ActivityIndicator size="large" color="#f59e0b" />
+            <Text style={styles.processingText}>{processingMessage}</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 };
@@ -914,5 +931,31 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 14,
     fontWeight: 'bold' as const,
+  },
+  processingOverlay: {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    zIndex: 2000,
+  },
+  processingBox: {
+    backgroundColor: '#1f2937',
+    paddingHorizontal: 30,
+    paddingVertical: 20,
+    borderRadius: 15,
+    borderWidth: 2,
+    borderColor: '#f59e0b',
+    alignItems: 'center' as const,
+  },
+  processingText: {
+    color: '#f59e0b',
+    fontSize: 16,
+    marginTop: 15,
+    textAlign: 'center' as const,
   },
 });
