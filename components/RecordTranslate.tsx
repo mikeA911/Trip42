@@ -18,7 +18,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { translateTextWithGemini, translateSignWithGemini, transcribeAudioWithGemini, polishNoteWithGemini } from '../services/geminiService';
 import { speakTextWithGoogleTTS, getVoiceForLanguage } from '../services/googleTTSService';
 import { Note, generateNoteId } from '../utils/storage';
-import { saveMediaForNote } from '../media-storage/MediaStorage';
+import {saveMediaForNote } from '../media-storage/MediaStorage';
 import { getOrCreateSettings, saveSettings } from '../utils/settings';
 import { deductCredits, CREDIT_PRICING, getCredits, checkCreditsAndNotify } from '../utils/credits';
 import { LANGUAGES } from './SettingsPage';
@@ -27,6 +27,7 @@ import RecordingView from './record/RecordingView';
 import TypingView from './record/TypingView';
 import TabsView from './record/TabsView';
 import { useToast } from '../contexts/ToastContext';
+import { compressImageForAPI } from '../utils/imageCompression';
 
 type AppScreen = 'landing' | 'notes' | 'record' | 'settings' | 'credits' | 'link' | 'upload' | 'fun' | 'map' | 'medicine' | 'calculator' | 'currency' | 'tetris' | 'profile';
 
@@ -390,14 +391,18 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             
             reader.onload = async (e) => {
               try {
-                window.alert('WEB Step 3.8: Base64 ready, calling Gemini...');
+                window.alert('WEB Step 3.8: Base64 ready, compressing...');
                 const result = e.target?.result as string;
                 
-                // Extract base64 data (remove data:image/jpeg;base64, prefix if present)
-                const base64Data = result.split(',')[1] || result;
+                // Compress image to reduce size for Gemini API (max 800px, 70% quality)
+                console.log('DEBUG: Compressing image for API');
+                const compressedBase64 = await compressImageForAPI(result, 800, 0.7);
+                console.log('DEBUG: Original size:', result.length, 'Compressed size:', compressedBase64.length);
+                
+                window.alert(`WEB Step 3.9: Compressed (${Math.round(compressedBase64.length / 1024)}KB), calling Gemini...`);
 
                 console.log('DEBUG: Calling translateSignWithGemini');
-                const translationResult = await translateSignWithGemini(base64Data, targetLanguage);
+                const translationResult = await translateSignWithGemini(compressedBase64, targetLanguage);
 
                 console.log('DEBUG: Translation result:', translationResult);
                 window.alert(`WEB Step 4: Translated: ${translationResult.translation.substring(0, 50)}...`);

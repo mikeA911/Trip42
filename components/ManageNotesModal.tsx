@@ -187,8 +187,15 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             setIsExporting(true);
             try {
               const notesToExport = notes.filter(note => selectedNotes.has(note.id));
+              console.log('Exporting notes:', notesToExport.map(n => ({ id: n.id, title: n.title, mediaCount: n.attachedMedia?.length || 0 })));
 
-              await exportNotesAsTrip42Bundle(notesToExport, customName || undefined);
+              // Add timeout to prevent hanging
+              const exportPromise = exportNotesAsTrip42Bundle(notesToExport, customName || undefined);
+              const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Export timeout - operation took too long')), 30000)
+              );
+
+              await Promise.race([exportPromise, timeoutPromise]);
 
               const dateStr = new Date().toISOString().split('T')[0];
               const filename = customName ? `${customName}.t42` : `Notes-${dateStr}.t42`;
@@ -207,7 +214,8 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               );
             } catch (error) {
               console.error('Export error:', error);
-              Alert.alert('Error', 'Failed to export notes as ZIP bundle');
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              Alert.alert('Export Failed', `Failed to export notes: ${errorMessage}\n\nPlease try again or contact support if the problem persists.`);
             } finally {
               setIsExporting(false);
             }
@@ -755,12 +763,22 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
 
     try {
       Alert.alert('Exporting', 'Preparing note with media...');
+      console.log('Exporting single note:', {
+        id: selectedNote.id,
+        title: selectedNote.title,
+        mediaCount: selectedNote.attachedMedia?.length || 0
+      });
 
-      // Create a ZIP bundle for the single note
-      const zipBlob = await createTrip42Bundle([selectedNote]);
+      // Create a ZIP bundle for the single note with timeout
+      const exportPromise = createTrip42Bundle([selectedNote]);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Export timeout - operation took too long')), 30000)
+      );
+
+      const zipBlob = await Promise.race([exportPromise, timeoutPromise]);
 
       const dateStr = new Date().toISOString().split('T')[0];
-      const defaultName = `Notes-${dateStr}`;
+      const defaultName = `Note-${selectedNote.title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20)}-${dateStr}`;
       const filename = `${defaultName}.t42`;
 
       if (Platform.OS === 'web') {
@@ -788,6 +806,9 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
               });
               Alert.alert('Success', `Note saved to Documents as ${filename}\n\nLocation: ${fileUri}`);
             };
+            reader.onerror = () => {
+              Alert.alert('Error', 'Failed to read exported file');
+            };
             reader.readAsDataURL(zipBlob);
           } else {
             throw new Error('No documents directory available');
@@ -797,8 +818,9 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
         }
       }
     } catch (error) {
+      console.error('Single note export error:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      Alert.alert('Error', `Failed to export note: ${errorMessage}`);
+      Alert.alert('Export Failed', `Failed to export note: ${errorMessage}\n\nPlease try again or contact support if the problem persists.`);
     }
   };
 
@@ -1261,43 +1283,6 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
             </View>
           </Modal>
 
-          {/* Share Options Modal */}
-          <Modal visible={showShareOptionsModal} animationType="fade" transparent={true}>
-            <View style={styles.moreOptionsModalOverlay}>
-              <View style={styles.moreOptionsModalContent}>
-                <Text style={styles.moreOptionsModalTitle}>Share Note</Text>
-                <Text style={styles.shareOptionsSubtitle}>How would you like to share this note?</Text>
-
-                <TouchableOpacity
-                  style={styles.moreOptionButton}
-                  onPress={() => {
-                    setShowShareOptionsModal(false);
-                    handleCopyToClipboard();
-                  }}
-                >
-                  <Text style={styles.moreOptionText}>📋 Copy to Clipboard</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.moreOptionButton}
-                  onPress={() => {
-                    setShowShareOptionsModal(false);
-                    handleShareViaTelegram();
-                  }}
-                >
-                  <Text style={styles.moreOptionText}>📱 Share via Telegram</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.moreOptionCancelButton}
-                  onPress={() => setShowShareOptionsModal(false)}
-                >
-                  <Text style={styles.moreOptionCancelText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Modal>
-
           {/* Edit Polished Text Modal - Using Alert for better modal stacking */}
           {showEditPolishedTextModal && (
             <Modal visible={true} animationType="fade" transparent={true} presentationStyle="overFullScreen">
@@ -1419,6 +1404,43 @@ const ManageNotesModal: React.FC<ManageNotesModalProps> = ({ visible, onClose })
                     <Text style={styles.deleteActionText}>Delete</Text>
                   </TouchableOpacity>
                 </View>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Share Options Modal - Using overFullScreen to ensure it appears on top */}
+          <Modal visible={showShareOptionsModal} animationType="fade" transparent={true} presentationStyle="overFullScreen">
+            <View style={styles.moreOptionsModalOverlay}>
+              <View style={styles.moreOptionsModalContent}>
+                <Text style={styles.moreOptionsModalTitle}>Share Note</Text>
+                <Text style={styles.shareOptionsSubtitle}>How would you like to share this note?</Text>
+
+                <TouchableOpacity
+                  style={styles.moreOptionButton}
+                  onPress={() => {
+                    setShowShareOptionsModal(false);
+                    handleCopyToClipboard();
+                  }}
+                >
+                  <Text style={styles.moreOptionText}>📋 Copy to Clipboard</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.moreOptionButton}
+                  onPress={() => {
+                    setShowShareOptionsModal(false);
+                    handleShareViaTelegram();
+                  }}
+                >
+                  <Text style={styles.moreOptionText}>📱 Share via Telegram</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.moreOptionCancelButton}
+                  onPress={() => setShowShareOptionsModal(false)}
+                >
+                  <Text style={styles.moreOptionCancelText}>Cancel</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </Modal>

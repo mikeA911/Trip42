@@ -41,6 +41,7 @@ export function convertToInternalPath(relativePath: string): string {
  * └── manifest.json      ← metadata
  */
 export async function createTrip42Bundle(notes: Note[]): Promise<Blob> {
+  console.log('createTrip42Bundle: Starting export for', notes.length, 'notes');
   const zip = new JSZip();
 
   // Prepare notes with relative paths
@@ -52,31 +53,49 @@ export async function createTrip42Bundle(notes: Note[]): Promise<Blob> {
   // Add notes.json
   zip.file('notes.json', JSON.stringify(exportNotes, null, 2));
 
-  // Collect all media files
+  // Collect all media files with improved error handling
   const mediaFiles: { path: string; file: File }[] = [];
+  let failedMediaCount = 0;
 
   for (const note of notes) {
-    for (const mediaPath of note.attachedMedia) {
+    console.log(`createTrip42Bundle: Processing note ${note.id} with ${note.attachedMedia?.length || 0} media files`);
+    
+    for (const mediaPath of note.attachedMedia || []) {
       try {
-        const file = await getFileForPath(mediaPath);
+        // Add timeout for individual media file loading
+        const filePromise = getFileForPath(mediaPath);
+        const timeoutPromise = new Promise<File>((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout loading media: ${mediaPath}`)), 10000)
+        );
+
+        const file = await Promise.race([filePromise, timeoutPromise]);
         const relativePath = convertToRelativePath(mediaPath);
         mediaFiles.push({ path: relativePath, file });
+        console.log(`createTrip42Bundle: Successfully loaded media ${mediaPath} -> ${relativePath} (${file.size} bytes)`);
       } catch (error) {
-        console.warn(`Failed to load media file ${mediaPath}:`, error);
+        failedMediaCount++;
+        console.warn(`createTrip42Bundle: Failed to load media file ${mediaPath}:`, error);
+        // Continue processing other media files instead of failing completely
       }
     }
   }
 
+  console.log(`createTrip42Bundle: Loaded ${mediaFiles.length} media files, ${failedMediaCount} failed`);
+
   // Add media files to ZIP
   for (const { path, file } of mediaFiles) {
-    zip.file(path, file);
+    try {
+      zip.file(path, file);
+    } catch (error) {
+      console.warn(`createTrip42Bundle: Failed to add ${path} to ZIP:`, error);
+    }
   }
 
   // Create manifest
   const manifest: ExportManifest = {
     version: '1.0',
     exportedAt: new Date().toISOString(),
-    appVersion: 'PWA-Beta-06',
+    appVersion: 'PWA-Beta-11',
     noteCount: notes.length,
     mediaCount: mediaFiles.length,
     totalSize: mediaFiles.reduce((total, { file }) => total + file.size, 0)
@@ -84,21 +103,46 @@ export async function createTrip42Bundle(notes: Note[]): Promise<Blob> {
 
   zip.file('manifest.json', JSON.stringify(manifest, null, 2));
 
-  // Generate ZIP blob
-  return await zip.generateAsync({ type: 'blob' });
+  // Generate ZIP blob with timeout
+  console.log('createTrip42Bundle: Generating ZIP blob...');
+  try {
+    const zipBlob = await Promise.race([
+      zip.generateAsync({ type: 'blob' }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('ZIP generation timeout')), 15000)
+      )
+    ]);
+    console.log('createTrip42Bundle: ZIP generation completed successfully');
+    return zipBlob;
+  } catch (error) {
+    console.error('createTrip42Bundle: ZIP generation failed:', error);
+    throw new Error(`Failed to generate ZIP bundle: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 /**
  * Export notes as a .t42 ZIP bundle and trigger download
  */
 export async function exportNotesAsTrip42Bundle(notes: Note[], customName?: string): Promise<void> {
+  console.log('exportNotesAsTrip42Bundle: Starting export for', notes.length, 'notes');
+  
   try {
-    const zipBlob = await createTrip42Bundle(notes);
+    // Add timeout for the entire export process
+    const exportPromise = createTrip42Bundle(notes);
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Export process timeout')), 45000)
+    );
+
+    const zipBlob = await Promise.race([exportPromise, timeoutPromise]);
+    console.log('exportNotesAsTrip42Bundle: ZIP bundle created, size:', zipBlob.size, 'bytes');
+
     const url = URL.createObjectURL(zipBlob);
 
     const dateStr = new Date().toISOString().split('T')[0];
     const defaultName = `Notes-${dateStr}`;
     const filename = `${customName || defaultName}.t42`;
+
+    console.log('exportNotesAsTrip42Bundle: Triggering download for', filename);
 
     // Trigger download
     const a = document.createElement('a');
@@ -109,9 +153,10 @@ export async function exportNotesAsTrip42Bundle(notes: Note[], customName?: stri
     document.body.removeChild(a);
 
     URL.revokeObjectURL(url);
+    console.log('exportNotesAsTrip42Bundle: Download triggered successfully');
   } catch (error) {
-    console.error('Failed to export notes:', error);
-    throw new Error('Failed to create export bundle');
+    console.error('exportNotesAsTrip42Bundle: Failed to export notes:', error);
+    throw new Error(`Failed to create export bundle: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
