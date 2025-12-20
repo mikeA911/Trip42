@@ -337,6 +337,8 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           console.log('DEBUG: Web file selected');
           window.alert('WEB Step 1: Image file selected, checking credits...');
           
+          let noteId: string; // Declare noteId in outer scope so it's accessible everywhere
+          
           // NOW check credits AFTER file is selected
           try {
             const hasCredits = await checkCreditsAndNotify(CREDIT_PRICING.SIGN_TRANSLATION, 'Sign Language Translation');
@@ -356,8 +358,8 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
             window.alert('WEB Step 2: Credits deducted, generating note ID...');
 
-            // Generate note ID
-            const noteId = generateNoteId();
+            // Generate note ID and store in local variable
+            noteId = generateNoteId();
             setTempNoteId(noteId);
             console.log('DEBUG: Generated note ID:', noteId);
 
@@ -374,31 +376,43 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
           try {
             console.log('DEBUG: Converting file to base64');
+            window.alert('WEB Step 3.5: Converting to base64...');
             // Convert file to base64 data URL for React Native compatibility
             const reader = new FileReader();
+            
+            reader.onerror = (error) => {
+              console.error('DEBUG: FileReader error:', error);
+              window.alert(`ERROR: FileReader failed - ${error}`);
+              setIsProcessing(false);
+              setProcessingMessage('');
+              resolve();
+            };
+            
             reader.onload = async (e) => {
-              const result = e.target?.result as string;
-              
-              // Extract base64 data (remove data:image/jpeg;base64, prefix if present)
-              const base64Data = result.split(',')[1] || result;
-
-              console.log('DEBUG: Calling translateSignWithGemini');
-              const translationResult = await translateSignWithGemini(base64Data, targetLanguage);
-
-              console.log('DEBUG: Translation result:', translationResult);
-              window.alert(`WEB Step 4: Translated: ${translationResult.translation.substring(0, 50)}...`);
-              
-
-              // For web/PWA, save using new media storage
-              let savedWebImageUri: string;
               try {
-                console.log('DEBUG: Saving web image with tempNoteId:', tempNoteId);
-                window.alert(`WEB Step 5: Saving image with ID: ${tempNoteId.substring(0, 10)}...`);
-                const response = await fetch(result);
-                const blob = await response.blob();
-                const file = new File([blob], `sign_${Date.now()}.jpg`, { type: 'image/jpeg' });
+                window.alert('WEB Step 3.8: Base64 ready, calling Gemini...');
+                const result = e.target?.result as string;
+                
+                // Extract base64 data (remove data:image/jpeg;base64, prefix if present)
+                const base64Data = result.split(',')[1] || result;
 
-                const saveResult = await saveMediaForNote(tempNoteId, file, file.name);
+                console.log('DEBUG: Calling translateSignWithGemini');
+                const translationResult = await translateSignWithGemini(base64Data, targetLanguage);
+
+                console.log('DEBUG: Translation result:', translationResult);
+                window.alert(`WEB Step 4: Translated: ${translationResult.translation.substring(0, 50)}...`);
+                
+
+                // For web/PWA, save using new media storage
+                let savedWebImageUri: string;
+                try {
+                  console.log('DEBUG: Saving web image with noteId:', noteId);
+                  window.alert(`WEB Step 5: Saving image with ID: ${noteId.substring(0, 10)}...`);
+                  const response = await fetch(result);
+                  const blob = await response.blob();
+                  const file = new File([blob], `sign_${Date.now()}.jpg`, { type: 'image/jpeg' });
+
+                  const saveResult = await saveMediaForNote(noteId, file, file.name);
                 const { path } = saveResult as { path: string; thumbPath?: string };
 
                 savedWebImageUri = path;
@@ -431,9 +445,16 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
               console.log('DEBUG: Calling handleAutoSaveSignTranslation');
 
-              // Auto-save sign translation notes immediately for better UX
-              await handleAutoSaveSignTranslation([savedWebImageUri]);
-              window.alert('WEB Success: Note saved successfully!');
+                // Auto-save sign translation notes immediately for better UX
+                await handleAutoSaveSignTranslation([savedWebImageUri]);
+                window.alert('WEB Success: Note saved successfully!');
+              } catch (innerError) {
+                console.error('DEBUG: Error in reader.onload:', innerError);
+                window.alert(`ERROR in processing: ${innerError instanceof Error ? innerError.message : 'Unknown error'}`);
+                setIsProcessing(false);
+                setProcessingMessage('');
+                resolve();
+              }
             };
             reader.readAsDataURL(file);
           } catch (error) {
