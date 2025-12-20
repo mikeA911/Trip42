@@ -438,7 +438,8 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             reader.readAsDataURL(file);
           } catch (error) {
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-            Alert.alert('ERROR in web processing', `Failed to process sign translation: ${errorMsg}`);
+            console.error('DEBUG: Outer catch error:', error);
+            window.alert(`ERROR in web processing outer: ${errorMsg}`);
           } finally {
             setIsProcessing(false);
             setProcessingMessage('');
