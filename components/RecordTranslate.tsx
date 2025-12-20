@@ -322,14 +322,18 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
   };
 
   const handleWebSignTranslation = async () => {
-    return new Promise<void>((resolve) => {
-      
+    return new Promise<void>((resolve, reject) => {
+      console.log('DEBUG: handleWebSignTranslation called');
+      window.alert('WEB: Creating file input dialog...');
 
       // Create a hidden file input element for web/PWA
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
       input.setAttribute('capture', 'environment');
+
+      console.log('DEBUG: File input element created');
+      window.alert('WEB: File input created, setting up handlers...');
 
       input.onchange = async (event) => {
         const file = (event.target as HTMLInputElement).files?.[0];
@@ -412,12 +416,23 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             setProcessingMessage('');
           }
         } else {
-          
+          console.log('DEBUG: No file selected');
+          window.alert('WEB: No file selected - user cancelled');
         }
         resolve();
       };
 
-      input.click();
+      console.log('DEBUG: About to trigger input.click()');
+      window.alert('WEB: About to open camera/file picker...');
+      try {
+        input.click();
+        console.log('DEBUG: input.click() called');
+        window.alert('WEB: Camera/file picker should open now');
+      } catch (error) {
+        console.error('DEBUG: Error clicking input:', error);
+        window.alert(`ERROR clicking input: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        reject(error);
+      }
     });
   };
 
