@@ -114,12 +114,21 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
   const handleAutoSaveSignTranslation = async (currentMedia?: string[]) => {
     // Auto-save sign translation notes for better UX
+    console.log('DEBUG: handleAutoSaveSignTranslation called');
+    console.log('DEBUG: polishedNote:', recordingCurrentNote.polishedNote);
+    console.log('DEBUG: tempNoteId:', tempNoteId);
+    console.log('DEBUG: currentMedia:', currentMedia);
+    console.log('DEBUG: attachedMedia:', attachedMedia);
+    
     if (!recordingCurrentNote.polishedNote.trim()) {
+      console.log('DEBUG: No polished note to save, skipping auto-save');
+      showError('No polished note content to save');
       return;
     }
 
     try {
-      
+      console.log('DEBUG: Creating note object for auto-save');
+      showSuccess(`Saving note with ID: ${tempNoteId.substring(0, 8)}...`);
       const note: Note = {
         id: tempNoteId,
         title: `Sign Translation - ${new Date().toLocaleDateString()}`,
@@ -131,19 +140,25 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         noteType: 'sign_translation',
       };
 
-      
+      console.log('DEBUG: Note object created:', JSON.stringify(note, null, 2));
+      console.log('DEBUG: Calling onSaveNote...');
+      showSuccess('Calling onSaveNote callback...');
       await onSaveNote(note);
-      
+      console.log('DEBUG: onSaveNote completed successfully');
+      showSuccess('✓ Note saved successfully!');
     } catch (error) {
-      console.error('Auto-save failed:', error);
-      // Don't show error to user as this is just an auto-save
+      console.error('DEBUG: Auto-save failed with error:', error);
+      console.error('DEBUG: Error details:', JSON.stringify(error, null, 2));
+      // Show error to user so they know what went wrong
+      Alert.alert('Save Error', `Failed to save sign translation: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
   // Handler functions for the new component structure
   const handleSignTranslation = async () => {
     try {
-      
+      console.log('DEBUG: handleSignTranslation started');
+      showSuccess('Starting sign translation...');
 
       // Check credits first
       const hasCredits = await checkCreditsAndNotify(CREDIT_PRICING.SIGN_TRANSLATION, 'Sign Language Translation');
@@ -176,11 +191,20 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
       
 
+      console.log('DEBUG: Credits deducted successfully');
+      showSuccess('Credits deducted, preparing camera...');
+
+      // Generate the note ID BEFORE checking platform (needed for both web and native)
+      const noteId = generateNoteId();
+      setTempNoteId(noteId);
+      console.log('DEBUG: Generated note ID:', noteId);
+      showSuccess(`Note ID: ${noteId.substring(0, 8)}...`);
+
       // Check if we're running in a PWA or web environment
       const isWebPlatform = Platform.OS === 'web';
 
       if (isWebPlatform) {
-        
+        console.log('DEBUG: Using web platform flow');
         // Handle web/PWA environment with file input fallback
         await handleWebSignTranslation();
         return;
@@ -188,21 +212,19 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
       
 
+      console.log('DEBUG: Using native platform flow');
+
       // Original native logic for iOS/Android
       // Request camera permissions
-      
+      console.log('DEBUG: Requesting camera permissions');
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        
+        console.log('DEBUG: Camera permission denied');
         Alert.alert('Permission needed', 'Camera permission is required for sign translation');
         return;
       }
 
-      
-
-      // Generate the final note ID for media storage
-      const noteId = generateNoteId();
-      setTempNoteId(noteId);
+      console.log('DEBUG: Camera permission granted');
 
       setIsProcessing(true);
       setProcessingMessage('Marvin is analyzing...');
@@ -222,9 +244,11 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         const base64Image = result.assets[0].base64;
         if (base64Image) {
           
+          showSuccess('Translating sign...');
           const translationResult = await translateSignWithGemini(base64Image, targetLanguage);
 
-          
+          console.log('DEBUG: Translation result received');
+          showSuccess(`Translation: ${translationResult.translation.substring(0, 30)}...`);
 
           // Set the translated text and move to tabs for editing
           setRecordingCurrentNote({
@@ -239,6 +263,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           // Save the sign image using new media storage
           try {
             
+            showSuccess('Saving image...');
             const file = result.assets[0];
             const blob = await fetch(file.uri).then(r => r.blob());
             const fileObj = new File([blob], file.fileName || 'sign.jpg', { type: file.type || 'image/jpeg' });
@@ -247,14 +272,17 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             const { path } = saveResult as { path: string; thumbPath?: string };
 
             setAttachedMedia([path]);
+            showSuccess(`Image saved: ${path.substring(0, 20)}...`);
 
             setRecordingViewMode('tabs');
             setActiveRecordingTab('polished');
 
-            
+            console.log('DEBUG: Starting auto-save...');
+            showSuccess('Attempting auto-save...');
 
             // Auto-save sign translation notes immediately for better UX
             await handleAutoSaveSignTranslation([path]);
+            showSuccess('Sign translation auto-saved!');
           } catch (error) {
             console.error('Failed to save sign image:', error);
             Alert.alert('Error', 'Failed to save image. Please try again.');
@@ -262,10 +290,10 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           }
           // Note: Auto-save success message removed since it's misleading when save fails
         } else {
-          
+          console.log('DEBUG: No base64 image available');
         }
       } else {
-        
+        console.log('DEBUG: Image picker was cancelled');
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to process sign translation');
@@ -289,11 +317,12 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         const file = (event.target as HTMLInputElement).files?.[0];
         if (file) {
           
+          console.log('DEBUG: Web file selected');
           setIsProcessing(true);
           setProcessingMessage('Marvin is analyzing...');
 
           try {
-            
+            console.log('DEBUG: Converting file to base64');
             // Convert file to base64 data URL for React Native compatibility
             const reader = new FileReader();
             reader.onload = async (e) => {
@@ -302,15 +331,19 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
               // Extract base64 data (remove data:image/jpeg;base64, prefix if present)
               const base64Data = result.split(',')[1] || result;
 
-              
+              console.log('DEBUG: Calling translateSignWithGemini');
+              showSuccess('Translating sign (web)...');
               const translationResult = await translateSignWithGemini(base64Data, targetLanguage);
 
+              console.log('DEBUG: Translation result:', translationResult);
+              showSuccess(`Translation: ${translationResult.translation.substring(0, 30)}...`);
               
 
               // For web/PWA, save using new media storage
               let savedWebImageUri: string;
               try {
-                
+                console.log('DEBUG: Saving web image with tempNoteId:', tempNoteId);
+                showSuccess(`Saving image with ID: ${tempNoteId.substring(0, 8)}...`);
                 const response = await fetch(result);
                 const blob = await response.blob();
                 const file = new File([blob], `sign_${Date.now()}.jpg`, { type: 'image/jpeg' });
@@ -319,9 +352,11 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
                 const { path } = saveResult as { path: string; thumbPath?: string };
 
                 savedWebImageUri = path;
-                
+                console.log('DEBUG: Web image saved successfully at:', savedWebImageUri);
+                showSuccess(`Image saved: ${savedWebImageUri.substring(0, 20)}...`);
               } catch (saveError) {
                 console.error('DEBUG: Failed to save web image:', saveError);
+                console.error('DEBUG: Save error details:', JSON.stringify(saveError, null, 2));
                 Alert.alert('Error', 'Failed to save image. Please try again.');
                 return; // Don't proceed with translation if file saving fails
               }
@@ -336,17 +371,21 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
               
 
+              console.log('DEBUG: Setting recording current note');
+
               // Add the file URI to attached media
               setAttachedMedia([savedWebImageUri]);
-              
+              console.log('DEBUG: Attached media set to:', [savedWebImageUri]);
 
               setRecordingViewMode('tabs');
               setActiveRecordingTab('polished');
 
-              
+              console.log('DEBUG: Calling handleAutoSaveSignTranslation');
+              showSuccess('Attempting auto-save (web)...');
 
               // Auto-save sign translation notes immediately for better UX
               await handleAutoSaveSignTranslation([savedWebImageUri]);
+              showSuccess('Sign translation auto-saved!');
               // Note: Auto-save success message removed since it's misleading when save fails
             };
             reader.readAsDataURL(file);
