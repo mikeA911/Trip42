@@ -115,20 +115,11 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
   const handleAutoSaveSignTranslation = async (currentMedia?: string[]) => {
     // Auto-save sign translation notes for better UX
-    console.log('DEBUG: handleAutoSaveSignTranslation called');
-    console.log('DEBUG: polishedNote:', recordingCurrentNote.polishedNote);
-    console.log('DEBUG: tempNoteId:', tempNoteId);
-    console.log('DEBUG: currentMedia:', currentMedia);
-    console.log('DEBUG: attachedMedia:', attachedMedia);
-    
     if (!recordingCurrentNote.polishedNote.trim()) {
-      console.log('DEBUG: No polished note to save, skipping auto-save');
-      Alert.alert('ERROR in auto-save', 'No polished note content to save');
       return;
     }
 
     try {
-      console.log('DEBUG: Creating note object for auto-save');
       const note: Note = {
         id: tempNoteId,
         title: `Sign Translation - ${new Date().toLocaleDateString()}`,
@@ -140,31 +131,20 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         noteType: 'sign_translation',
       };
 
-      console.log('DEBUG: Note object created:', JSON.stringify(note, null, 2));
-      console.log('DEBUG: Calling onSaveNote...');
-      Alert.alert('Step 5.5', `About to call onSaveNote with note ID: ${tempNoteId.substring(0, 10)}...`);
       await onSaveNote(note);
-      console.log('DEBUG: onSaveNote completed successfully');
-      Alert.alert('Step 6', 'onSaveNote completed successfully!');
     } catch (error) {
-      console.error('DEBUG: Auto-save failed with error:', error);
-      console.error('DEBUG: Error details:', JSON.stringify(error, null, 2));
-      // Show error to user so they know what went wrong
-      Alert.alert('ERROR in onSaveNote', `Failed to save sign translation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Auto-save failed:', error);
+      Alert.alert('Save Error', `Failed to save sign translation: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
   // Handler functions for the new component structure
   const handleSignTranslation = async () => {
     try {
-      console.log('DEBUG: handleSignTranslation started');
-
       // Check if we're running in a PWA or web environment - do this FIRST
       const isWebPlatform = Platform.OS === 'web';
 
       if (isWebPlatform) {
-        console.log('DEBUG: Using web platform flow');
-        window.alert('INIT: Sign translation starting (web mode)');
         // For web, we need to trigger file input IMMEDIATELY during user gesture
         // Do credits/ID generation after file is selected
         await handleWebSignTranslationWithEarlyInput();
@@ -172,7 +152,6 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       }
 
       // Native path continues with original flow
-      window.alert('INIT: Sign translation started');
 
       // Check credits first
       const hasCredits = await checkCreditsAndNotify(CREDIT_PRICING.SIGN_TRANSLATION, 'Sign Language Translation');
@@ -198,36 +177,21 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       // Deduct credits for sign translation
       const creditDeducted = await deductCredits(CREDIT_PRICING.SIGN_TRANSLATION, 'Sign Language Translation');
       if (!creditDeducted) {
-        
         Alert.alert('Error', 'Failed to process credits. Please try again.');
         return;
       }
 
-      
-
-      console.log('DEBUG: Credits deducted successfully');
-
       // Generate the note ID BEFORE checking platform (needed for both web and native)
       const noteId = generateNoteId();
       setTempNoteId(noteId);
-      console.log('DEBUG: Generated note ID:', noteId);
-      Alert.alert('INIT', `Ready! Note ID: ${noteId.substring(0, 10)}...`);
-
-      
-
-      console.log('DEBUG: Using native platform flow');
 
       // Original native logic for iOS/Android
       // Request camera permissions
-      console.log('DEBUG: Requesting camera permissions');
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        console.log('DEBUG: Camera permission denied');
         Alert.alert('Permission needed', 'Camera permission is required for sign translation');
         return;
       }
-
-      console.log('DEBUG: Camera permission granted');
 
       setIsProcessing(true);
       setProcessingMessage('Marvin is analyzing...');
@@ -243,18 +207,11 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       
 
       if (!result.canceled && result.assets[0]) {
-        console.log('DEBUG: Image captured');
-        Alert.alert('Step 1', 'Image captured');
         const base64Image = result.assets[0].base64;
         if (base64Image) {
-          console.log('DEBUG: Calling translateSignWithGemini');
           const translationResult = await translateSignWithGemini(base64Image, targetLanguage);
 
-          console.log('DEBUG: Translation result received');
-          Alert.alert('Step 2', `Translated: ${translationResult.translation.substring(0, 50)}...`);
-
           // Set the translated text and move to tabs for editing
-          console.log('DEBUG: Setting recording current note state');
           setRecordingCurrentNote({
             rawTranscription: translationResult.translation,
             polishedNote: translationResult.translation,
@@ -262,57 +219,34 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             audioUri: undefined
           });
 
-          console.log('DEBUG: Note state set, preparing to save image');
-          Alert.alert('Step 3', `Note state set. NoteID: ${noteId.substring(0, 10)}... Starting image save...`);
-
           // Save the sign image using new media storage
           try {
-            console.log('DEBUG: Starting image save process');
             const file = result.assets[0];
-            console.log('DEBUG: Fetching blob from uri:', file.uri);
             const blob = await fetch(file.uri).then(r => r.blob());
-            console.log('DEBUG: Blob fetched, creating File object');
             const fileObj = new File([blob], file.fileName || 'sign.jpg', { type: file.type || 'image/jpeg' });
 
-            console.log('DEBUG: Calling saveMediaForNote with noteId:', noteId);
             const saveResult = await saveMediaForNote(noteId, fileObj, file.fileName || 'sign.jpg');
-            console.log('DEBUG: saveMediaForNote result:', saveResult);
             const { path } = saveResult as { path: string; thumbPath?: string };
 
-            console.log('DEBUG: Setting attached media to:', path);
             setAttachedMedia([path]);
-            Alert.alert('Step 4', `Image saved at: ${path.substring(0, 40)}...`);
 
             setRecordingViewMode('tabs');
             setActiveRecordingTab('polished');
 
-            console.log('DEBUG: Starting auto-save...');
-            Alert.alert('Step 5', 'Calling handleAutoSaveSignTranslation...');
-
             // Auto-save sign translation notes immediately for better UX
             await handleAutoSaveSignTranslation([path]);
-            Alert.alert('Success!', 'Note saved successfully!');
           } catch (error) {
-            console.error('DEBUG: Failed to save sign image:', error);
-            console.error('DEBUG: Error details:', JSON.stringify(error, null, 2));
+            console.error('Failed to save sign image:', error);
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-            Alert.alert('ERROR at image save', `Failed to save image: ${errorMsg}. Please try again.`);
+            Alert.alert('Error', `Failed to save image: ${errorMsg}. Please try again.`);
             setIsProcessing(false);
             setProcessingMessage('');
-            return; // Don't proceed with translation if file saving fails
+            return;
           }
-          // Note: Auto-save success message removed since it's misleading when save fails
-        } else {
-          console.log('DEBUG: No base64 image available');
-          Alert.alert('ERROR', 'No base64 image data');
         }
-      } else {
-        console.log('DEBUG: Image picker was cancelled');
       }
     } catch (error) {
-      console.error('DEBUG: Sign translation failed:', error);
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      showError(`Sign translation failed: ${errorMsg}`);
       Alert.alert('Error', `Failed to process sign translation: ${errorMsg}`);
     } finally {
       setIsProcessing(false);
@@ -322,29 +256,21 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
   const handleWebSignTranslationWithEarlyInput = async () => {
     return new Promise<void>((resolve, reject) => {
-      console.log('DEBUG: handleWebSignTranslationWithEarlyInput called');
-
       // Create file input IMMEDIATELY while in user gesture context
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
       input.setAttribute('capture', 'environment');
 
-      console.log('DEBUG: File input element created');
-
       input.onchange = async (event) => {
         const file = (event.target as HTMLInputElement).files?.[0];
         if (file) {
-          console.log('DEBUG: Web file selected');
-          window.alert('WEB Step 1: Image file selected, checking credits...');
-          
-          let noteId: string; // Declare noteId in outer scope so it's accessible everywhere
+          let noteId: string;
           
           // NOW check credits AFTER file is selected
           try {
             const hasCredits = await checkCreditsAndNotify(CREDIT_PRICING.SIGN_TRANSLATION, 'Sign Language Translation');
             if (!hasCredits) {
-              window.alert('ERROR: Insufficient credits');
               resolve();
               return;
             }
@@ -352,22 +278,17 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             // Deduct credits
             const creditDeducted = await deductCredits(CREDIT_PRICING.SIGN_TRANSLATION, 'Sign Language Translation');
             if (!creditDeducted) {
-              window.alert('ERROR: Failed to process credits');
+              Alert.alert('Error', 'Failed to process credits');
               resolve();
               return;
             }
 
-            window.alert('WEB Step 2: Credits deducted, generating note ID...');
-
             // Generate note ID and store in local variable
             noteId = generateNoteId();
             setTempNoteId(noteId);
-            console.log('DEBUG: Generated note ID:', noteId);
-
-            window.alert(`WEB Step 3: Note ID: ${noteId.substring(0, 10)}...`);
             
           } catch (error) {
-            window.alert(`ERROR in credits/ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            Alert.alert('Error', `Credits check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
             resolve();
             return;
           }
@@ -376,14 +297,12 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           setProcessingMessage('Marvin is analyzing...');
 
           try {
-            console.log('DEBUG: Converting file to base64');
-            window.alert('WEB Step 3.5: Converting to base64...');
             // Convert file to base64 data URL for React Native compatibility
             const reader = new FileReader();
             
             reader.onerror = (error) => {
-              console.error('DEBUG: FileReader error:', error);
-              window.alert(`ERROR: FileReader failed - ${error}`);
+              console.error('FileReader error:', error);
+              Alert.alert('Error', 'Failed to read image file');
               setIsProcessing(false);
               setProcessingMessage('');
               resolve();
@@ -391,71 +310,49 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             
             reader.onload = async (e) => {
               try {
-                window.alert('WEB Step 3.8: Base64 ready, compressing...');
                 const result = e.target?.result as string;
                 
                 // Compress image to reduce size for Gemini API (max 800px, 70% quality)
-                console.log('DEBUG: Compressing image for API');
                 const compressedBase64 = await compressImageForAPI(result, 800, 0.7);
-                console.log('DEBUG: Original size:', result.length, 'Compressed size:', compressedBase64.length);
-                
-                window.alert(`WEB Step 3.9: Compressed (${Math.round(compressedBase64.length / 1024)}KB), calling Gemini...`);
 
-                console.log('DEBUG: Calling translateSignWithGemini');
                 const translationResult = await translateSignWithGemini(compressedBase64, targetLanguage);
-
-                console.log('DEBUG: Translation result:', translationResult);
-                window.alert(`WEB Step 4: Translated: ${translationResult.translation.substring(0, 50)}...`);
-                
 
                 // For web/PWA, save using new media storage
                 let savedWebImageUri: string;
                 try {
-                  console.log('DEBUG: Saving web image with noteId:', noteId);
-                  window.alert(`WEB Step 5: Saving image with ID: ${noteId.substring(0, 10)}...`);
                   const response = await fetch(result);
                   const blob = await response.blob();
                   const file = new File([blob], `sign_${Date.now()}.jpg`, { type: 'image/jpeg' });
 
                   const saveResult = await saveMediaForNote(noteId, file, file.name);
-                const { path } = saveResult as { path: string; thumbPath?: string };
+                  const { path } = saveResult as { path: string; thumbPath?: string };
 
-                savedWebImageUri = path;
-                console.log('DEBUG: Web image saved successfully at:', savedWebImageUri);
-                window.alert(`WEB Step 6: Image saved at: ${savedWebImageUri.substring(0, 40)}...`);
-              } catch (saveError) {
-                console.error('DEBUG: Failed to save web image:', saveError);
-                console.error('DEBUG: Save error details:', JSON.stringify(saveError, null, 2));
-                window.alert(`ERROR at web image save: ${saveError instanceof Error ? saveError.message : 'Unknown error'}`);
-                return; // Don't proceed with translation if file saving fails
-              }
+                  savedWebImageUri = path;
+                } catch (saveError) {
+                  console.error('Failed to save web image:', saveError);
+                  Alert.alert('Error', `Failed to save image: ${saveError instanceof Error ? saveError.message : 'Unknown error'}`);
+                  return;
+                }
 
-              // Set the translated text and move to tabs for editing
-              setRecordingCurrentNote({
-                rawTranscription: translationResult.translation,
-                polishedNote: translationResult.translation,
-                signImageUrl: savedWebImageUri,
-                audioUri: undefined
-              });
+                // Set the translated text and move to tabs for editing
+                setRecordingCurrentNote({
+                  rawTranscription: translationResult.translation,
+                  polishedNote: translationResult.translation,
+                  signImageUrl: savedWebImageUri,
+                  audioUri: undefined
+                });
 
-              console.log('DEBUG: Setting recording current note');
-              window.alert('WEB Step 7: Note state set, calling auto-save...');
+                // Add the file URI to attached media
+                setAttachedMedia([savedWebImageUri]);
 
-              // Add the file URI to attached media
-              setAttachedMedia([savedWebImageUri]);
-              console.log('DEBUG: Attached media set to:', [savedWebImageUri]);
-
-              setRecordingViewMode('tabs');
-              setActiveRecordingTab('polished');
-
-              console.log('DEBUG: Calling handleAutoSaveSignTranslation');
+                setRecordingViewMode('tabs');
+                setActiveRecordingTab('polished');
 
                 // Auto-save sign translation notes immediately for better UX
                 await handleAutoSaveSignTranslation([savedWebImageUri]);
-                window.alert('WEB Success: Note saved successfully!');
               } catch (innerError) {
-                console.error('DEBUG: Error in reader.onload:', innerError);
-                window.alert(`ERROR in processing: ${innerError instanceof Error ? innerError.message : 'Unknown error'}`);
+                console.error('Error in reader.onload:', innerError);
+                Alert.alert('Error', `Processing failed: ${innerError instanceof Error ? innerError.message : 'Unknown error'}`);
                 setIsProcessing(false);
                 setProcessingMessage('');
                 resolve();
@@ -464,23 +361,18 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             reader.readAsDataURL(file);
           } catch (error) {
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-            console.error('DEBUG: Outer catch error:', error);
-            window.alert(`ERROR in web processing outer: ${errorMsg}`);
+            console.error('Outer catch error:', error);
+            Alert.alert('Error', `Processing failed: ${errorMsg}`);
           } finally {
             setIsProcessing(false);
             setProcessingMessage('');
           }
-        } else {
-          console.log('DEBUG: No file selected');
-          window.alert('WEB: No file selected - user cancelled');
         }
         resolve();
       };
 
       // Trigger input click IMMEDIATELY while still in user gesture
-      console.log('DEBUG: Triggering input.click()');
       input.click();
-      console.log('DEBUG: input.click() called - file picker should open');
     });
   };
 
