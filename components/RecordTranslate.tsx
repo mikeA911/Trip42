@@ -192,13 +192,12 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       
 
       console.log('DEBUG: Credits deducted successfully');
-      showSuccess('Credits deducted, preparing camera...');
 
       // Generate the note ID BEFORE checking platform (needed for both web and native)
       const noteId = generateNoteId();
       setTempNoteId(noteId);
       console.log('DEBUG: Generated note ID:', noteId);
-      showSuccess(`Note ID: ${noteId.substring(0, 8)}...`);
+      showSuccess(`✓ Ready - ID: ${noteId.substring(0, 8)}...`, 2000);
 
       // Check if we're running in a PWA or web environment
       const isWebPlatform = Platform.OS === 'web';
