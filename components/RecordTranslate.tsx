@@ -122,13 +122,12 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
     
     if (!recordingCurrentNote.polishedNote.trim()) {
       console.log('DEBUG: No polished note to save, skipping auto-save');
-      showError('No polished note content to save');
+      Alert.alert('ERROR in auto-save', 'No polished note content to save');
       return;
     }
 
     try {
       console.log('DEBUG: Creating note object for auto-save');
-      showSuccess(`Saving note with ID: ${tempNoteId.substring(0, 8)}...`);
       const note: Note = {
         id: tempNoteId,
         title: `Sign Translation - ${new Date().toLocaleDateString()}`,
@@ -142,15 +141,15 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
       console.log('DEBUG: Note object created:', JSON.stringify(note, null, 2));
       console.log('DEBUG: Calling onSaveNote...');
-      showSuccess('Calling onSaveNote callback...');
+      Alert.alert('Step 5.5', `About to call onSaveNote with note ID: ${tempNoteId.substring(0, 10)}...`);
       await onSaveNote(note);
       console.log('DEBUG: onSaveNote completed successfully');
-      showSuccess('✓ Note saved successfully!');
+      Alert.alert('Step 6', 'onSaveNote completed successfully!');
     } catch (error) {
       console.error('DEBUG: Auto-save failed with error:', error);
       console.error('DEBUG: Error details:', JSON.stringify(error, null, 2));
       // Show error to user so they know what went wrong
-      Alert.alert('Save Error', `Failed to save sign translation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      Alert.alert('ERROR in onSaveNote', `Failed to save sign translation: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -239,19 +238,18 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       
 
       if (!result.canceled && result.assets[0]) {
-        
+        console.log('DEBUG: Image captured');
+        Alert.alert('Step 1', 'Image captured');
         const base64Image = result.assets[0].base64;
         if (base64Image) {
-          
-          showSuccess('Translating sign...');
+          console.log('DEBUG: Calling translateSignWithGemini');
           const translationResult = await translateSignWithGemini(base64Image, targetLanguage);
 
           console.log('DEBUG: Translation result received');
-          showSuccess(`Translation: ${translationResult.translation.substring(0, 30)}...`);
+          Alert.alert('Step 2', `Translated: ${translationResult.translation.substring(0, 50)}...`);
 
           // Set the translated text and move to tabs for editing
           console.log('DEBUG: Setting recording current note state');
-          showSuccess('Setting note content...');
           setRecordingCurrentNote({
             rawTranscription: translationResult.translation,
             polishedNote: translationResult.translation,
@@ -260,13 +258,11 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           });
 
           console.log('DEBUG: Note state set, preparing to save image');
-          showSuccess('Preparing to save image...');
+          Alert.alert('Step 3', `Note state set. NoteID: ${noteId.substring(0, 10)}... Starting image save...`);
 
           // Save the sign image using new media storage
           try {
-            
             console.log('DEBUG: Starting image save process');
-            showSuccess('Saving image...');
             const file = result.assets[0];
             console.log('DEBUG: Fetching blob from uri:', file.uri);
             const blob = await fetch(file.uri).then(r => r.blob());
@@ -274,30 +270,28 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
             const fileObj = new File([blob], file.fileName || 'sign.jpg', { type: file.type || 'image/jpeg' });
 
             console.log('DEBUG: Calling saveMediaForNote with noteId:', noteId);
-            showSuccess('Uploading to storage...');
             const saveResult = await saveMediaForNote(noteId, fileObj, file.fileName || 'sign.jpg');
             console.log('DEBUG: saveMediaForNote result:', saveResult);
             const { path } = saveResult as { path: string; thumbPath?: string };
 
             console.log('DEBUG: Setting attached media to:', path);
             setAttachedMedia([path]);
-            showSuccess(`Image saved: ${path.substring(0, 20)}...`);
+            Alert.alert('Step 4', `Image saved at: ${path.substring(0, 40)}...`);
 
             setRecordingViewMode('tabs');
             setActiveRecordingTab('polished');
 
             console.log('DEBUG: Starting auto-save...');
-            showSuccess('Attempting auto-save...');
+            Alert.alert('Step 5', 'Calling handleAutoSaveSignTranslation...');
 
             // Auto-save sign translation notes immediately for better UX
             await handleAutoSaveSignTranslation([path]);
-            showSuccess('Sign translation auto-saved!');
+            Alert.alert('Success!', 'Note saved successfully!');
           } catch (error) {
             console.error('DEBUG: Failed to save sign image:', error);
             console.error('DEBUG: Error details:', JSON.stringify(error, null, 2));
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-            showError(`Image save failed: ${errorMsg}`);
-            Alert.alert('Error', `Failed to save image: ${errorMsg}. Please try again.`);
+            Alert.alert('ERROR at image save', `Failed to save image: ${errorMsg}. Please try again.`);
             setIsProcessing(false);
             setProcessingMessage('');
             return; // Don't proceed with translation if file saving fails
@@ -305,6 +299,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
           // Note: Auto-save success message removed since it's misleading when save fails
         } else {
           console.log('DEBUG: No base64 image available');
+          Alert.alert('ERROR', 'No base64 image data');
         }
       } else {
         console.log('DEBUG: Image picker was cancelled');
