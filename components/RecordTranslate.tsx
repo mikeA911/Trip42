@@ -157,6 +157,9 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
   const handleSignTranslation = async () => {
     try {
       console.log('DEBUG: handleSignTranslation started');
+      if (Platform.OS === 'web') {
+        window.alert('INIT: Sign translation started');
+      }
 
       // Check credits first
       const hasCredits = await checkCreditsAndNotify(CREDIT_PRICING.SIGN_TRANSLATION, 'Sign Language Translation');
@@ -195,7 +198,11 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
       const noteId = generateNoteId();
       setTempNoteId(noteId);
       console.log('DEBUG: Generated note ID:', noteId);
-      Alert.alert('INIT', `Ready! Note ID: ${noteId.substring(0, 10)}...`);
+      if (Platform.OS === 'web') {
+        window.alert(`INIT: Ready! Note ID: ${noteId.substring(0, 10)}...`);
+      } else {
+        Alert.alert('INIT', `Ready! Note ID: ${noteId.substring(0, 10)}...`);
+      }
 
       // Check if we're running in a PWA or web environment
       const isWebPlatform = Platform.OS === 'web';
@@ -329,7 +336,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
         if (file) {
           
           console.log('DEBUG: Web file selected');
-          Alert.alert('WEB Step 1', 'Image file selected');
+          window.alert('WEB Step 1: Image file selected');
           setIsProcessing(true);
           setProcessingMessage('Marvin is analyzing...');
 
@@ -347,14 +354,14 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
               const translationResult = await translateSignWithGemini(base64Data, targetLanguage);
 
               console.log('DEBUG: Translation result:', translationResult);
-              Alert.alert('WEB Step 2', `Translated: ${translationResult.translation.substring(0, 50)}...`);
+              window.alert(`WEB Step 2: Translated: ${translationResult.translation.substring(0, 50)}...`);
               
 
               // For web/PWA, save using new media storage
               let savedWebImageUri: string;
               try {
                 console.log('DEBUG: Saving web image with tempNoteId:', tempNoteId);
-                Alert.alert('WEB Step 3', `Saving image with ID: ${tempNoteId.substring(0, 10)}...`);
+                window.alert(`WEB Step 3: Saving image with ID: ${tempNoteId.substring(0, 10)}...`);
                 const response = await fetch(result);
                 const blob = await response.blob();
                 const file = new File([blob], `sign_${Date.now()}.jpg`, { type: 'image/jpeg' });
@@ -364,11 +371,11 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
                 savedWebImageUri = path;
                 console.log('DEBUG: Web image saved successfully at:', savedWebImageUri);
-                Alert.alert('WEB Step 4', `Image saved at: ${savedWebImageUri.substring(0, 40)}...`);
+                window.alert(`WEB Step 4: Image saved at: ${savedWebImageUri.substring(0, 40)}...`);
               } catch (saveError) {
                 console.error('DEBUG: Failed to save web image:', saveError);
                 console.error('DEBUG: Save error details:', JSON.stringify(saveError, null, 2));
-                Alert.alert('ERROR at web image save', `Failed to save image: ${saveError instanceof Error ? saveError.message : 'Unknown error'}`);
+                window.alert(`ERROR at web image save: ${saveError instanceof Error ? saveError.message : 'Unknown error'}`);
                 return; // Don't proceed with translation if file saving fails
               }
 
@@ -381,7 +388,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
               });
 
               console.log('DEBUG: Setting recording current note');
-              Alert.alert('WEB Step 5', 'Note state set, calling auto-save...');
+              window.alert('WEB Step 5: Note state set, calling auto-save...');
 
               // Add the file URI to attached media
               setAttachedMedia([savedWebImageUri]);
@@ -394,7 +401,7 @@ export const RecordTranslate: React.FC<RecordTranslateProps> = ({ onSaveNote, se
 
               // Auto-save sign translation notes immediately for better UX
               await handleAutoSaveSignTranslation([savedWebImageUri]);
-              Alert.alert('WEB Success!', 'Note saved successfully!');
+              window.alert('WEB Success: Note saved successfully!');
             };
             reader.readAsDataURL(file);
           } catch (error) {
